@@ -12,11 +12,63 @@ import time
 cdef extern from "stdlib.h":
     cdef int RAND_MAX # Need to this to normalize appropriately to uniform dist
 
+# MT Stuff
+
+cdef unsigned NN = 312
+cdef unsigned MM = 156
+cdef unsigned long long MATRIX_A = 0xB5026F5AA96619E9ULL
+cdef unsigned long long UM = 0xFFFFFFFF80000000ULL
+cdef unsigned long long LM = 0x7FFFFFFFULL
+cdef unsigned long long mt[312]
+cdef unsigned mti = NN + 1
+cdef unsigned long long mag01[2]
+
+cdef mt_seed(unsigned long long seed):
+    global mt
+    global mti
+    mt[0] = seed
+    for mti in range(1,NN):
+        mt[mti] = (6364136223846793005ULL * (mt[mti-1] ^ (mt[mti-1] >> 62)) + mti)
+
+    mag01[0] = 0ULL
+    mag01[1] = MATRIX_A
 
 
+cdef unsigned long long genrand64():
+    cdef int i
+    cdef unsigned long long x
+    global mag01
+    global mti
+    global mt
+    global NN
+    global MM
+    global UM
+    global LM
 
+    if mti >= NN:
+        for i in range(NN-MM):
+            x = (mt[i]&UM) | (mt[i+1]&LM)
+            mt[i] = mt[i+MM] ^ (x>>1) ^ mag01[int(x&1ULL)]
 
+        for i in range(NN-MM, NN-1):
+            x = (mt[i]&UM)|(mt[i+1]&LM)
+            mt[i] = mt[i+(MM-NN)] ^ (x>>1) ^ mag01[int(x&1ULL)]
 
+        x = (mt[NN-1]&UM)|(mt[0]&LM)
+        mt[NN-1] = mt[MM-1] ^ (x>>1) ^ mag01[int(x&1ULL)]
+
+        mti = 0;
+
+    x = mt[mti]
+    mti += 1
+    x ^= (x >> 29) & 0x5555555555555555ULL
+    x ^= (x << 17) & 0x71D67FFFEDA60000ULL
+    x ^= (x << 37) & 0xFFF7EEE000000000ULL
+    x ^= (x >> 43);
+
+    return x
+
+# Functions
 
 # Seed the random number generator
 cdef seed_random():
@@ -24,11 +76,10 @@ cdef seed_random():
     Seed the C random number generator with the current system time.
     :return: none
     """
-    srand(time.time())
+    mt_seed(time.time())
 
 def py_seed_random():
     seed_random()
-
 
 
 
@@ -38,12 +89,10 @@ cdef double exponential_rv(double Lambda):
     :param Lambda: (double) the rate parameter of the distribution
     :return: (double) a randomly distributed number
     """
-    return -1.0/Lambda* log( (<double> rand()) / RAND_MAX )
+    return -1.0/Lambda* log( uniform_rv() )
 
 def py_exponential_rv(double Lambda):
     return exponential_rv(Lambda)
-
-
 
 
 
@@ -52,7 +101,7 @@ cdef double uniform_rv():
     Generate a uniform random variable in [0,1]
     :return: (double) a random uniform number in [0,1]
     """
-    return (<double> rand()) / RAND_MAX
+    return (genrand64() >> 11) * (1.0/9007199254740991.0)
 
 def py_uniform_rv():
     return uniform_rv()
@@ -120,7 +169,7 @@ cdef double erlang_rv(double k , double theta):
     cdef unsigned i = 0
     cdef unsigned num_iterations = int(k+0.5)
     for i in range(num_iterations):
-        answer += -1.0 * theta * log( (<double> rand()) / RAND_MAX )
+        answer += -1.0 * theta * log( uniform_rv() )
     return answer
 
 def py_erlang_rv(double k, double theta):
