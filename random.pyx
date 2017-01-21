@@ -26,12 +26,16 @@ cdef unsigned long long mag01[2]
 cdef mt_seed(unsigned long long seed):
     global mt
     global mti
+    global mag01
+    global NN
+    global MATRIX_A
     mt[0] = seed
     for mti in range(1,NN):
         mt[mti] = (6364136223846793005ULL * (mt[mti-1] ^ (mt[mti-1] >> 62)) + mti)
 
     mag01[0] = 0ULL
     mag01[1] = MATRIX_A
+    mti = NN
 
 
 cdef unsigned long long genrand64():
@@ -56,8 +60,7 @@ cdef unsigned long long genrand64():
 
         x = (mt[NN-1]&UM)|(mt[0]&LM)
         mt[NN-1] = mt[MM-1] ^ (x>>1) ^ mag01[int(x&1ULL)]
-
-        mti = 0;
+        mti = 0
 
     x = mt[mti]
     mti += 1
@@ -68,18 +71,24 @@ cdef unsigned long long genrand64():
 
     return x
 
+def py_rand_int():
+    return genrand64()
+
 # Functions
 
 # Seed the random number generator
-cdef seed_random():
+cdef seed_random(unsigned long long seed):
     """
     Seed the C random number generator with the current system time.
     :return: none
     """
-    mt_seed(time.time())
+    if seed == 0:
+        mt_seed(time.time())
+    else:
+        mt_seed(seed)
 
-def py_seed_random():
-    seed_random()
+def py_seed_random(unsigned long long seed = 0):
+    seed_random(seed)
 
 
 

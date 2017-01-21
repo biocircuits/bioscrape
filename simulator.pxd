@@ -305,10 +305,17 @@ cdef class DeterministicDilutionSimulator(RegularSimulator):
     """
     A class for implementing a deterministic simulator.
     """
-
+    cdef double atol
+    cdef double rtol
+    cdef unsigned mxstep
     cdef double dilution_rate
 
     cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints)
+
+    cdef inline set_tolerance(self, double atol, double rtol):
+        self.atol = atol
+        self.rtol = rtol
+
 
 cdef class SSASimulator(RegularSimulator):
     """

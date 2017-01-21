@@ -8,7 +8,7 @@ cimport numpy as np
 cdef extern from "stdlib.h":
     cdef int RAND_MAX # Need to this to normalize appropriately to uniform dist
 
-cdef seed_random()
+cdef seed_random(unsigned long long seed)
 cdef double exponential_rv(double Lambda)
 cdef double uniform_rv()
 cdef double normal_rv(double mean, double std)

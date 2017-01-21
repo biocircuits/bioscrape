@@ -997,12 +997,23 @@ cdef class DeterministicSimulator(RegularSimulator):
 
 cdef class DeterministicDilutionSimulator(RegularSimulator):
     """
-    A class for implementing a deterministic simulator with built in dilution.
+    A class for implementing a deterministic simulator with dilution.
     """
 
-    def __init__(self, double dilution_rate):
-        self.dilution_rate = dilution_rate
+    def __init__(self):
+        self.atol = 1E-8
+        self.rtol = 1E-8
+        self.mxstep = 500000
+        self.dilution_rate = 0.0
 
+    def py_set_tolerance(self, double atol, double rtol):
+        self.set_tolerance(atol, rtol)
+
+    def py_set_mxstep(self, unsigned mxstep):
+        self.mxstep = mxstep
+
+    def py_set_dilution_rate(self, double rate):
+        self.dilution_rate = rate
 
     def _helper_simulate(self, CSimInterface sim, np.ndarray timepoints):
         """
@@ -1016,31 +1027,48 @@ cdef class DeterministicDilutionSimulator(RegularSimulator):
         cdef unsigned num_species = S.shape[0]
         cdef unsigned num_reactions = S.shape[1]
 
-        propensity = np.zeros(num_reactions)
+        global global_simulator
+        global global_derivative_buffer
 
-        def rhs_dilution(np.ndarray state, double t):
-            # sim.compute_propensities(<double*> ((<np.ndarray> state ).data), <double*> ((<np.ndarray> propensity ).data) )
-            # if t <= 9000.0:
-            #     propensity[num_reactions-1] = 0.0
-            # return np.dot(S, propensity)
-            cdef np.ndarray[np.double_t, ndim=1] temp = np.zeros(num_species,)
-            sim.apply_repeated_rules(<double*> state.data)
-            sim.calculate_determinstic_derivative( <double*> state.data, <double*> temp.data, t)
-            temp = temp - self.dilution_rate * state
-            return temp
-
-        cdef np.ndarray[np.double_t, ndim=2] results = odeint(rhs_dilution, x0, timepoints, atol=1E-3, rtol=1E-6)
+        global_simulator = <void*> sim
+        global_derivative_buffer = np.empty(num_species,)
 
         cdef unsigned index = 0
-        if sim.get_number_of_rules() > 0:
-            for index in range(timepoints.shape[0]):
-                sim.apply_repeated_rules( &(results[index,0]) )
+        cdef unsigned steps_allowed = 500
+        cdef np.ndarray[np.double_t, ndim=2] results
 
-        return SSAResult(timepoints, results)
+        def rhs_dilution(np.ndarray[np.double_t,ndim=1] state, double t):
+            return rhs_global(state, t) - self.dilution_rate*state
+
+
+        while True:
+            results, full_output = odeint(rhs_dilution, x0, timepoints,atol=self.atol, rtol=self.rtol,
+                                         mxstep=steps_allowed, full_output=True)
+
+            if full_output['message'] == 'Integration successful.':
+                if sim.get_number_of_rules() > 0:
+                    for index in range(timepoints.shape[0]):
+                        sim.apply_repeated_rules( &(results[index,0]) )
+                return SSAResult(timepoints,results)
+
+            sys.stderr.write('odeint failed with mxstep=%d...' % (steps_allowed))
+
+            # make the mxstep bigger if the user specified a bigger max
+            if steps_allowed >= self.mxstep:
+                break
+            else:
+                steps_allowed *= 10
+                if steps_allowed > self.mxstep:
+                    steps_allowed = self.mxstep
+
+        sys.stderr.write('odeint failed entirely\n')
+
+        return SSAResult(timepoints,results * np.nan)
 
 
     cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints):
         return self._helper_simulate(sim,timepoints)
+
 
 
 
