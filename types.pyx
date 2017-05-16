@@ -718,13 +718,13 @@ cdef class Delay:
         """
         pass
 
-    def get_species_and_parameters(self):
+    def get_species_and_parameters(self, dict fields):
         """
         get which fields are species and which are parameters
         :return: (list(string), list(string)) First entry is the fields that are species, second entry is the fields
                                               that are parameters
         """
-        return ([],[])
+        return [],[]
 
 
 cdef class NoDelay(Delay):
@@ -749,8 +749,8 @@ cdef class FixedDelay(Delay):
             else:
                 print('Warning! Useless field for fixed delay', key)
 
-    def get_species_and_parameters(self):
-        return ([],['delay'])
+    def get_species_and_parameters(self, dict fields):
+        return [], [fields['delay']]
 
 cdef class GaussianDelay(Delay):
 
@@ -770,8 +770,8 @@ cdef class GaussianDelay(Delay):
             else:
                 print('Warning! Useless field for gaussian delay', key)
 
-    def get_species_and_parameters(self):
-        return ([],['mean', 'std'])
+    def get_species_and_parameters(self, dict fields):
+        return [],[fields['mean'], fields['std']]
 
 
 
@@ -792,8 +792,8 @@ cdef class GammaDelay(Delay):
             else:
                 print('Warning! Useless field for gamma delay', key)
 
-    def get_species_and_parameters(self):
-        return ([],['k', 'theta'])
+    def get_species_and_parameters(self, dict fields):
+        return [],[fields['k'], fields['theta']]
 
 ##################################################                ####################################################
 ######################################              RULE   TYPES                       ###############################
@@ -807,15 +807,34 @@ cdef class Rule:
     cdef void execute_rule(self, double *state, double *params):
         raise NotImplementedError('Creating base Rule class. This should be subclassed.')
 
+    cdef void execute_volume_rule(self, double *state, double *params, double volume):
+        self.execute_rule(state, params)
 
     def py_execute_rule(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params):
         self.execute_rule(<double*> state.data, <double*> params.data)
 
-    def set_species(self, species, species_indices):
+    def py_execute_volume_rule(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params,
+                               double volume ):
+        self.execute_volume_rule(<double*> state.data, <double*> params.data, volume)
+
+    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices):
+        """
+        Initializes the parameters and species to look at the right indices in the state
+        :param dictionary: (dict:str--> str) the fields for the propensity 'k','s1' etc map to the actual parameter
+                                             and species names
+        :param species_indices: (dict:str-->int) map species names to entry in species vector
+        :param parameter_indices: (dict:str-->int) map param names to entry in param vector
+        :return: nothing
+        """
         pass
 
-    def set_parameters(self, parameters, parameter_indices):
-        pass
+    def get_species_and_parameters(self, dict fields):
+        """
+        get which fields are species and which are parameters
+        :param dict(str-->str) dictionary containing the XML attributes for that propensity to process.
+        :return: (list(string), list(string)) First entry is the names of species, second entry is the names of parameters
+        """
+        return (None,None)
 
 
 cdef class AdditiveAssignmentRule(Rule):
@@ -831,18 +850,70 @@ cdef class AdditiveAssignmentRule(Rule):
 
         state[self.dest_index] = answer
 
-    def set_species(self, species, species_indices):
-        """
-        Set the species indices for the source and destination species for this rule.
-        :param species: (dict:str -> str) "source" maps to a list of the species names for what should be added up
-                                          "dest" maps to a string giving the name of the species that will equal the sum
-        :param species_indices: (dict:str -> unsigned) Map from species names to vector indices in species
-        :return: None
-        """
+    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices):
+        equation = dictionary['equation']
+        split_eqn = [s.strip() for s in equation.split('=') ]
+        assert(len(split_eqn) == 2)
+        dest_name = split_eqn[0]
+        src_names = [s.strip() for s in split_eqn[1].split('+')]
 
-        self.dest_index = species_indices[   species['dest']    ]
-        for string in species['source']:
+        self.dest_index = species_indices[dest_name]
+
+        for string in src_names:
             self.species_source_indices.push_back(  species_indices[string]  )
+
+    def get_species_and_parameters(self, dict fields):
+        # Add the species names
+        equation = fields['equation']
+        split_eqn = [s.strip() for s in equation.split('=') ]
+        assert(len(split_eqn) == 2)
+        dest_name = split_eqn[0]
+        species_names = [s.strip() for s in split_eqn[1].split('+')]
+        species_names.append(dest_name)
+        return species_names, []
+
+
+
+cdef class GeneralAssignmentRule(Rule):
+    """
+    A class for doing rules that must be done either at the beginning of a simulation or repeatedly at each step of
+    the simulation.
+    """
+    cdef void execute_rule(self, double *state, double *params):
+        state[self.dest_index] = self.rhs.evaluate(state,params)
+
+    cdef void execute_volume_rule(self, double *state, double *params, double volume):
+        state[self.dest_index] = self.rhs.volume_evaluate(state,params,volume)
+
+    def initialize(self, dict fields, species2index, params2index):
+        self.rhs = parse_expression(fields['equation'].split('=')[1], species2index, params2index)
+        self.dest_index = species2index[ fields['equation'].split('=')[0].strip() ]
+
+    def get_species_and_parameters(self, dict fields):
+        instring = fields['equation'].strip()
+
+        dest_name = instring.split('=')[0].strip()
+
+        instring = instring.split('=')[1]
+
+        # split on all the operators and then strip down all whitespace
+        names = re.split('[*^+()]',  instring)
+        names = [x.strip() for x in names]
+        names = [x for x in names if x != '']
+
+        species_names = [dest_name]
+        param_names = []
+
+        for name in names:
+            if is_a_number(name) or name == 'volume':
+                continue
+            elif name[0] == '|':
+                param_names.append(name[1:])
+            else:
+                species_names.append(name)
+
+        return species_names, param_names
+
 
 ##################################################                ####################################################
 ######################################              VOLUME TYPES                        ##############################
@@ -1204,6 +1275,7 @@ cdef class Model:
             if len(delay) != 1:
                 raise SyntaxError('Incorrect delay spec')
             delay = delay[0]
+            init_dictionary = delay.attrs
 
             if delay['type'] == 'none':
                 delay_object = NoDelay()
@@ -1220,15 +1292,13 @@ cdef class Model:
             else:
                 raise SyntaxError('Unknown delay type: ' + delay['type'])
 
+            species_names, param_names = delay_object.get_species_and_parameters(init_dictionary)
 
-            species_fields, param_fields = delay_object.get_species_and_parameters()
+            for species_name in species_names:
+                self._add_species(species_name)
+            for param_name in param_names:
+                self._add_param(param_name)
 
-            for species_field in species_fields:
-                self._add_species(delay[species_field])
-            for param_field in param_fields:
-                self._add_param(delay[param_field])
-
-            init_dictionary = delay.attrs
             init_dictionary.pop('type',None)
             delay_object.initialize(init_dictionary,self.species2index,self.params2index)
 
@@ -1241,30 +1311,24 @@ cdef class Model:
         Rules = xml.find_all('rule')
         cdef Rule rule_object
         for rule in Rules:
+            init_dictionary = rule.attrs
             # Parse the rule by rule type
             if rule['type'] == 'additive':
                 rule_object = AdditiveAssignmentRule()
-                equation = rule['equation']
-                split_eqn = equation.split('=')
-                assert(len(split_eqn) == 2)
-                dest  = split_eqn[0].strip()
-                source = [s.strip() for s in split_eqn[1].split('+')] # split the thing being added by + sign
-
-                self._add_species(dest)
-                for s in source:
-                    self._add_species(s)
-
-                species_dict = {}
-                species_dict['source'] = source
-                species_dict['dest'] = dest
-
-                rule_object.set_species(species_dict,self.species2index)
-
+            elif rule['type'] == 'assignment':
+                rule_object = GeneralAssignmentRule()
             else:
                 raise SyntaxError('Invalid type of Rule: ' + rule['type'])
 
-            # Add the rule to the right place
+            # Add species and params to model
+            species_names, params_names = rule_object.get_species_and_parameters(init_dictionary)
+            for s in species_names: self._add_species(s)
+            for p in params_names: self._add_param(p)
 
+            # initialize the rule
+            init_dictionary.pop('type')
+            rule_object.initialize(init_dictionary,self.species2index,self.params2index)
+            # Add the rule to the right place
             if rule['frequency'] == 'repeated':
                 self.repeat_rules.append(rule_object)
                 self.c_repeat_rules.push_back(<void*> rule_object)
@@ -1459,6 +1523,18 @@ cdef class Model:
         if species_name in self.species2index:
             return self.species2index[species_name]
         return -1
+
+    def get_param_value(self, param_name):
+        if param_name in self.params2index:
+            return self.params_values[self.params2index[param_name]]
+        else:
+            raise LookupError('No parameter with name '+ param_name)
+
+    def get_species_value(self, species_name):
+        if species_name in self.species2index:
+            return self.species_values[self.species2index[species_name]]
+        else:
+            raise LookupError('No species with name '+ species_name)
 
 
 ##################################################                ####################################################

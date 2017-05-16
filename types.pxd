@@ -340,6 +340,7 @@ cdef class Rule:
     the simulation.
     """
     cdef void execute_rule(self, double *state, double *params)
+    cdef void execute_volume_rule(self, double *state, double *params, double volume)
 
 
 cdef class AdditiveAssignmentRule(Rule):
@@ -350,22 +351,17 @@ cdef class AdditiveAssignmentRule(Rule):
     cdef unsigned dest_index
 
     cdef void execute_rule(self, double *state, double *params)
+    cdef void execute_volume_rule(self, double *state, double *params, double volume)
 
-cdef class MultiplicativeAssignmentRule(Rule):
+cdef class GeneralAssignmentRule(Rule):
     """
     A class for assigning a species to a product of a bunch of other species.
     """
-    cdef vector[int] species_source_indices
+    cdef Term rhs
     cdef unsigned dest_index
 
     cdef void execute_rule(self, double *state, double *params)
-
-
-
-
-
-
-
+    cdef void execute_volume_rule(self, double *state, double *params, double volume)
 
 ##################################################                ####################################################
 ######################################              VOLUME  TYPES                       ##############################

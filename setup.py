@@ -8,7 +8,7 @@ numpyInclude = [get_include(), '.']
 
 # cyrandom module: has random number generation stuff
 
-sourceFiles = ['random.pyx', 'types.pyx', 'simulator.pyx']
+sourceFiles = ['random.pyx', 'types.pyx', 'simulator.pyx', 'inference.pyx']
 
 
 ext_options = {}
