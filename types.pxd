@@ -410,6 +410,7 @@ cdef class GeneralAssignmentRule(Rule):
     """
     cdef Term rhs
     cdef unsigned dest_index
+    cdef int param_flag # 1 if the assigned thing is a parameter, 0 if it's a species
 
     cdef void execute_rule(self, double *state, double *params, double time)
     cdef void execute_volume_rule(self, double *state, double *params, double volume, double time)

@@ -987,22 +987,34 @@ cdef class AdditiveAssignmentRule(Rule):
         species_names.append(dest_name)
         return species_names, []
 
-
-
 cdef class GeneralAssignmentRule(Rule):
     """
     A class for doing rules that must be done either at the beginning of a simulation or repeatedly at each step of
     the simulation.
     """
     cdef void execute_rule(self, double *state, double *params, double time):
-        state[self.dest_index] = self.rhs.evaluate(state,params,time)
+        if self.param_flag > 0:
+            params[self.dest_index] = self.rhs.evaluate(state,params,time)
+        else:
+            state[self.dest_index] = self.rhs.evaluate(state,params,time)
 
     cdef void execute_volume_rule(self, double *state, double *params, double volume, double time):
-        state[self.dest_index] = self.rhs.volume_evaluate(state,params,volume, time)
+        if self.param_flag > 0:
+            params[self.dest_index] = self.rhs.volume_evaluate(state,params,volume, time)
+        else:
+            state[self.dest_index] = self.rhs.volume_evaluate(state,params,volume, time)
 
     def initialize(self, dict fields, species2index, params2index):
         self.rhs = parse_expression(fields['equation'].split('=')[1], species2index, params2index)
-        self.dest_index = species2index[ fields['equation'].split('=')[0].strip() ]
+
+        dest_name = fields['equation'].split('=')[0].strip()
+
+        if dest_name[0] == '_' or dest_name[0] == '|':
+            self.param_flag = 1
+            self.dest_index = params2index[dest_name[1:]]
+        else:
+            self.param_flag = 0
+            self.dest_index = species2index[dest_name]
 
     def get_species_and_parameters(self, dict fields):
         instring = fields['equation'].strip()
@@ -1010,7 +1022,11 @@ cdef class GeneralAssignmentRule(Rule):
         instring = instring.split('=')[1]
 
         species_names, param_names = sympy_species_and_parameters(instring)
-        species_names.append(dest_name)
+
+        if dest_name[0] == '_' or dest_name[0] == '|':
+            param_names.append(dest_name[1:])
+        else:
+            species_names.append(dest_name)
 
         return species_names, param_names
 
@@ -1811,7 +1827,8 @@ def convert_sbml_to_string(sbml_file):
 
         # get the formula as a string and then add
         # a leading _ to parameter names
-        rate_string = _add_underscore_to_parameters(kl.formula,allparams)
+        kl_formula = libsbml.formulaToL3String(kl.getMath())
+        rate_string = _add_underscore_to_parameters(kl_formula,allparams)
 
         # Add the propensity tag and finish the reaction.
         out += ('    <propensity type="general" rate="%s" />\n</reaction>\n\n' % rate_string)
@@ -1821,7 +1838,15 @@ def convert_sbml_to_string(sbml_file):
         if rule.getElementName() != 'assignmentRule':
             warnings.warn('Unsupported rule type: %s' % rule.getElementName())
             continue
-        rule_string = rule.variable + '=' + _add_underscore_to_parameters(rule.formula,allparams)
+        rule_formula = libsbml.formulaToL3String(rule.getMath())
+        if rule.variable in allspecies:
+            rule_string = rule.variable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
+        elif rule.variable in allparams:
+            rule_string = '_' + rule.variable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
+        else:
+            warnings.warn('SBML: Attempting to assign something that is not a parameter or species %s'
+                          % rule.variable)
+            continue
 
         out += '<rule type="assignment" frequency="repeated" equation="%s" />\n' % rule_string
 
