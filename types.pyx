@@ -376,6 +376,8 @@ cdef class MassActionPropensity(Propensity):
     def initialize(self, dict dictionary, dict species_indices, dict parameter_indices):
         for key, value in dictionary.items():
             if key == 'species':
+                if '+' in value or '-' in value:
+                    raise SyntaxError('Plus or minus character in mass action propensity string.')
                 species_names = [s.strip() for s in value.split('*')]
                 for species_name in species_names:
                     if species_name == '':
@@ -1592,7 +1594,7 @@ cdef class Model:
             if p in param_names:
                 self.params_values[self.params2index[p]] = param_dict[p]
             else:
-                warnings.warn('Useless parameter', p)
+                warnings.warn('Trying to set parameter that is not in model: %s'  % p)
 
 
     def set_species(self, species_dict):
@@ -1607,7 +1609,7 @@ cdef class Model:
             if s in species_names:
                 self.species_values[self.species2index[s]] = species_dict[s]
             else:
-                warnings.warn('Useless species level', s)
+                warnings.warn('Trying to set species that is not in model: %s' % s)
 
     cdef (vector[void*])* get_c_repeat_rules(self):
         """
