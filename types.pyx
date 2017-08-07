@@ -12,7 +12,7 @@ import sympy
 from sympy.abc import _clash1
 import warnings
 
-from libc.math cimport log, sqrt, cos, round, exp
+from libc.math cimport log, sqrt, cos, round, exp, fabs
 
 ##################################################                ####################################################
 ######################################              PROPENSITY TYPES                    ##############################
@@ -481,8 +481,6 @@ cdef class SumTerm(Term):
         return ans
 
 cdef class ProductTerm(Term):
-
-
     def __init__(self):
         self.terms_list = []
 
@@ -502,6 +500,64 @@ cdef class ProductTerm(Term):
         cdef unsigned i
         for i in range(self.terms.size()):
             ans *= (<Term>(self.terms[i])).volume_evaluate(species,params,vol,time)
+        return ans
+
+cdef class MaxTerm(Term):
+    def __init__(self):
+        self.terms_list = []
+
+    cdef void add_term(self,Term trm):
+        self.terms.push_back(<void*> trm)
+        self.terms_list.append(trm)
+
+    cdef double evaluate(self, double *species, double *params, double time):
+        cdef double ans = (<Term>(self.terms[0])).evaluate(species, params,time)
+        cdef unsigned i
+        cdef double temp = 0
+        for i in range(1,self.terms.size()):
+            temp =  (<Term>(self.terms[i])).evaluate(species, params,time)
+            if temp > ans:
+                ans = temp
+
+        return ans
+
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
+        cdef double ans = (<Term>(self.terms[0])).volume_evaluate(species,params,vol,time)
+        cdef unsigned i
+        cdef double temp = 0
+        for i in range(1,self.terms.size()):
+            temp = (<Term>(self.terms[i])).volume_evaluate(species,params,vol,time)
+            if temp > ans:
+                ans = temp
+        return ans
+
+cdef class MinTerm(Term):
+    def __init__(self):
+        self.terms_list = []
+
+    cdef void add_term(self,Term trm):
+        self.terms.push_back(<void*> trm)
+        self.terms_list.append(trm)
+
+    cdef double evaluate(self, double *species, double *params, double time):
+        cdef double ans = (<Term>(self.terms[0])).evaluate(species, params,time)
+        cdef unsigned i
+        cdef double temp = 0
+        for i in range(1,self.terms.size()):
+            temp =  (<Term>(self.terms[i])).evaluate(species, params,time)
+            if temp < ans:
+                ans = temp
+
+        return ans
+
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
+        cdef double ans = (<Term>(self.terms[0])).volume_evaluate(species,params,vol,time)
+        cdef unsigned i
+        cdef double temp = 0
+        for i in range(1,self.terms.size()):
+            temp = (<Term>(self.terms[i])).volume_evaluate(species,params,vol,time)
+            if temp < ans:
+                ans = temp
         return ans
 
 cdef class PowerTerm(Term):
@@ -556,6 +612,16 @@ cdef class StepTerm(Term):
             return 1.0
         return 0
 
+cdef class AbsTerm(Term):
+    cdef void set_arg(self, Term arg):
+        self.arg = arg
+
+    cdef double evaluate(self, double *species, double *params, double time):
+        return fabs( self.arg.evaluate(species,params,time) )
+
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
+        return fabs( self.arg.volume_evaluate(species,params,vol,time) )
+
 
 cdef class TimeTerm(Term):
     cdef double evaluate(self, double *species, double *params, double time):
@@ -590,6 +656,9 @@ def sympy_recursion(tree, species2index, params2index):
     cdef ExpTerm expterm
     cdef LogTerm logterm
     cdef StepTerm stepterm
+    cdef AbsTerm absterm
+    cdef MaxTerm maxterm
+    cdef MinTerm minterm
 
     root = tree.func
     args = tree.args
@@ -646,7 +715,26 @@ def sympy_recursion(tree, species2index, params2index):
         stepterm.set_arg( sympy_recursion(args[0],species2index,params2index) )
         return stepterm
 
+    # check absolute value
 
+    elif type(tree) == sympy.Abs:
+        absterm = AbsTerm()
+        absterm.set_arg( sympy_recursion(args[0],species2index,params2index) )
+        return absterm
+
+    # check for min and max
+
+    elif type(tree) == sympy.Max:
+        maxterm = MaxTerm()
+        for a in args:
+            maxterm.add_term(sympy_recursion(a,species2index,params2index))
+        return maxterm
+
+    elif type(tree) == sympy.Min:
+        minterm = MinTerm()
+        for a in args:
+            minterm.add_term(sympy_recursion(a,species2index,params2index))
+        return minterm
 
     # if nothing else, then it should be a number
 

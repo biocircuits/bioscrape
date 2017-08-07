@@ -232,6 +232,24 @@ cdef class ProductTerm(Term):
 
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
 
+cdef class MaxTerm(Term):
+    cdef vector[void*] terms
+    cdef list terms_list
+
+    cdef void add_term(self,Term trm)
+    cdef double evaluate(self, double *species, double *params, double time)
+
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
+
+cdef class MinTerm(Term):
+    cdef vector[void*] terms
+    cdef list terms_list
+
+    cdef void add_term(self,Term trm)
+    cdef double evaluate(self, double *species, double *params, double time)
+
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
+
 cdef class PowerTerm(Term):
     cdef Term base
     cdef Term exponent
@@ -257,6 +275,13 @@ cdef class LogTerm(Term):
 
 
 cdef class StepTerm(Term):
+    cdef Term arg
+
+    cdef void set_arg(self, Term arg)
+    cdef double evaluate(self, double *species, double *params, double time)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
+
+cdef class AbsTerm(Term):
     cdef Term arg
 
     cdef void set_arg(self, Term arg)
