@@ -8,6 +8,9 @@ cimport numpy as np
 cimport random as cyrandom
 from vector cimport vector
 import re
+import sympy
+from sympy.abc import _clash1
+import warnings
 
 from libc.math cimport log, sqrt, cos, round, exp
 
@@ -22,38 +25,41 @@ cdef class Propensity:
         Set the propensity type enum variable.
         """
         self.propensity_type = PropensityType.unset
-    def py_get_propensity(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params):
+    def py_get_propensity(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params,
+                          double time = 0.0):
         """
         Calculate propensity in pure python given a state and parameter vector.
         :param state: (np.ndarray) state vector of doubles
         :param params: (np.ndarray) parameter vector of doubles.
         :return: (double) computed propensity, should be non-negative
         """
-        return self.get_propensity(<double*> state.data, <double*> params.data)
+        return self.get_propensity(<double*> state.data, <double*> params.data, time)
 
     # must be overriden by the daughter class
-    cdef double get_propensity(self, double* state, double* params):
+    cdef double get_propensity(self, double* state, double* params, double time):
         """
         Compute the propensity given state and parameters (MUST be overridden, this returns -1.0)
         :param state: (double *) pointer to state vector
         :param params: (double *) pointer to parameter vector
+        :param time: (double) the current time
         :return: (double) computed propensity, should be non-negative
         """
         return -1.0
 
-    cdef double get_volume_propensity(self, double *state, double *params, double volume):
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
         """
         Compute the propensity given state and parameters and volume. (MUST be overridden)
         :param state: (double *) pointer to state vector
         :param params:(double *) pointer to parameter vector
         :param volume: (double) the cell volume
+        :param time: (double) the current time
         :return: (double) computed propensity, should be non-negative
         """
         return -1.0
 
     def py_get_volume_propensity(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params,
-                                 double volume):
-        return self.get_volume_propensity(<double*> state.data, <double*> params.data, volume)
+                                 double volume, double time = 0.0):
+        return self.get_volume_propensity(<double*> state.data, <double*> params.data, volume, time)
 
 
 
@@ -83,10 +89,10 @@ cdef class ConstitutivePropensity(Propensity):
     def __init__(self):
         self.propensity_type = PropensityType.constitutive
 
-    cdef double get_propensity(self, double* state, double* params):
+    cdef double get_propensity(self, double* state, double* params, double time):
         return params[self.rate_index]
 
-    cdef double get_volume_propensity(self, double *state, double *params, double volume):
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
         return params[self.rate_index] * volume
 
     def initialize(self, dict dictionary, species_indices, parameter_indices):
@@ -96,7 +102,7 @@ cdef class ConstitutivePropensity(Propensity):
             elif key == 'species':
                 pass
             else:
-                print('Warning! Useless field for constitutive reaction', key)
+                warnings.warn('Warning! Useless field for constitutive reaction', key)
     def get_species_and_parameters(self, dict fields):
         return ([],[fields['k']])
 
@@ -108,10 +114,10 @@ cdef class UnimolecularPropensity(Propensity):
     def __init__(self):
         self.propensity_type = PropensityType.unimolecular
 
-    cdef double get_propensity(self, double* state, double* params):
+    cdef double get_propensity(self, double* state, double* params, double time):
         return params[self.rate_index] * state[self.species_index]
 
-    cdef double get_volume_propensity(self, double *state, double *params, double volume):
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
         return params[self.rate_index] * state[self.species_index]
 
 
@@ -122,7 +128,7 @@ cdef class UnimolecularPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                print('Useless field for unimolecular reaction', key)
+                warnings.warn('Useless field for unimolecular reaction', key)
 
     def get_species_and_parameters(self, dict fields):
         return ([ fields['species'] ],[ fields['k'] ])
@@ -135,10 +141,10 @@ cdef class BimolecularPropensity(Propensity):
     def __init__(self):
         self.propensity_type = PropensityType.bimolecular
 
-    cdef double get_propensity(self, double* state, double* params):
+    cdef double get_propensity(self, double* state, double* params, double time):
         return params[self.rate_index] * state[self.s1_index] * state[self.s2_index]
 
-    cdef double get_volume_propensity(self, double *state, double *params, double volume):
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
         return params[self.rate_index] * state[self.s1_index] * state[self.s2_index] / volume
 
 
@@ -153,7 +159,7 @@ cdef class BimolecularPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                print('Useless field for bimolecular reaction', key)
+                warnings.warn('Useless field for bimolecular reaction', key)
 
     def get_species_and_parameters(self, dict fields):
         return ([ x.strip() for x in fields['species'].split('*') ],[ fields['k'] ])
@@ -165,14 +171,14 @@ cdef class PositiveHillPropensity(Propensity):
     def __init__(self):
         self.propensity_type = PropensityType.hill_positive
 
-    cdef double get_propensity(self, double* state, double* params):
+    cdef double get_propensity(self, double* state, double* params, double time):
         cdef double X = state[self.s1_index]
         cdef double K = params[self.K_index]
         cdef double n = params[self.n_index]
         cdef double rate = params[self.rate_index]
         return rate * (X / K) ** n / (1 + (X/K)**n)
 
-    cdef double get_volume_propensity(self, double *state, double *params, double volume):
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
         cdef double X = state[self.s1_index] / volume
         cdef double K = params[self.K_index]
         cdef double n = params[self.n_index]
@@ -190,7 +196,7 @@ cdef class PositiveHillPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                print('Warning! Useless field for Hill propensity', key)
+                warnings.warn('Warning! Useless field for Hill propensity', key)
 
     def get_species_and_parameters(self, dict fields):
         return ([ fields['s1'] ],[ fields['K'],fields['n'],fields['k'] ])
@@ -202,7 +208,7 @@ cdef class PositiveProportionalHillPropensity(Propensity):
     def __init__(self):
         self.propensity_type = PropensityType.proportional_hill_positive
 
-    cdef double get_propensity(self, double* state, double* params):
+    cdef double get_propensity(self, double* state, double* params, double time):
         cdef double X = state[self.s1_index]
         cdef double K = params[self.K_index]
         cdef double n = params[self.n_index]
@@ -210,7 +216,7 @@ cdef class PositiveProportionalHillPropensity(Propensity):
         cdef double d = state[self.d_index]
         return rate * d *  (X / K) ** n / (1 + (X/K)**n)
 
-    cdef double get_volume_propensity(self, double *state, double *params, double volume):
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
         cdef double X = state[self.s1_index] / volume
         cdef double K = params[self.K_index]
         cdef double n = params[self.n_index]
@@ -232,7 +238,7 @@ cdef class PositiveProportionalHillPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                print('Warning! Useless field for proportional Hill propensity', key)
+                warnings.warn('Warning! Useless field for proportional Hill propensity', key)
 
 
     def get_species_and_parameters(self, dict fields):
@@ -246,14 +252,14 @@ cdef class NegativeHillPropensity(Propensity):
     def __init__(self):
         self.propensity_type = PropensityType.hill_negative
 
-    cdef double get_propensity(self, double* state, double* params):
+    cdef double get_propensity(self, double* state, double* params, double time):
         cdef double X = state[self.s1_index]
         cdef double K = params[self.K_index]
         cdef double n = params[self.n_index]
         cdef double rate = params[self.rate_index]
         return rate * 1 / (1 + (X/K)**n)
 
-    cdef double get_volume_propensity(self, double *state, double *params, double volume):
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
         cdef double X = state[self.s1_index] / volume
         cdef double K = params[self.K_index]
         cdef double n = params[self.n_index]
@@ -271,7 +277,7 @@ cdef class NegativeHillPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                print('Warning! Useless field for Hill propensity', key)
+                warnings.warn('Warning! Useless field for Hill propensity', key)
 
     def get_species_and_parameters(self, dict fields):
         return ([ fields['s1'] ],[ fields['K'],fields['n'],fields['k'] ])
@@ -284,7 +290,7 @@ cdef class NegativeProportionalHillPropensity(Propensity):
     def __init__(self):
         self.propensity_type = PropensityType.proportional_hill_negative
 
-    cdef double get_propensity(self, double* state, double* params):
+    cdef double get_propensity(self, double* state, double* params, double time):
         cdef double X = state[self.s1_index]
         cdef double K = params[self.K_index]
         cdef double n = params[self.n_index]
@@ -292,7 +298,7 @@ cdef class NegativeProportionalHillPropensity(Propensity):
         cdef double d = state[self.d_index]
         return rate * d *  1/ (1 + (X/K)**n)
 
-    cdef double get_volume_propensity(self, double *state, double *params, double volume):
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
         cdef double X = state[self.s1_index] / volume
         cdef double K = params[self.K_index]
         cdef double n = params[self.n_index]
@@ -314,7 +320,7 @@ cdef class NegativeProportionalHillPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                print('Warning! Useless field for proportional Hill propensity', key)
+                warnings.warn('Warning! Useless field for proportional Hill propensity', key)
 
     def get_species_and_parameters(self, dict fields):
         return ([ fields['s1'], fields['d'] ],[ fields['K'],fields['n'],fields['k'] ])
@@ -326,7 +332,7 @@ cdef class NegativeProportionalHillPropensity(Propensity):
             elif key == 'd':
                 self.d_index = species_indices[species['d']]
             else:
-                print('Warning! Useless species for Hill propensity', key)
+                warnings.warn('Warning! Useless species for Hill propensity', key)
     def set_parameters(self,parameters, parameter_indices):
         for key in parameters:
             if key == 'K':
@@ -336,7 +342,7 @@ cdef class NegativeProportionalHillPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[parameters[key]]
             else:
-                print('Warning! Useless parameter for Hill propensity', key)
+                warnings.warn('Warning! Useless parameter for Hill propensity', key)
 
 
 
@@ -344,7 +350,7 @@ cdef class MassActionPropensity(Propensity):
     def __init__(self):
         self.propensity_type = PropensityType.mass_action
 
-    cdef double get_propensity(self, double* state, double* params):
+    cdef double get_propensity(self, double* state, double* params, double time):
         cdef double ans = params[self.k_index]
         cdef int i
         for i in range(self.num_species):
@@ -352,7 +358,7 @@ cdef class MassActionPropensity(Propensity):
 
         return ans
 
-    cdef double get_volume_propensity(self, double *state, double *params, double volume):
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
         cdef double ans = params[self.k_index]
         cdef int i
         for i in range(self.num_species):
@@ -379,7 +385,7 @@ cdef class MassActionPropensity(Propensity):
             elif key == 'k':
                 self.k_index = parameter_indices[value]
             else:
-                print('Warning: useless field for mass action propensity', key)
+                warnings.warn('Warning: useless field for mass action propensity', key)
 
     def get_species_and_parameters(self, dict fields):
         species_list = [x.strip()   for x in fields['species'].split('*') ]
@@ -394,20 +400,20 @@ cdef class MassActionPropensity(Propensity):
 
 
 cdef class Term:
-    cdef double evaluate(self, double *species, double *params):
+    cdef double evaluate(self, double *species, double *params, double time):
         raise SyntaxError('Cannot make Term base object')
 
-    cdef double volume_evaluate(self, double *species, double *params, double vol):
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         raise SyntaxError('Cannot make Term base object')
 
 
-    def py_evaluate(self, np.ndarray species, np.ndarray params):
-        return self.evaluate(<double*> species.data, <double*> params.data)
+    def py_evaluate(self, np.ndarray species, np.ndarray params, double time=0.0):
+        return self.evaluate(<double*> species.data, <double*> params.data, time)
 
     def py_volume_evaluate(self, np.ndarray species, np.ndarray params,
-                           double vol):
+                           double vol, double time=0.0):
         return self.volume_evaluate(<double*> species.data, <double*> params.data,
-                                    vol)
+                                    vol, time)
 
 # Base building blocks
 
@@ -416,9 +422,9 @@ cdef class ConstantTerm(Term):
     def __init__(self, double val):
         self.value = val
 
-    cdef double evaluate(self, double *species, double *params):
+    cdef double evaluate(self, double *species, double *params, double time):
         return self.value
-    cdef double volume_evaluate(self, double *species, double *params, double vol):
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return self.value
 
 cdef class SpeciesTerm(Term):
@@ -427,9 +433,9 @@ cdef class SpeciesTerm(Term):
     def __init__(self, unsigned ind):
         self.index = ind
 
-    cdef double evaluate(self, double *species, double *params):
+    cdef double evaluate(self, double *species, double *params, double time):
         return species[self.index]
-    cdef double volume_evaluate(self, double *species, double *params, double vol):
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return species[self.index]
 
 cdef class ParameterTerm(Term):
@@ -437,15 +443,15 @@ cdef class ParameterTerm(Term):
     def __init__(self, unsigned ind):
         self.index = ind
 
-    cdef double evaluate(self, double *species, double *params):
+    cdef double evaluate(self, double *species, double *params, double time):
         return params[self.index]
-    cdef double volume_evaluate(self, double *species, double *params, double vol):
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return params[self.index]
 
 cdef class VolumeTerm(Term):
-    cdef double evaluate(self, double *species, double *params):
+    cdef double evaluate(self, double *species, double *params, double time):
         return 1.0
-    cdef double volume_evaluate(self, double *species, double *params, double vol):
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return vol
 
 # Putting stuff together
@@ -460,18 +466,18 @@ cdef class SumTerm(Term):
         self.terms.push_back(<void*> trm)
         self.terms_list.append(trm)
 
-    cdef double evaluate(self, double *species, double *params):
+    cdef double evaluate(self, double *species, double *params, double time):
         cdef double ans = 0.0
         cdef unsigned i
         for i in range(self.terms.size()):
-            ans += (<Term>(self.terms[i])).evaluate(species, params)
+            ans += (<Term>(self.terms[i])).evaluate(species, params, time)
         return ans
 
-    cdef double volume_evaluate(self, double *species, double *params, double vol):
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         cdef double ans = 0.0
         cdef unsigned i
         for i in range(self.terms.size()):
-            ans += (<Term>(self.terms[i])).volume_evaluate(species,params,vol)
+            ans += (<Term>(self.terms[i])).volume_evaluate(species,params,vol, time)
         return ans
 
 cdef class ProductTerm(Term):
@@ -484,18 +490,18 @@ cdef class ProductTerm(Term):
         self.terms.push_back(<void*> trm)
         self.terms_list.append(trm)
 
-    cdef double evaluate(self, double *species, double *params):
+    cdef double evaluate(self, double *species, double *params, double time):
         cdef double ans = 1.0
         cdef unsigned i
         for i in range(self.terms.size()):
-            ans *= (<Term>(self.terms[i])).evaluate(species, params)
+            ans *= (<Term>(self.terms[i])).evaluate(species, params,time)
         return ans
 
-    cdef double volume_evaluate(self, double *species, double *params, double vol):
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         cdef double ans = 1.0
         cdef unsigned i
         for i in range(self.terms.size()):
-            ans *= (<Term>(self.terms[i])).volume_evaluate(species,params,vol)
+            ans *= (<Term>(self.terms[i])).volume_evaluate(species,params,vol,time)
         return ans
 
 cdef class PowerTerm(Term):
@@ -506,135 +512,172 @@ cdef class PowerTerm(Term):
     cdef void set_exponent(self, Term exponent):
         self.exponent = exponent
 
-    cdef double evaluate(self, double *species, double *params):
-        return self.base.evaluate(species,params) ** \
-               self.exponent.evaluate(species,params)
+    cdef double evaluate(self, double *species, double *params, double time):
+        return self.base.evaluate(species,params,time) ** \
+               self.exponent.evaluate(species,params,time)
 
-    cdef double volume_evaluate(self, double *species, double *params, double vol):
-        return self.base.volume_evaluate(species,params,vol) ** \
-               self.exponent.volume_evaluate(species,params,vol)
-
-
-# Parsing part is here.
-
-def locations_outside_parentheses(c, s):
-    paren_count = 0
-
-    locs = []
-    for i in range(len(s)):
-        if s[i] == '(':
-            paren_count += 1
-        elif s[i] == ')':
-            paren_count -= 1
-        elif s[i] == c and paren_count == 0:
-            locs.append(i)
-
-        if paren_count < 0:
-            raise SyntaxError('Strange parentheses: ', s)
-
-    return locs
-
-def is_single_term(s):
-    if s[0] == '(' and s[len(s)-1] == ')':
-        min_paren_count = 100
-        paren_count = 0
-        for i in range(len(s)-1):
-            if s[i] == '(':
-                paren_count += 1
-            elif s[i] == ')':
-                paren_count -= 1
-
-            if paren_count < min_paren_count:
-                min_paren_count = paren_count
-
-        if min_paren_count > 0:
-            return True
-        else:
-            return False
-    return False
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
+        return self.base.volume_evaluate(species,params,vol,time) ** \
+               self.exponent.volume_evaluate(species,params,vol,time)
 
 
+cdef class ExpTerm(Term):
+    cdef void set_arg(self, Term arg):
+        self.arg = arg
 
-def is_a_number(s):
-    try:
-        a = float(s)
-        return True
-    except ValueError:
-        return False
+    cdef double evaluate(self, double *species, double *params, double time):
+        return exp(self.arg.evaluate(species,params,time))
 
-def parse_expression(instring, species2index, params2index):
-    instring = instring.strip()
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
+        return exp(self.arg.volume_evaluate(species,params,vol,time))
 
-    print('Calling it with: %s' % (instring))
+cdef class LogTerm(Term):
+    cdef void set_arg(self, Term arg):
+        self.arg = arg
 
-    # try parentheses first
-    if is_single_term(instring):
-        return parse_expression(instring[1:len(instring)-1],
-                                species2index,
-                                params2index)
+    cdef double evaluate(self, double *species, double *params, double time):
+        return log(self.arg.evaluate(species,params,time))
 
-    # try plus next
-    l = locations_outside_parentheses('+', instring)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
+        return log(self.arg.volume_evaluate(species,params,vol,time))
+
+
+cdef class StepTerm(Term):
+    cdef void set_arg(self, Term arg):
+        self.arg = arg
+
+    cdef double evaluate(self, double *species, double *params, double time):
+        if self.arg.evaluate(species,params,time) >= 0:
+            return 1.0
+        return 0
+
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
+        if self.arg.volume_evaluate(species,params,vol,time) >= 0:
+            return 1.0
+        return 0
+
+
+cdef class TimeTerm(Term):
+    cdef double evaluate(self, double *species, double *params, double time):
+        return time
+
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
+        return time
+
+
+def sympy_species_and_parameters(instring):
+    instring = instring.replace('^','**')
+    instring = instring.replace('|','_')
+    root = sympy.sympify(instring, _clash1)
+    nodes = [root]
+    index = 0
+    while index < len(nodes):
+        node = nodes[index]
+        index += 1
+        nodes.extend(node.args)
+
+    names = [str(n) for n in nodes if type(n) == sympy.Symbol]
+
+    species_names = [s for s in names if (s[0] != '_' and s != 'volume' and s != 't')]
+    param_names = [s[1:] for s in names if s[0] == '_']
+
+    return species_names,param_names
+
+def sympy_recursion(tree, species2index, params2index):
     cdef SumTerm sumterm
     cdef ProductTerm productterm
     cdef PowerTerm powerterm
+    cdef ExpTerm expterm
+    cdef LogTerm logterm
+    cdef StepTerm stepterm
 
-    if len(l) > 0:
+    root = tree.func
+    args = tree.args
+    # check if symbol
+    if type(tree) == sympy.Symbol:
+        name = str(tree)
+        if name[0] == '_':
+            return ParameterTerm(params2index[ name[1:] ])
+        elif name == 'volume':
+            return VolumeTerm()
+        elif name == 't':
+            return TimeTerm()
+        else:
+            return SpeciesTerm(species2index[ name ])
+    # check if addition
+    elif type(tree) == sympy.Add:
         sumterm = SumTerm()
-        l.insert(0,-1)
-        l.append(len(instring))
-        for i in range(len(l)-1):
-            sumterm.add_term(parse_expression(instring[ l[i]+1 : l[i+1] ],
-                                              species2index, params2index))
+        for a in args:
+            sumterm.add_term(  sympy_recursion(a,species2index,params2index)   )
         return sumterm
 
-    # try product term next
-    l = locations_outside_parentheses('*', instring)
-    if len(l) > 0:
+    # check multiplication
+    elif type(tree) == sympy.Mul:
         productterm = ProductTerm()
-        l.insert(0,-1)
-        l.append(len(instring))
-        for i in range(len(l)-1):
-            productterm.add_term(parse_expression(instring[ l[i]+1 : l[i+1] ],
-                                              species2index, params2index))
+        for a in args:
+            productterm.add_term(sympy_recursion(a,species2index,params2index))
         return productterm
 
-    # try exponential term next
-    l = locations_outside_parentheses('^', instring)
-    if len(l) > 0:
-        assert (len(l) == 1)
+    # check exponential
+
+    elif type(tree) == sympy.Pow:
         powerterm = PowerTerm()
-        powerterm.set_base( parse_expression(instring[0:l[0]],
-                                            species2index,
-                                            params2index) )
-        powerterm.set_exponent( parse_expression(instring[l[0]+1:],
-                                            species2index,
-                                            params2index) )
+        powerterm.set_base( sympy_recursion(args[0],species2index,params2index) )
+        powerterm.set_exponent( sympy_recursion(args[1], species2index,params2index) )
         return powerterm
 
-    # otherwise must be a building block
-    if is_a_number(instring):
-        return ConstantTerm(float(instring))
 
-    if instring == 'volume':
-        return VolumeTerm()
+    # check exp and log
 
-    if instring[0] == '|':
-        return ParameterTerm(params2index[ instring[1:] ])
+    elif type(tree) == sympy.exp:
+        expterm = ExpTerm()
+        expterm.set_arg( sympy_recursion(args[0],species2index,params2index) )
+        return expterm
 
-    if instring in species2index:
-        return SpeciesTerm(species2index[instring])
+    elif type(tree) == sympy.log:
+        logterm = LogTerm()
+        logterm.set_arg( sympy_recursion(args[0],species2index,params2index) )
+        return logterm
 
-    raise SyntaxError('Something is horribly wrong with your expression!',
-                       instring)
+    # check Heaviside
+
+    elif type(tree) == sympy.Heaviside:
+        stepterm = StepTerm()
+        stepterm.set_arg( sympy_recursion(args[0],species2index,params2index) )
+        return stepterm
+
+
+
+    # if nothing else, then it should be a number
+
+    else:
+        try:
+            return ConstantTerm(float( tree.evalf() ))
+        except:
+            raise SyntaxError('This should be a number: ' + str(tree))
+
+
+
+def parse_expression(instring, species2index, params2index):
+    instring = instring.strip()
+    instring = instring.replace('^','**')
+    instring = instring.replace('|', '_')
+    instring = instring.replace('heaviside', 'Heaviside')
+
+    try:
+        parse_tree = sympy.sympify(instring, _clash1)
+    except:
+        raise SyntaxError('Sympy unable to parse: ' + instring)
+
+    return sympy_recursion(parse_tree,species2index,params2index)
 
 
 cdef class GeneralPropensity(Propensity):
 
-    cdef double get_propensity(self, double* state, double* params):
-        return self.term.evaluate(state,params)
-    cdef double get_volume_propensity(self, double *state, double *params, double volume):
-        return self.term.volume_evaluate(state,params,volume)
+    cdef double get_propensity(self, double* state, double* params, double time):
+        return self.term.evaluate(state,params,time)
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
+        return self.term.volume_evaluate(state,params,volume,time)
 
     def __init__(self):
         self.propensity_type = PropensityType.general
@@ -647,26 +690,7 @@ cdef class GeneralPropensity(Propensity):
 
     def get_species_and_parameters(self, dict fields):
         instring = fields['rate'].strip()
-        # split on all the operators and then strip down all whitespace
-        names = re.split('[*^+()]',  instring)
-        names = [x.strip() for x in names]
-        names = [x for x in names if x != '']
-
-        species_names = []
-        param_names = []
-
-        for name in names:
-            if is_a_number(name) or name == 'volume':
-                continue
-            elif name[0] == '|':
-                param_names.append(name[1:])
-            else:
-                species_names.append(name)
-
-        return species_names, param_names
-
-
-
+        return sympy_species_and_parameters(instring)
 
 
 
@@ -747,7 +771,7 @@ cdef class FixedDelay(Delay):
             if key == 'delay':
                 self.delay_index = parameter_indices[value]
             else:
-                print('Warning! Useless field for fixed delay', key)
+                warnings.warn('Warning! Useless field for fixed delay', key)
 
     def get_species_and_parameters(self, dict fields):
         return [], [fields['delay']]
@@ -768,7 +792,7 @@ cdef class GaussianDelay(Delay):
             elif key == 'std':
                 self.std_index = parameter_indices[value]
             else:
-                print('Warning! Useless field for gaussian delay', key)
+                warnings.warn('Warning! Useless field for gaussian delay', key)
 
     def get_species_and_parameters(self, dict fields):
         return [],[fields['mean'], fields['std']]
@@ -790,7 +814,7 @@ cdef class GammaDelay(Delay):
             elif key == 'theta':
                 self.theta_index = parameter_indices[value]
             else:
-                print('Warning! Useless field for gamma delay', key)
+                warnings.warn('Warning! Useless field for gamma delay', key)
 
     def get_species_and_parameters(self, dict fields):
         return [],[fields['k'], fields['theta']]
@@ -804,18 +828,19 @@ cdef class Rule:
     A class for doing rules that must be done either at the beginning of a simulation or repeatedly at each step of
     the simulation.
     """
-    cdef void execute_rule(self, double *state, double *params):
+    cdef void execute_rule(self, double *state, double *params, double time):
         raise NotImplementedError('Creating base Rule class. This should be subclassed.')
 
-    cdef void execute_volume_rule(self, double *state, double *params, double volume):
-        self.execute_rule(state, params)
+    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time):
+        self.execute_rule(state, params, time)
 
-    def py_execute_rule(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params):
-        self.execute_rule(<double*> state.data, <double*> params.data)
+    def py_execute_rule(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params,
+                        double time = 0.0):
+        self.execute_rule(<double*> state.data, <double*> params.data,time)
 
     def py_execute_volume_rule(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params,
-                               double volume ):
-        self.execute_volume_rule(<double*> state.data, <double*> params.data, volume)
+                               double volume, double time=0.0 ):
+        self.execute_volume_rule(<double*> state.data, <double*> params.data, volume,time)
 
     def initialize(self, dict dictionary, dict species_indices, dict parameter_indices):
         """
@@ -842,7 +867,7 @@ cdef class AdditiveAssignmentRule(Rule):
     A class for assigning a species to a sum of a bunch of other species.
     """
 
-    cdef void execute_rule(self, double *state, double *params):
+    cdef void execute_rule(self, double *state, double *params, double time):
         cdef unsigned i = 0
         cdef double answer = 0.0
         for i in range(self.species_source_indices.size()):
@@ -879,11 +904,11 @@ cdef class GeneralAssignmentRule(Rule):
     A class for doing rules that must be done either at the beginning of a simulation or repeatedly at each step of
     the simulation.
     """
-    cdef void execute_rule(self, double *state, double *params):
-        state[self.dest_index] = self.rhs.evaluate(state,params)
+    cdef void execute_rule(self, double *state, double *params, double time):
+        state[self.dest_index] = self.rhs.evaluate(state,params,time)
 
-    cdef void execute_volume_rule(self, double *state, double *params, double volume):
-        state[self.dest_index] = self.rhs.volume_evaluate(state,params,volume)
+    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time):
+        state[self.dest_index] = self.rhs.volume_evaluate(state,params,volume, time)
 
     def initialize(self, dict fields, species2index, params2index):
         self.rhs = parse_expression(fields['equation'].split('=')[1], species2index, params2index)
@@ -891,26 +916,11 @@ cdef class GeneralAssignmentRule(Rule):
 
     def get_species_and_parameters(self, dict fields):
         instring = fields['equation'].strip()
-
         dest_name = instring.split('=')[0].strip()
-
         instring = instring.split('=')[1]
 
-        # split on all the operators and then strip down all whitespace
-        names = re.split('[*^+()]',  instring)
-        names = [x.strip() for x in names]
-        names = [x for x in names if x != '']
-
-        species_names = [dest_name]
-        param_names = []
-
-        for name in names:
-            if is_a_number(name) or name == 'volume':
-                continue
-            elif name[0] == '|':
-                param_names.append(name[1:])
-            else:
-                species_names.append(name)
+        species_names, param_names = sympy_species_and_parameters(instring)
+        species_names.append(dest_name)
 
         return species_names, param_names
 
@@ -1063,6 +1073,39 @@ cdef class StochasticTimeThresholdVolume(Volume):
             return 1
         return 0
 
+cdef class StateDependentVolume(Volume):
+    """
+    A volume class for a cell where growth rate depends on state and the division volume is chosen randomly
+    ahead of time with some randomness.
+
+    Attributes:
+        division_volume (double): the volume at which the cell will divide.
+        average_division_volume (double): the average volume at which to divide.
+        division_noise (double):  << 1, the noise in the division time (c.o.v.)
+        growth_rate (Term): the growth rate evaluated based on the state
+    """
+
+    def __init__(self, double average_division_volume, double division_noise, growth_rate, Model m):
+        self.average_division_volume = average_division_volume
+        self.division_noise = division_noise
+        self.growth_rate = m.parse_general_expression(growth_rate)
+
+    cdef double get_volume_step(self, double *state, double *params, double time, double volume, double dt):
+        cdef double gr = self.growth_rate.evaluate(state,params, time)
+        return ( exp(gr*dt) - 1.0) * volume
+
+    cdef void initialize(self, double *state, double *params, double time, double volume):
+        self.py_set_volume(volume)
+        # Must choose division volume.
+        self.division_volume = self.average_division_volume * cyrandom.normal_rv(1.0, self.division_noise)
+        if self.division_noise > volume:
+            raise RuntimeError('Division occurs before initial volume - change your parameters!')
+
+
+    cdef unsigned cell_divided(self, double *state, double *params, double time, double volume, double dt):
+        if volume > self.division_volume:
+            return 1
+        return 0
 
 
 ##################################################                ####################################################
@@ -1118,13 +1161,17 @@ cdef class Model:
         Parse the model from the file filling in all the local variables (propensities, delays, update arrays). Also
         maps the species and parameters to indices in a species and parameters vector.
 
-        :param filename: (str) the model file.
+        :param filename: (str or file) the model file. if a string, the file is opened. otherwise, it is assumed
+                         that a file handle was passed in.
         :return: None
         """
 
 
         # open XML file from the filename and use BeautifulSoup to parse it
-        xml_file = open(filename,'r')
+        if type(filename) == str:
+            xml_file = open(filename,'r')
+        else:
+            xml_file = filename
         xml = BeautifulSoup(xml_file,features="xml")
         xml_file.close()
         # Go through the reactions and parse them 1 by 1 keeping track of species and reactions
@@ -1145,6 +1192,12 @@ cdef class Model:
         # 5. Read in the intial species and parameters values. If a species is not set, print a warning and set to 0.
         #    If a parameter is not set, throw an error.
 
+
+        # check for model tag at beginning.
+
+        Model = xml.find_all('model')
+        if len(Model) != 1:
+            raise SyntaxError('Did not include global model tag in XML file')
 
 
         self._next_species_index = 0
@@ -1353,22 +1406,29 @@ cdef class Model:
         # Generate species values and parameter values
         self.params_values = np.empty(len(self.params2index.keys()), )
         self.params_values.fill(np.nan)
+        unspecified_param_names = set(self.params2index.keys())
         Parameters = xml.find_all('parameter')
         for param in Parameters:
             param_value = float(param['value'])
             param_name = param['name']
             if param_name not in self.params2index:
-                print ('Warning! Useless parameter '+ param_name)
+                warnings.warn('Warning! Useless parameter '+ param_name)
             else:
                 param_index = self.params2index[param_name]
                 self.params_values[param_index] = param_value
+                unspecified_param_names.remove(param_name)
 
-        for p in self.params_values:
-            if np.isnan(p):
-                raise SyntaxError('Did not specify all parameter values!')
+        if len(unspecified_param_names) > 0:
+                error_string = 'Did not specify parameters: '
+                for pn in unspecified_param_names:
+                    error_string += pn
+                    error_string += ', '
+                error_string = error_string[:len(error_string)-2]
+                raise SyntaxError(error_string)
 
         self.species_values = np.empty(len(self.species2index.keys()), )
         self.species_values.fill(np.nan)
+        unspecified_species_names = set(self.species2index.keys())
         Species = xml.find_all('species')
         for species in Species:
             species_value = float(species['value'])
@@ -1378,18 +1438,34 @@ cdef class Model:
             else:
                 species_index = self.species2index[species_name]
                 self.species_values[species_index] = species_value
+                unspecified_species_names.remove(species_name)
 
-        for index in range(len(self.species_values)):
-            if np.isnan(self.species_values[index]):
-                print('Warning! Did not specify species value, setting it to zero!!! index =', index)
+        if len(unspecified_species_names) > 0:
+            error_string = "Didn't specify all species, setting the following to 0: "
+            for sn in unspecified_species_names:
+                error_string += (sn + ', ')
+            error_string = error_string[:len(error_string)-2]
+            warnings.warn(error_string)
 
         self.species_values[np.isnan(self.species_values)] = 0.0
 
 
-        print(self.species2index)
-        print(self.params2index)
-        print(self.update_array)
-        print(self.delay_update_array)
+        #print(self.species2index)
+        #print(self.params2index)
+        #print(self.update_array)
+        #print(self.delay_update_array)
+
+    def get_species_list(self):
+        l = [None] * self.get_number_of_species()
+        for s in self.species2index:
+            l[self.species2index[s]] = s
+        return l
+
+    def get_param_list(self):
+        l = [None] * self.get_number_of_params()
+        for p in self.params2index:
+            l[self.params2index[p]] = p
+        return l
 
     def get_params(self):
         """
@@ -1399,6 +1475,10 @@ cdef class Model:
 
         return self.params2index.keys()
 
+    def get_number_of_params(self):
+        return len(self.params2index.keys())
+
+
     def get_species(self):
         """
         Get the set of species names.
@@ -1406,6 +1486,9 @@ cdef class Model:
         """
 
         return self.species2index.keys()
+
+    def get_number_of_species(self):
+        return len(self.species2index.keys())
 
 
     def set_params(self, param_dict):
@@ -1421,7 +1504,7 @@ cdef class Model:
             if p in param_names:
                 self.params_values[self.params2index[p]] = param_dict[p]
             else:
-                print('Useless parameter', p)
+                warnings.warn('Useless parameter', p)
 
 
     def set_species(self, species_dict):
@@ -1436,7 +1519,7 @@ cdef class Model:
             if s in species_names:
                 self.species_values[self.species2index[s]] = species_dict[s]
             else:
-                print('Useless species level', s)
+                warnings.warn('Useless species level', s)
 
     cdef (vector[void*])* get_c_repeat_rules(self):
         """
@@ -1536,6 +1619,151 @@ cdef class Model:
         else:
             raise LookupError('No species with name '+ species_name)
 
+    def parse_general_expression(self, instring):
+        return parse_expression(instring,self.species2index,self.params2index)
+
+##################################################                ####################################################
+######################################              SBML CONVERSION                     ##############################
+#################################################                     ################################################
+
+def _add_underscore_to_parameters(formula, parameters):
+    sympy_rate = sympy.sympify(formula, _clash1)
+    nodes = [sympy_rate]
+    index = 0
+    while index < len(nodes):
+        node = nodes[index]
+        index += 1
+        nodes.extend(node.args)
+
+    for node in nodes:
+        if type(node) == sympy.Symbol:
+            if node.name in parameters:
+                node.name = '_' + node.name
+
+    return str(sympy_rate)
+
+
+def convert_sbml_to_string(sbml_file):
+    """
+    Convert a SBML model file to a BioSCRAPE compatible XML file. Note that events, compartments, non-standard
+    function definitions, and rules that are not assignment rules are not supported. Furthermore, reversible
+    reactions are highly not recommended, as they will mess up the simulator in stochastic mode.
+
+    This function requires libsbml to be installed for Python. See sbml.org for help.
+
+    :param sbml_file:(string) Name of the SBML file to read in from.
+    :return:
+    """
+    out = ''
+
+    # Attempt to import libsbml and read the model.
+    try:
+        import libsbml
+    except:
+        raise ImportError("libsbml not found. See sbml.org for installation help!\n" +
+                          'If you are using anaconda you can run the following:\n' +
+                          'conda install -c SBMLTeam python-libsbml\n\n\n')
+
+
+    reader = libsbml.SBMLReader()
+    doc = reader.readSBML(sbml_file)
+    if doc.getNumErrors() > 1:
+        raise SyntaxError('SBML File %s cannot be read without errors' % sbml_file)
+
+    model = doc.getModel()
+
+    # Add the top tag
+    out += '<model>\n\n'
+
+    # Parse through species and parameters and keep a set of both along with their values.
+    allspecies = {}
+    allparams = {}
+
+    for s in model.getListOfSpecies():
+        allspecies[s.id] = 0.0
+        if np.isfinite(s.getInitialAmount()):
+            allspecies[s.id] = s.getInitialAmount()
+        if np.isfinite(s.getInitialConcentration()) and allspecies[s.id] == 0:
+            allspecies[s.id] = s.getInitialConcentration()
+
+    for p in model.getListOfParameters():
+        allparams[p.id] = 0.0
+        if np.isfinite(p.getValue()):
+            allparams[p.id] = p.getValue()
+    # Go through reactions one at a time to get stoich and rates.
+    for reaction in model.getListOfReactions():
+        # Warning message if reversible
+        if reaction.getReversible():
+            warnings.warn('Warning: SBML model contains reversible reaction!\n' +
+                          'Please check rate expressions and ensure they are non-negative before doing '+
+                          'stochastic simulations. This warning will always appear if you are using SBML 1 or 2')
+
+        # Get the reactants and products
+        reactant_list = []
+        product_list = []
+
+        for reactant in reaction.getListOfReactants():
+            reactant_list.append(reactant.species)
+        for product in reaction.getListOfProducts():
+            product_list.append(product.species)
+
+        out += ('<reaction text="%s--%s" after="--">\n' % ('+'.join(reactant_list),'+'.join(product_list)) )
+        out +=  '    <delay type="none"/>\n'
+
+        # get the propensity taken care of now
+        kl = reaction.getKineticLaw()
+        # capture any local parameters
+        for p in kl.getListOfParameters():
+            allparams[p.id] = 0.0
+            if np.isfinite(p.getValue()):
+                allparams[p.id] = p.getValue()
+
+
+        # get the formula as a string and then add
+        # a leading _ to parameter names
+        rate_string = _add_underscore_to_parameters(kl.formula,allparams)
+
+        # Add the propensity tag and finish the reaction.
+        out += ('    <propensity type="general" rate="%s" />\n</reaction>\n\n' % rate_string)
+
+    # Go through rules one at a time
+    for rule in model.getListOfRules():
+        if rule.getElementName() != 'assignmentRule':
+            warnings.warn('Unsupported rule type: %s' % rule.getElementName())
+            continue
+        rule_string = rule.variable + '=' + _add_underscore_to_parameters(rule.formula,allparams)
+
+        out += '<rule type="assignment" frequency="repeated" equation="%s" />\n' % rule_string
+
+    # Check and warn if there are events
+    if len(model.getListOfEvents()) > 0:
+        warnings.warn('SBML model has events. They are being ignored!\n')
+
+
+    # Go through species and parameter initial values.
+    out += '\n'
+
+    for s in allspecies:
+        out += '<species name="%s" value="%f" />\n' % (s, allspecies[s])
+    out += '\n'
+
+    for p in allparams:
+        out += '<parameter name="%s" value="%f"/>\n' % (p, allparams[p])
+
+    out += '\n'
+
+    # Add the final tag and return
+    out += '</model>\n'
+    return out
+
+def read_model_from_sbml(sbml_file):
+    model_string = convert_sbml_to_string(sbml_file)
+    import io
+    string_file = io.StringIO(model_string)
+    return Model(string_file)
+
+
+
 
 ##################################################                ####################################################
 ######################################              DATA    TYPES                       ##############################
@@ -1558,10 +1786,11 @@ cdef class Schnitz:
         self.volume = volume
         self.data = data
 
-
-
     def py_get_data(self):
         return self.data
+
+    def py_set_data(self, data):
+        self.data = data
 
     def py_get_time(self):
         return self.time
@@ -1576,6 +1805,24 @@ cdef class Schnitz:
         return (self.daughter1, self.daughter2)
 
 
+    def py_set_parent(self, Schnitz p):
+        self.set_parent(p)
+
+    def py_set_daughters(self,Schnitz d1, Schnitz d2):
+        self.set_daughters(d1,d2)
+
+
+
+    def __setstate__(self,state):
+        self.parent = state[0]
+        self.daughter1 = state[1]
+        self.daughter2 = state[2]
+        self.time = state[3]
+        self.volume = state[4]
+        self.data = state[5]
+
+    def __getstate__(self):
+        return (self.parent,self.daughter1,self.daughter2, self.time, self.volume, self.data)
 
 cdef class Lineage:
     def __init__(self):
@@ -1598,6 +1845,116 @@ cdef class Lineage:
         :return: (Schnitz) the requested Schnitz
         """
         return (<Schnitz> (self.c_schnitzes[index]))
+
+    def py_add_schnitz(self, Schnitz s):
+        self.add_schnitz(s)
+
+    def __setstate__(self, state):
+        self.schnitzes = []
+        self.c_schnitzes.clear()
+        for s in state[0]:
+            self.add_schnitz(s)
+
+    def __getstate__(self):
+        return (self.schnitzes,)
+
+    def truncate_lineage(self,double start_time, double end_time):
+        cdef Schnitz sch, new_sch
+        cdef dict sch_dict = {}
+        cdef Lineage new_lineage = Lineage()
+        cdef np.ndarray newtime, newvolume, newdata, indices_to_keep
+
+        sch_dict[None] = None
+        for i in range(self.size()):
+            sch = self.get_schnitz(i)
+
+            newtime = sch.get_time().copy()
+            newvolume = sch.get_volume().copy()
+            newdata = sch.get_data().copy()
+
+            # if the final time of this lineage is before the starting time
+            # or the first time is before the end time, then skip it
+            if newtime[newtime.shape[0]-1] < start_time or newtime[0] > end_time:
+                sch_dict[sch] = None
+                continue
+
+            indices_to_keep = (sch.get_time() >= start_time) & (sch.get_time() <= end_time)
+            newtime = newtime[indices_to_keep]
+            newvolume = newvolume[indices_to_keep]
+            newdata = newdata[indices_to_keep]
+
+            sch_dict[sch] = Schnitz(newtime, newdata, newvolume)
+
+        for i in range(self.size()):
+            sch = self.get_schnitz(i)
+            if sch_dict[sch] is not None:
+                new_lineage.add_schnitz(sch_dict[sch])
+                sch_dict[sch].py_set_parent( sch_dict[sch.get_parent()] )
+                sch_dict[sch].py_set_daughters( sch_dict[sch.get_daughter_1()] , sch_dict[sch.get_daughter_2()] )
+
+        return new_lineage
+
+cdef class ExperimentalLineage(Lineage):
+    def __init__(self, dict species_indices={}):
+        super().__init__()
+        self.species_dict = species_indices
+
+    def py_set_species_indices(self, dict species_indices):
+        self.species_dict = species_indices.copy()
+
+    def py_get_species_index(self, str species):
+        if species in self.species_dict:
+            return self.species_dict[species]
+        warnings.warn('Species not found in experimental lineage: %s\n' % species)
+        return -1
+
+    def __setstate__(self, state):
+        super().__setstate__(state[:len(state)-1])
+        self.species_dict = state[len(state)-1]
+
+    def __getstate__(self):
+        return super().__getstate__() + (self.species_dict,)
+
+    def truncate_lineage(self,double start_time, double end_time):
+        cdef Schnitz sch, new_sch
+        cdef dict sch_dict = {}
+        cdef ExperimentalLineage new_lineage = ExperimentalLineage()
+        cdef np.ndarray newtime, newvolume, newdata, indices_to_keep
+
+        sch_dict[None] = None
+        for i in range(self.size()):
+            sch = self.get_schnitz(i)
+
+            newtime = sch.get_time().copy()
+            newvolume = sch.get_volume().copy()
+            newdata = sch.get_data().copy()
+
+            # if the final time of this lineage is before the starting time
+            # or the first time is before the end time, then skip it
+            if newtime[newtime.shape[0]-1] < start_time or newtime[0] > end_time:
+                sch_dict[sch] = None
+                continue
+
+            indices_to_keep = (sch.get_time() >= start_time) & (sch.get_time() <= end_time)
+            newtime = newtime[indices_to_keep]
+            newvolume = newvolume[indices_to_keep]
+            newdata = newdata[indices_to_keep]
+
+            sch_dict[sch] = Schnitz(newtime, newdata, newvolume)
+
+        for i in range(self.size()):
+            sch = self.get_schnitz(i)
+            if sch_dict[sch] is not None:
+                new_lineage.add_schnitz(sch_dict[sch])
+                sch_dict[sch].py_set_parent( sch_dict[sch.get_parent()] )
+                sch_dict[sch].py_set_daughters( sch_dict[sch.get_daughter_1()] , sch_dict[sch.get_daughter_2()] )
+
+        new_lineage.py_set_species_indices(self.species_dict.copy())
+
+        return new_lineage
+
+
+
 
 
 

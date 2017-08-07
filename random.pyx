@@ -9,9 +9,6 @@ from libc.math cimport log, sqrt, cos, round
 cimport numpy as np
 import time
 
-cdef extern from "stdlib.h":
-    cdef int RAND_MAX # Need to this to normalize appropriately to uniform dist
-
 # MT Stuff
 
 cdef unsigned NN = 312
@@ -70,6 +67,10 @@ cdef unsigned long long genrand64():
     x ^= (x >> 43);
 
     return x
+
+cdef int choose(unsigned modulo):
+    return int(genrand64() % modulo)
+
 
 def py_rand_int():
     return genrand64()

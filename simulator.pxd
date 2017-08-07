@@ -87,11 +87,11 @@ cdef class CSimInterface:
     cdef np.ndarray get_update_array(self)
     cdef np.ndarray get_delay_update_array(self)
     cdef double compute_delay(self, double *state, unsigned rxn_index)
-    cdef void compute_propensities(self, double *state, double *propensity_destination)
-    cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume)
+    cdef void compute_propensities(self, double *state, double *propensity_destination, double time)
+    cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
     cdef unsigned requires_delay(self)
 
-    cdef void apply_repeated_rules(self, double *state)
+    cdef void apply_repeated_rules(self, double *state, double time)
     cdef unsigned get_number_of_rules(self)
 
     cdef np.ndarray get_initial_state(self)
@@ -120,11 +120,11 @@ cdef class ModelCSimInterface(CSimInterface):
 
 
     cdef double compute_delay(self, double *state, unsigned rxn_index)
-    cdef void compute_propensities(self, double *state, double *propensity_destination)
-    cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume)
+    cdef void compute_propensities(self, double *state, double *propensity_destination, double time)
+    cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
     cdef np.ndarray get_initial_state(self)
 
-    cdef void apply_repeated_rules(self, double *state)
+    cdef void apply_repeated_rules(self, double *state,double time)
     cdef unsigned get_number_of_rules(self)
 
     cdef double* get_param_values(self)
@@ -265,6 +265,20 @@ cdef class PerfectBinomialVolumeSplitter(VolumeSplitter):
     """
     cdef np.ndarray partition(self, VolumeCellState parent)
 
+
+cdef class GeneralVolumeSplitter(VolumeSplitter):
+    """
+    A volume splitting class that splits the cell into two cells and can split species
+    binomially, perfectly, or by duplication.
+    """
+    cdef vector[int] binomial_indices
+    cdef vector[int] perfect_indices
+    cdef vector[int] duplicate_indices
+    cdef double partition_noise
+
+    cdef np.ndarray partition(self, VolumeCellState parent)
+
+
 cdef class PerfectBinomialDelayVolumeSplitter(DelayVolumeSplitter):
     """
     A class which splits a cell with delays into two equal halves and partitions molecules and queued reactions
@@ -322,6 +336,13 @@ cdef class SSASimulator(RegularSimulator):
     A class for implementing a stochastic SSA simulator.
     """
     cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints)
+
+cdef class TimeDependentSSASimulator(RegularSimulator):
+    """
+    A class for implementing a stochastic SSA simulator.
+    """
+    cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints)
+
 
 
 cdef class DelaySimulator:

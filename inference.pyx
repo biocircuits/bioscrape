@@ -4,6 +4,7 @@ from libc.math cimport log
 
 from types import Model
 from types cimport Model
+import sys
 
 import emcee
 
@@ -236,12 +237,19 @@ cdef class DeterministicInference:
             # The run the likelihood
             answer += (<Likelihood> self.likelihoods[i]).get_log_likelihood()
 
-        return answer / self.sigma
+        return answer / self.sigma**2
 
+    def py_likelihood_function(self, np.ndarray params):
+        return self.likelihood_function(params)
 
     def run_mcmc(self, p0 = None):
         def lnprob(np.ndarray theta):
-            return self.likelihood_function(np.exp(theta))
+            loglhood = self.likelihood_function(np.exp(theta))
+            if np.isnan(loglhood):
+                sys.stderr.write('Parameters returned NaN likelihood: ' + str(np.exp(theta)) + '\n')
+                sys.stderr.flush()
+                return -np.Inf
+            return loglhood
 
         sampler = emcee.EnsembleSampler(self.num_walkers, self.dimension, lnprob)
         if p0 is None:

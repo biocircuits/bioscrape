@@ -35,8 +35,8 @@ cdef class Propensity:
     """
     cdef PropensityType propensity_type
 
-    cdef double get_propensity(self, double* state, double* params)
-    cdef double get_volume_propensity(self, double *state, double *params, double volume)
+    cdef double get_propensity(self, double* state, double* params, double time)
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
 
 
 cdef class ConstitutivePropensity(Propensity):
@@ -50,8 +50,8 @@ cdef class ConstitutivePropensity(Propensity):
     cdef unsigned rate_index
     # constructor
 
-    cdef double get_propensity(self, double* state, double* params)
-    cdef double get_volume_propensity(self, double *state, double *params, double volume)
+    cdef double get_propensity(self, double* state, double* params, double time)
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
 
 cdef class UnimolecularPropensity(Propensity):
     """
@@ -68,8 +68,8 @@ cdef class UnimolecularPropensity(Propensity):
     cdef unsigned species_index
 
 
-    cdef double get_propensity(self, double* state, double* params)
-    cdef double get_volume_propensity(self, double *state, double *params, double volume)
+    cdef double get_propensity(self, double* state, double* params, double time)
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
 
 
 cdef class BimolecularPropensity(Propensity):
@@ -88,8 +88,8 @@ cdef class BimolecularPropensity(Propensity):
     cdef unsigned s2_index
 
 
-    cdef double get_propensity(self, double* state, double* params)
-    cdef double get_volume_propensity(self, double *state, double *params, double volume)
+    cdef double get_propensity(self, double* state, double* params, double time)
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
 
 cdef class PositiveHillPropensity(Propensity):
     """
@@ -107,8 +107,8 @@ cdef class PositiveHillPropensity(Propensity):
     cdef unsigned n_index
     cdef unsigned s1_index
 
-    cdef double get_propensity(self, double* state, double* params)
-    cdef double get_volume_propensity(self, double *state, double *params, double volume)
+    cdef double get_propensity(self, double* state, double* params, double time)
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
 
 cdef class PositiveProportionalHillPropensity(Propensity):
     """
@@ -131,8 +131,8 @@ cdef class PositiveProportionalHillPropensity(Propensity):
     cdef unsigned s1_index
     cdef unsigned d_index
 
-    cdef double get_propensity(self, double* state, double* params)
-    cdef double get_volume_propensity(self, double *state, double *params, double volume)
+    cdef double get_propensity(self, double* state, double* params, double time)
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
 
 cdef class NegativeHillPropensity(Propensity):
     """
@@ -151,8 +151,8 @@ cdef class NegativeHillPropensity(Propensity):
     cdef unsigned n_index
     cdef unsigned s1_index
 
-    cdef double get_propensity(self, double* state, double* params)
-    cdef double get_volume_propensity(self, double *state, double *params, double volume)
+    cdef double get_propensity(self, double* state, double* params, double time)
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
 
 cdef class NegativeProportionalHillPropensity(Propensity):
     """
@@ -174,8 +174,8 @@ cdef class NegativeProportionalHillPropensity(Propensity):
     cdef unsigned s1_index
     cdef unsigned d_index
 
-    cdef double get_propensity(self, double* state, double* params)
-    cdef double get_volume_propensity(self, double *state, double *params, double volume)
+    cdef double get_propensity(self, double* state, double* params, double time)
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
 
 cdef class MassActionPropensity(Propensity):
     # variables
@@ -183,34 +183,34 @@ cdef class MassActionPropensity(Propensity):
     cdef unsigned k_index
     cdef int num_species
 
-    cdef double get_propensity(self, double* state, double* params)
-    cdef double get_volume_propensity(self, double *state, double *params, double volume)
+    cdef double get_propensity(self, double* state, double* params, double time)
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
 
 cdef class Term:
-    cdef double evaluate(self, double *species, double *params)
-    cdef double volume_evaluate(self, double *species, double *params, double vol)
+    cdef double evaluate(self, double *species, double *params, double time)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
 
 cdef class ConstantTerm(Term):
     cdef double value
 
-    cdef double evaluate(self, double *species, double *params)
-    cdef double volume_evaluate(self, double *species, double *params, double vol)
+    cdef double evaluate(self, double *species, double *params, double time)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
 
 cdef class SpeciesTerm(Term):
     cdef unsigned index
 
-    cdef double evaluate(self, double *species, double *params)
-    cdef double volume_evaluate(self, double *species, double *params, double vol)
+    cdef double evaluate(self, double *species, double *params, double time)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
 
 cdef class ParameterTerm(Term):
     cdef unsigned index
 
-    cdef double evaluate(self, double *species, double *params)
-    cdef double volume_evaluate(self, double *species, double *params, double vol)
+    cdef double evaluate(self, double *species, double *params, double time)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
 
 cdef class VolumeTerm(Term):
-    cdef double evaluate(self, double *species, double *params)
-    cdef double volume_evaluate(self, double *species, double *params, double vol)
+    cdef double evaluate(self, double *species, double *params, double time)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
 
 # Putting stuff together
 
@@ -220,17 +220,17 @@ cdef class SumTerm(Term):
 
     cdef void add_term(self,Term trm)
 
-    cdef double evaluate(self, double *species, double *params)
-    cdef double volume_evaluate(self, double *species, double *params, double vol)
+    cdef double evaluate(self, double *species, double *params, double time)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
 
 cdef class ProductTerm(Term):
     cdef vector[void*] terms
     cdef list terms_list
 
     cdef void add_term(self,Term trm)
-    cdef double evaluate(self, double *species, double *params)
+    cdef double evaluate(self, double *species, double *params, double time)
 
-    cdef double volume_evaluate(self, double *species, double *params, double vol)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
 
 cdef class PowerTerm(Term):
     cdef Term base
@@ -238,14 +238,40 @@ cdef class PowerTerm(Term):
 
     cdef void set_base(self, Term base)
     cdef void set_exponent(self, Term exponent)
-    cdef double evaluate(self, double *species, double *params)
-    cdef double volume_evaluate(self, double *species, double *params, double vol)
+    cdef double evaluate(self, double *species, double *params, double time)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
+
+cdef class ExpTerm(Term):
+    cdef Term arg
+
+    cdef void set_arg(self, Term arg)
+    cdef double evaluate(self, double *species, double *params, double time)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
+
+cdef class LogTerm(Term):
+    cdef Term arg
+
+    cdef void set_arg(self, Term arg)
+    cdef double evaluate(self, double *species, double *params, double time)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
+
+
+cdef class StepTerm(Term):
+    cdef Term arg
+
+    cdef void set_arg(self, Term arg)
+    cdef double evaluate(self, double *species, double *params, double time)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
+
+cdef class TimeTerm(Term):
+    cdef double evaluate(self, double *species, double *params, double time)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
 
 cdef class GeneralPropensity(Propensity):
     cdef Term term
 
-    cdef double get_propensity(self, double* state, double* params)
-    cdef double get_volume_propensity(self, double *state, double *params, double volume)
+    cdef double get_propensity(self, double* state, double* params, double time)
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
 
 
 ##################################################                ####################################################
@@ -339,8 +365,8 @@ cdef class Rule:
     A class for doing rules that must be done either at the beginning of a simulation or repeatedly at each step of
     the simulation.
     """
-    cdef void execute_rule(self, double *state, double *params)
-    cdef void execute_volume_rule(self, double *state, double *params, double volume)
+    cdef void execute_rule(self, double *state, double *params, double time)
+    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time)
 
 
 cdef class AdditiveAssignmentRule(Rule):
@@ -350,8 +376,8 @@ cdef class AdditiveAssignmentRule(Rule):
     cdef vector[int] species_source_indices
     cdef unsigned dest_index
 
-    cdef void execute_rule(self, double *state, double *params)
-    cdef void execute_volume_rule(self, double *state, double *params, double volume)
+    cdef void execute_rule(self, double *state, double *params, double time)
+    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time)
 
 cdef class GeneralAssignmentRule(Rule):
     """
@@ -360,8 +386,8 @@ cdef class GeneralAssignmentRule(Rule):
     cdef Term rhs
     cdef unsigned dest_index
 
-    cdef void execute_rule(self, double *state, double *params)
-    cdef void execute_volume_rule(self, double *state, double *params, double volume)
+    cdef void execute_rule(self, double *state, double *params, double time)
+    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time)
 
 ##################################################                ####################################################
 ######################################              VOLUME  TYPES                       ##############################
@@ -426,6 +452,28 @@ cdef class StochasticTimeThresholdVolume(Volume):
     cdef double get_volume_step(self, double *state, double *params, double time, double volume, double dt)
     cdef void initialize(self, double *state, double *params, double time, double volume)
     cdef unsigned cell_divided(self, double *state, double *params, double time, double volume, double dt)
+
+
+cdef class StateDependentVolume(Volume):
+    """
+    A volume class for a cell where growth rate depends on state and the division volume is chosen randomly
+    ahead of time with some randomness.
+
+    Attributes:
+        division_volume (double): the volume at which the cell will divide.
+        average_division_volume (double): the average volume at which to divide.
+        division_noise (double):  << 1, the noise in the division time (c.o.v.)
+        growth_rate (Term): the growth rate evaluated based on the state
+    """
+    cdef double division_volume
+    cdef double average_division_volume
+    cdef double division_noise
+    cdef Term growth_rate
+
+    cdef double get_volume_step(self, double *state, double *params, double time, double volume, double dt)
+    cdef void initialize(self, double *state, double *params, double time, double volume)
+    cdef unsigned cell_divided(self, double *state, double *params, double time, double volume, double dt)
+
 
 ##################################################                ####################################################
 ######################################              MODEL   TYPES                       ##############################
@@ -569,6 +617,6 @@ cdef class Lineage:
         """
         return (<Schnitz> (self.c_schnitzes[index]))
 
-
-
+cdef class ExperimentalLineage(Lineage):
+    cdef dict species_dict
 
