@@ -358,7 +358,8 @@ cdef class MassActionPropensity(Propensity):
 
         return ans
 
-    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
+    cdef double get_volume_propensity(self, double *state, double *params,
+                                      double volume, double time):
         cdef double ans = params[self.k_index]
         cdef int i
         for i in range(self.num_species):
@@ -1382,7 +1383,7 @@ cdef class Model:
             # go through propensity types
 
             init_dictionary = propensity.attrs
-            
+
             if propensity['type'] == 'hillpositive':
                 prop_object = PositiveHillPropensity()
 
@@ -1421,7 +1422,7 @@ cdef class Model:
                 self._add_species(species_name)
             for param_name in param_names:
                 self._add_param(param_name)
-            
+
             init_dictionary.pop('type')
             prop_object.initialize(init_dictionary,self.species2index,self.params2index)
 
@@ -1786,6 +1787,10 @@ def convert_sbml_to_string(sbml_file):
     allparams = {}
 
     for s in model.getListOfSpecies():
+        if s.id == "volume" or s.id == "t":
+            warnings.warn("You have defined a species called '" + s.id +
+                          ". This is being ignored and treated as a keyword.")
+            continue
         allspecies[s.id] = 0.0
         if np.isfinite(s.getInitialAmount()):
             allspecies[s.id] = s.getInitialAmount()
@@ -1809,9 +1814,11 @@ def convert_sbml_to_string(sbml_file):
         product_list = []
 
         for reactant in reaction.getListOfReactants():
-            reactant_list.append(reactant.species)
+            if reactant.species in allspecies:
+                reactant_list.append(reactant.species)
         for product in reaction.getListOfProducts():
-            product_list.append(product.species)
+            if product.species in allspecies:
+                product_list.append(product.species)
 
         out += ('<reaction text="%s--%s" after="--">\n' % ('+'.join(reactant_list),'+'.join(product_list)) )
         out +=  '    <delay type="none"/>\n'
@@ -1859,11 +1866,11 @@ def convert_sbml_to_string(sbml_file):
     out += '\n'
 
     for s in allspecies:
-        out += '<species name="%s" value="%f" />\n' % (s, allspecies[s])
+        out += '<species name="%s" value="%E" />\n' % (s, allspecies[s])
     out += '\n'
 
     for p in allparams:
-        out += '<parameter name="%s" value="%f"/>\n' % (p, allparams[p])
+        out += '<parameter name="%s" value="%E"/>\n' % (p, allparams[p])
 
     out += '\n'
 
