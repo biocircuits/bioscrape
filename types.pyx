@@ -1866,11 +1866,11 @@ def convert_sbml_to_string(sbml_file):
     out += '\n'
 
     for s in allspecies:
-        out += '<species name="%s" value="%E" />\n' % (s, allspecies[s])
+        out += '<species name="%s" value="%.18E" />\n' % (s, allspecies[s])
     out += '\n'
 
     for p in allparams:
-        out += '<parameter name="%s" value="%E"/>\n' % (p, allparams[p])
+        out += '<parameter name="%s" value="%.18E"/>\n' % (p, allparams[p])
 
     out += '\n'
 
