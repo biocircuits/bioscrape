@@ -553,11 +553,20 @@ cdef class DelayCellState(CellState):
         self.delay_queue = q
 
 cdef class VolumeCellState(CellState):
+
     def py_set_volume(self, double volume):
         self.volume = volume
 
     def py_get_volume(self):
         return self.volume
+
+    def __setstate__(self, state):
+        self.time = state[0]
+        self.volume = state[1]
+        self.state = state[2].copy()
+
+    def __getstate__(self):
+        return (self.time, self.volume, self.state)
 
 cdef class DelayVolumeCellState(VolumeCellState):
     def py_get_delay_queue(self):
@@ -1022,6 +1031,21 @@ cdef class PerfectBinomialDelayVolumeSplitter(DelayVolumeSplitter):
         ans[1] = e
 
         return ans
+
+
+cdef class CustomSplitter(VolumeSplitter):
+    def __init__(self, split_function):
+        self.split_function = split_function
+
+    cdef np.ndarray partition(self, VolumeCellState parent):
+        """
+        Split the parent state into two VolumeCellState's according to a
+        user-supplied function.
+
+        :param parent: (VolumeCellState)
+        :return: (np.ndarray) Length 2 array of VolumeCellStates.
+        """
+        return self.split_function(parent)
 
 ##################################################                ####################################################
 ######################################              SIMULATORS                        ################################

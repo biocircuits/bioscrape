@@ -288,6 +288,13 @@ cdef class PerfectBinomialDelayVolumeSplitter(DelayVolumeSplitter):
     """
     cdef np.ndarray partition(self, DelayVolumeCellState parent)
 
+cdef class CustomSplitter(VolumeSplitter):
+    """
+    A volume splitting class that splits the cell into two equal halves and splits the molecuels binomially w/ p = 0.5
+    """
+    cdef object split_function
+    cdef np.ndarray partition(self, VolumeCellState parent)
+
 
 ##################################################                ####################################################
 ######################################              SIMULATORS                        ################################
