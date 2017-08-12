@@ -1927,6 +1927,40 @@ cdef class Schnitz:
         self.set_daughters(d1,d2)
 
 
+    def get_sub_lineage(self, dict species_dict = None):
+        cdef Lineage out
+        if species_dict is None:
+            out = Lineage()
+        else:
+            out = ExperimentalLineage(species_dict.copy())
+
+
+        cdef list schnitzes_to_add = [self]
+        cdef unsigned index = 0
+        cdef Schnitz s = None
+
+
+        while index < len(schnitzes_to_add):
+            s = schnitzes_to_add[index]
+            if s.get_daughter_1() is not None:
+                schnitzes_to_add.append(s.get_daughter_1())
+            if s.get_daughter_2() is not None:
+                schnitzes_to_add.append(s.get_daughter_2())
+
+            index += 1
+
+        for index in range(len(schnitzes_to_add)):
+            out.add_schnitz(schnitzes_to_add[index])
+
+        return out
+
+
+    def copy(self):
+        cdef Schnitz temp = Schnitz(self.time.copy(),self.data.copy(),self.volume.copy())
+        temp.daughter1 = self.daughter1
+        temp.daughter2 = self.daughter2
+        temp.parent = self.parent
+        return temp
 
     def __setstate__(self,state):
         self.parent = state[0]
@@ -2067,6 +2101,8 @@ cdef class ExperimentalLineage(Lineage):
         new_lineage.py_set_species_indices(self.species_dict.copy())
 
         return new_lineage
+
+
 
 
 
