@@ -434,6 +434,7 @@ cdef class Volume:
     cdef double get_volume_step(self, double *state, double *params, double time, double volume, double dt)
     cdef void initialize(self, double *state, double *params, double time, double volume)
     cdef unsigned cell_divided(self, double *state, double *params, double time, double volume, double dt)
+    cdef Volume copy(self)
 
     cdef inline void set_volume(self, double v):
         """
@@ -478,6 +479,7 @@ cdef class StochasticTimeThresholdVolume(Volume):
     cdef double get_volume_step(self, double *state, double *params, double time, double volume, double dt)
     cdef void initialize(self, double *state, double *params, double time, double volume)
     cdef unsigned cell_divided(self, double *state, double *params, double time, double volume, double dt)
+    cdef Volume copy(self)
 
 
 cdef class StateDependentVolume(Volume):
@@ -499,6 +501,7 @@ cdef class StateDependentVolume(Volume):
     cdef double get_volume_step(self, double *state, double *params, double time, double volume, double dt)
     cdef void initialize(self, double *state, double *params, double time, double volume)
     cdef unsigned cell_divided(self, double *state, double *params, double time, double volume, double dt)
+    cdef Volume copy(self)
 
 
 ##################################################                ####################################################

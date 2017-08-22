@@ -161,11 +161,18 @@ cdef class VolumeSSAResult(SSAResult):
     """
     cdef np.ndarray volume
     cdef unsigned cell_divided_flag
+    cdef Volume volume_object
 
     cdef inline unsigned cell_divided(self):
         return self.cell_divided_flag
     cdef inline np.ndarray get_volume(self):
         return self.volume
+
+    cdef inline Volume get_volume_object(self):
+        return self.volume_object
+
+    cdef inline void set_volume_object(self, Volume v):
+        self.volume_object = v
 
     cdef VolumeCellState get_final_cell_state(self)
     cdef Schnitz get_schnitz(self)
@@ -222,12 +229,20 @@ cdef class VolumeCellState(CellState):
     A class for keeping track of cell state in a system with volume (species, time, and volume).
     """
     cdef double volume
+    cdef Volume volume_object
 
     cdef inline void set_volume(self, double volume):
         self.volume = volume
 
     cdef inline double get_volume(self):
         return self.volume
+
+    cdef inline void set_volume_object(self, Volume vol):
+        self.volume_object = vol
+
+    cdef inline Volume get_volume_object(self):
+        return self.volume_object
+
 
 cdef class DelayVolumeCellState(VolumeCellState):
     """
@@ -400,3 +415,9 @@ cdef Lineage simulate_cell_lineage(CSimInterface sim, Volume v, np.ndarray timep
                                     VolumeSimulator vsim, VolumeSplitter vsplit)
 cdef Lineage simulate_delay_cell_lineage(CSimInterface sim, DelayQueue q, Volume v, np.ndarray timepoints,
                                    DelayVolumeSimulator dvsim, DelayVolumeSplitter dvsplit)
+
+
+cdef list propagate_cell(ModelCSimInterface sim, VolumeCellState cell, double end_time,
+                               VolumeSimulator vsim, VolumeSplitter vsplit)
+cdef list propagate_cells(ModelCSimInterface sim, list cells, double end_time,
+                          VolumeSimulator vsim, VolumeSplitter vsplit)

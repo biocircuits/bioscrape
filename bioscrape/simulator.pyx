@@ -500,6 +500,7 @@ cdef class VolumeSSAResult(SSAResult):
         cs.set_time(self.timepoints[final_index])
         cs.set_volume(self.volume[final_index])
         cs.set_state(self.simulation_result[final_index,:])
+        cs.set_volume_object(self.volume_object)
         return cs
 
     def py_get_final_cell_state(self):
@@ -553,12 +554,20 @@ cdef class DelayCellState(CellState):
         self.delay_queue = q
 
 cdef class VolumeCellState(CellState):
+    def __init__(self):
+        self.volume_object = None
 
     def py_set_volume(self, double volume):
         self.volume = volume
 
     def py_get_volume(self):
         return self.volume
+
+    def py_set_volume_object(self, Volume v):
+        self.volume_object = v
+
+    def py_get_volume_object(self):
+        return self.volume_object
 
     def __setstate__(self, state):
         self.time = state[0]
@@ -1600,7 +1609,10 @@ cdef class VolumeSSASimulator(VolumeSimulator):
             c_volume_trace = c_volume_trace[:(current_index)]
             c_results = c_results[:current_index,:]
 
-        return VolumeSSAResult(c_timepoints,c_results,c_volume_trace,cell_divided)
+        cdef VolumeSSAResult vsr = VolumeSSAResult(c_timepoints,c_results,c_volume_trace,cell_divided)
+        vsr.set_volume_object(v)
+
+        return vsr
 
 
 cdef class DelayVolumeSimulator:
@@ -1757,3 +1769,93 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
             c_results = c_results[:current_index,:]
 
         return DelayVolumeSSAResult(c_timepoints,c_results,c_volume_trace,q,cell_divided)
+
+cdef list propagate_cell(ModelCSimInterface sim, VolumeCellState cell, double end_time,
+                               VolumeSimulator vsim, VolumeSplitter vsplit):
+    cells_to_simulate = [cell]
+    cell.set_volume_object(cell.get_volume_object().copy())
+    cells_to_return = []
+    index = 0
+
+    cdef VolumeCellState cs,d1,d2
+    cdef np.ndarray timepoints
+    cdef VolumeSSAResult r
+    cdef np.ndarray daughters
+
+    while index < len(cells_to_simulate):
+        cs = cells_to_simulate[index]
+        index += 1
+
+        sim.set_initial_state(cs.get_state())
+        sim.set_initial_time(cs.get_time())
+        timepoints = np.linspace(cs.get_time(),end_time,int( (end_time-cs.get_time())/sim.get_dt() )+1)
+        r = vsim.volume_simulate(sim, cs.get_volume_object(), timepoints)
+        #print(timepoints)
+        #print(r.get_schnitz().get_volume())
+
+        cs = r.get_final_cell_state()
+        #print("sim:",cs.get_time(),cs.get_state(),cs.get_volume())
+        if cs.get_time() == end_time:
+            cells_to_return.append(cs)
+
+        else:
+            daughters = vsplit.partition(cs)
+            d1 = <VolumeCellState>(daughters[0])
+            d2 = <VolumeCellState>(daughters[1])
+
+            #print('adding',d1.get_time(),d1.get_state(),d1.get_volume())
+            #print('adding',d2.get_time(),d2.get_state(),d2.get_volume())
+
+
+            d1.set_volume_object(cs.get_volume_object().copy())
+            d1.get_volume_object().initialize(<double*> d1.get_state().data,<double*> 0,
+                                              d1.get_time(), d1.get_volume())
+            d2.set_volume_object(cs.get_volume_object().copy())
+            d2.get_volume_object().initialize(<double*> d2.get_state().data,<double*> 0,
+                                              d2.get_time(), d2.get_volume())
+            cells_to_simulate.append(d1)
+            cells_to_simulate.append(d2)
+
+    return cells_to_return
+
+def py_propagate_cell(ModelCSimInterface sim, VolumeCellState cell, double end_time,
+                               VolumeSimulator vsim, VolumeSplitter vsplit):
+    """
+    Move a cell forward in time including division and partitioning
+    :param sim: (ModelCSimInterface) the model to use to simulate
+    :param cell: (VolumeCellState) the initial cell state to start from
+    :param end_time: (double) the final time of the simulation
+    :param vsim: (VolumeSimulator) simulator object that handles volume and division
+    :param vsplit: (VolumeSplitter) splitter for cell division
+    :return: (list) VolumeCellState corresponding to this cell (or its lineage) in the future. If
+              the cell divided there will be muliple entries
+    """
+    return propagate_cell(sim,cell,end_time, vsim,vsplit)
+
+cdef list propagate_cells(ModelCSimInterface sim, list cells, double end_time,
+                          VolumeSimulator vsim, VolumeSplitter vsplit):
+    cdef VolumeCellState cell
+    cdef unsigned index
+    cdef unsigned size = len(cells)
+    cdef list cells_to_return = []
+
+    for index in range(size):
+        cell = cells[index]
+        cells_to_return.extend(propagate_cell(sim,cell,end_time,vsim,vsplit))
+
+    return cells_to_return
+
+
+def py_propagate_cells(ModelCSimInterface sim, list cells, double end_time,
+                          VolumeSimulator vsim, VolumeSplitter vsplit):
+    """
+    Move a population of cells forward in time.
+    :param sim: (ModelCSimInterface) the model to use to simulate
+    :param cells: list of (VolumeCellState) the initial cell states to start from
+    :param end_time: (double) the final time of the simulation
+    :param vsim: (VolumeSimulator) simulator object that handles volume and division
+    :param vsplit: (VolumeSplitter) splitter for cell division
+    :return: (list) VolumeCellState corresponding to this cells in the future. If
+              the cells divided there will be muliple entries for each original cell
+    """
+    return propagate_cells(sim,cells,end_time,vsim,vsplit)

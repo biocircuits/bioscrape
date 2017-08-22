@@ -1053,6 +1053,18 @@ cdef class Volume:
 
         return 0.0
 
+    cdef Volume copy(self):
+        """
+        Returns a deep copy of the volume object
+        """
+        raise NotImplementedError('Need to implement copy for population simulations')
+
+    def py_copy(self):
+        """
+        Copy function for deep copying
+        :return: a deep copy of the volume object
+        """
+        return self.copy()
 
     def py_get_volume_step(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params,
                            double time, double volume, double dt):
@@ -1128,6 +1140,15 @@ cdef class StochasticTimeThresholdVolume(Volume):
         # Compute growth rate yourself.
         self.growth_rate = 0.69314718056 / cell_cycle_time # log(2) / cycle time
 
+
+    cdef Volume copy(self):
+        cdef StochasticTimeThresholdVolume v = StochasticTimeThresholdVolume(self.cell_cycle_time,
+                                                                             self.average_division_volume,
+                                                                             self.division_noise)
+        v.division_time = self.division_time
+        v.current_volume = self.current_volume
+        return v
+
     cdef double get_volume_step(self, double *state, double *params, double time, double volume, double dt):
         """
         Compute a deterministic volume step that is independent of state and parameters.
@@ -1192,10 +1213,14 @@ cdef class StateDependentVolume(Volume):
         growth_rate (Term): the growth rate evaluated based on the state
     """
 
-    def __init__(self, double average_division_volume, double division_noise, growth_rate, Model m):
+    def __init__(self):
+        pass
+
+    def setup(self, double average_division_volume, double division_noise, growth_rate, Model m):
         self.average_division_volume = average_division_volume
         self.division_noise = division_noise
         self.growth_rate = m.parse_general_expression(growth_rate)
+
 
     cdef double get_volume_step(self, double *state, double *params, double time, double volume, double dt):
         cdef double gr = self.growth_rate.evaluate(state,params, time)
@@ -1213,6 +1238,15 @@ cdef class StateDependentVolume(Volume):
         if volume > self.division_volume:
             return 1
         return 0
+
+    cdef Volume copy(self):
+        cdef StateDependentVolume sv = StateDependentVolume()
+        sv.division_noise = self.division_noise
+        sv.division_volume = self.division_volume
+        sv.growth_rate = self.growth_rate
+        sv.average_division_volume = self.average_division_volume
+        sv.current_volume = self.current_volume
+        return sv
 
 
 ##################################################                ####################################################
