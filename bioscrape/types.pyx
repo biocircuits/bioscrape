@@ -1821,20 +1821,22 @@ def convert_sbml_to_string(sbml_file):
     allparams = {}
 
     for s in model.getListOfSpecies():
-        if s.id == "volume" or s.id == "t":
-            warnings.warn("You have defined a species called '" + s.id +
+        sid = s.getIdAttribute()
+        if sid == "volume" or sid == "t":
+            warnings.warn("You have defined a species called '" + sid +
                           ". This is being ignored and treated as a keyword.")
             continue
-        allspecies[s.id] = 0.0
+        allspecies[sid] = 0.0
         if np.isfinite(s.getInitialAmount()):
-            allspecies[s.id] = s.getInitialAmount()
-        if np.isfinite(s.getInitialConcentration()) and allspecies[s.id] == 0:
-            allspecies[s.id] = s.getInitialConcentration()
+            allspecies[sid] = s.getInitialAmount()
+        if np.isfinite(s.getInitialConcentration()) and allspecies[sid] == 0:
+            allspecies[sid] = s.getInitialConcentration()
 
     for p in model.getListOfParameters():
-        allparams[p.id] = 0.0
+        pid = p.getIdAttribute()
+        allparams[pid] = 0.0
         if np.isfinite(p.getValue()):
-            allparams[p.id] = p.getValue()
+            allparams[pid] = p.getValue()
     # Go through reactions one at a time to get stoich and rates.
     for reaction in model.getListOfReactions():
         # Warning message if reversible
@@ -1848,11 +1850,13 @@ def convert_sbml_to_string(sbml_file):
         product_list = []
 
         for reactant in reaction.getListOfReactants():
-            if reactant.species in allspecies:
-                reactant_list.append(reactant.species)
+            reactantspecies = reactant.getSpecies()
+            if reactantspecies in allspecies:
+                reactant_list.append(reactantspecies)
         for product in reaction.getListOfProducts():
-            if product.species in allspecies:
-                product_list.append(product.species)
+            productspecies = product.getSpecies()
+            if productspecies in allspecies:
+                product_list.append(productspecies)
 
         out += ('<reaction text="%s--%s" after="--">\n' % ('+'.join(reactant_list),'+'.join(product_list)) )
         out +=  '    <delay type="none"/>\n'
@@ -1861,9 +1865,10 @@ def convert_sbml_to_string(sbml_file):
         kl = reaction.getKineticLaw()
         # capture any local parameters
         for p in kl.getListOfParameters():
-            allparams[p.id] = 0.0
+            pid = p.getIdAttribute()
+            allparams[pid] = 0.0
             if np.isfinite(p.getValue()):
-                allparams[p.id] = p.getValue()
+                allparams[pid] = p.getValue()
 
 
         # get the formula as a string and then add
@@ -1880,13 +1885,14 @@ def convert_sbml_to_string(sbml_file):
             warnings.warn('Unsupported rule type: %s' % rule.getElementName())
             continue
         rule_formula = libsbml.formulaToL3String(rule.getMath())
-        if rule.variable in allspecies:
-            rule_string = rule.variable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
-        elif rule.variable in allparams:
-            rule_string = '_' + rule.variable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
+        rulevariable = rule.getVariable()
+        if rulevariable in allspecies:
+            rule_string = rulevariable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
+        elif rulevariable in allparams:
+            rule_string = '_' + rulevariable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
         else:
             warnings.warn('SBML: Attempting to assign something that is not a parameter or species %s'
-                          % rule.variable)
+                          % rulevariable)
             continue
 
         out += '<rule type="assignment" frequency="repeated" equation="%s" />\n' % rule_string
