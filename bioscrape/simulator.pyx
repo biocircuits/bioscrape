@@ -1584,11 +1584,13 @@ cdef class VolumeSSASimulator(VolumeSimulator):
             # IF the queue won, then update the volume and continue on or stop if the cell divided.
             if move_to_queued_time == 1:
                 # Update the volume
-                current_volume += v.get_volume_step(<double*>(c_current_state.data), <double*> 0, current_time, current_volume, delta_t)
+                current_volume += v.get_volume_step(<double*>(c_current_state.data), <double*> sim.get_param_values(),
+                                                    current_time, current_volume, delta_t)
                 v.set_volume(current_volume)
 
                 # IF the cell divided, just return and bounce from here!!!!
-                if v.cell_divided(<double*>(c_current_state.data), <double*> 0, current_time,current_volume,delta_t):
+                if v.cell_divided(<double*>(c_current_state.data), <double*> sim.get_param_values(),
+                                  current_time,current_volume,delta_t):
                     cell_divided = True
                     break
 
@@ -1742,11 +1744,13 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
             elif step_type == 1:
                 # Update the volume
                 current_volume += v.get_volume_step(<double*>(c_current_state.data),
-                                                    <double*> 0, current_time, current_volume, delta_t)
+                                                    <double*> sim.get_param_values(),
+                                                    current_time, current_volume, delta_t)
                 v.set_volume(current_volume)
 
                 # IF the cell divided, just return and bounce from here!!!!
-                if v.cell_divided(<double*>(c_current_state.data), <double*> 0, current_time,current_volume,delta_t):
+                if v.cell_divided(<double*>(c_current_state.data), <double*> sim.get_param_values(),
+                                  current_time,current_volume,delta_t):
                     cell_divided = True
                     break
             # 3. If we have a delay reaction come on instead.
@@ -1788,14 +1792,15 @@ cdef list propagate_cell(ModelCSimInterface sim, VolumeCellState cell, double en
 
         sim.set_initial_state(cs.get_state())
         sim.set_initial_time(cs.get_time())
-        timepoints = np.linspace(cs.get_time(),end_time,int( (end_time-cs.get_time())/sim.get_dt() )+1)
+        timepoints = np.linspace(cs.get_time(),end_time,int( (end_time-cs.get_time())/sim.get_dt() )+10)
         r = vsim.volume_simulate(sim, cs.get_volume_object(), timepoints)
         #print(timepoints)
         #print(r.get_schnitz().get_volume())
 
         cs = r.get_final_cell_state()
         #print("sim:",cs.get_time(),cs.get_state(),cs.get_volume())
-        if cs.get_time() == end_time:
+        if cs.get_time() >= end_time - sim.get_dt() - 1E-8:
+            cs.set_time(end_time)
             cells_to_return.append(cs)
 
         else:
