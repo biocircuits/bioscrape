@@ -1813,10 +1813,10 @@ cdef list propagate_cell(ModelCSimInterface sim, VolumeCellState cell, double en
 
 
             d1.set_volume_object(cs.get_volume_object().copy())
-            d1.get_volume_object().initialize(<double*> d1.get_state().data,<double*> 0,
+            d1.get_volume_object().initialize(<double*> d1.get_state().data,sim.get_param_values(),
                                               d1.get_time(), d1.get_volume())
             d2.set_volume_object(cs.get_volume_object().copy())
-            d2.get_volume_object().initialize(<double*> d2.get_state().data,<double*> 0,
+            d2.get_volume_object().initialize(<double*> d2.get_state().data,sim.get_param_values(),
                                               d2.get_time(), d2.get_volume())
             cells_to_simulate.append(d1)
             cells_to_simulate.append(d2)
