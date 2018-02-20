@@ -1253,6 +1253,7 @@ cdef class SSASimulator(RegularSimulator):
         cdef double final_time = timepoints[num_timepoints-1]
 
         cdef double current_time = sim.get_initial_time()
+        cdef double dt = sim.get_dt()
         cdef double proposed_time = 0.0
         cdef double Lambda = 0.0
 
@@ -1273,7 +1274,7 @@ cdef class SSASimulator(RegularSimulator):
             Lambda = cyrandom.array_sum(<double*> c_propensity.data,num_reactions)
 
             if Lambda == 0:
-                current_time = final_time + 1
+                current_time = current_time + dt
             else:
                 current_time = current_time + cyrandom.exponential_rv(Lambda)
 
