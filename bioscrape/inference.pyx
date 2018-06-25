@@ -254,7 +254,9 @@ cdef class DeterministicInference:
         sampler = emcee.EnsembleSampler(self.num_walkers, self.dimension, lnprob)
         if p0 is None:
             p0 = np.random.randn(self.dimension*self.num_walkers).reshape((self.num_walkers,self.dimension)) / 20.0
-        sampler.run_mcmc(p0, self.num_iterations)
+
+        for iteration, (pos,lnp,state) in enumerate(sampler.sample(p0,iterations=self.num_iterations)):
+            print('%.1f percent complete' % (100*float(iteration)/self.num_iterations))
 
         return sampler
 
