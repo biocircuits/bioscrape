@@ -359,6 +359,12 @@ cdef class SSASimulator(RegularSimulator):
     """
     cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints)
 
+cdef class SafeModeSSASimulator(RegularSimulator):
+    """
+    A class for implementing a stochastic SSA simulator.
+    """
+    cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints)
+
 cdef class TimeDependentSSASimulator(RegularSimulator):
     """
     A class for implementing a stochastic SSA simulator.
