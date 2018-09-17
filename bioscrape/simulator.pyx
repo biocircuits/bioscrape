@@ -1293,6 +1293,76 @@ cdef class SSASimulator(RegularSimulator):
 
         return SSAResult(timepoints,c_results)
 
+cdef class SafeModeSSASimulator(RegularSimulator):
+    """
+    A class for implementing a stochastic SSA simulator.
+    """
+    cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints):
+        cdef np.ndarray[np.double_t,ndim=1] c_timepoints = timepoints
+        cdef np.ndarray[np.double_t,ndim=1] c_current_state = sim.get_initial_state().copy()
+        cdef np.ndarray[np.double_t,ndim=2] c_stoich = sim.get_update_array() + sim.get_delay_update_array()
+        cdef np.ndarray[np.double_t,ndim=2] c_delay_stoich = sim.get_delay_update_array()
+
+        cdef unsigned num_species = c_stoich.shape[0]
+        cdef unsigned num_reactions = c_stoich.shape[1]
+        cdef unsigned num_timepoints = len(timepoints)
+
+        cdef double final_time = timepoints[num_timepoints-1]
+
+        cdef double current_time = sim.get_initial_time()
+        cdef double dt = sim.get_dt()
+        cdef double proposed_time = 0.0
+        cdef double Lambda = 0.0
+
+        cdef np.ndarray[np.double_t,ndim=2] c_results = np.zeros((num_timepoints, num_species),dtype=np.double)
+        cdef np.ndarray[np.double_t,ndim=1] c_propensity = np.zeros(num_reactions)
+
+        # Now do the SSA part
+        cdef unsigned current_index = 0
+        cdef unsigned reaction_choice = 0
+        cdef unsigned species_index = 0
+        cdef unsigned reaction_index = 0
+
+
+        while current_index < num_timepoints:
+            # check for negative species
+            for species_index in range(num_species):
+                if c_current_state[species_index] < 0:
+                    raise RuntimeError('Species %d has a negative value of %f, possible last reaction: %d' %
+                            (species_index, c_current_state[species_index], reaction_choice))
+
+            # Compute propensity in place
+            sim.apply_repeated_rules(<double*> c_current_state.data,current_time)
+            sim.compute_propensities(<double*> c_current_state.data, <double*> c_propensity.data,current_time)
+            # Sample the next reaction time and update
+            Lambda = cyrandom.array_sum(<double*> c_propensity.data,num_reactions)
+
+            for reaction_index in range(num_reactions):
+                if c_propensity[reaction_index] < 0:
+                    raise RuntimeError('Reaction %d has a negative propensity of %f' %
+                          (reaction_index, c_propensity[reaction_index]))
+
+            if Lambda == 0:
+                current_time = current_time + dt
+            else:
+                current_time = current_time + cyrandom.exponential_rv(Lambda)
+
+            # Update previous states
+            while current_index < num_timepoints and c_timepoints[current_index] < current_time:
+                for species_index in range(num_species):
+                    c_results[current_index,species_index] = c_current_state[species_index]
+                current_index += 1
+
+            # Choose a reaction and update the state accordingly.
+            if Lambda > 0:
+                reaction_choice = cyrandom.sample_discrete(num_reactions, <double*> c_propensity.data , Lambda)
+
+                for species_index in range(num_species):
+                    c_current_state[species_index] += c_stoich[species_index,reaction_choice]
+
+        return SSAResult(timepoints,c_results)
+
+
 
 
 cdef class TimeDependentSSASimulator(RegularSimulator):
