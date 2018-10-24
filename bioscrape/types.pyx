@@ -1254,7 +1254,7 @@ cdef class StateDependentVolume(Volume):
 #################################################                     ################################################
 
 cdef class Model:
-    def __init__(self, filename):
+    def __init__(self, filename = None, species = [], reactions = [], parameters = []):
         """
         Read in a model from a file using XML format for the model.
 
@@ -1263,7 +1263,27 @@ cdef class Model:
 
         self._next_species_index = 0
         self._next_params_index = 0
-        self.parse_model(filename)
+        self.species2index = {}
+        self.params2index = {}
+        self.propensities = []
+        self.delays = []
+        self.repeat_rules = []
+
+        #These must be updated later
+        self.update_array = None
+        self.delay_update_array = None
+
+        if filename == None:
+            self.parse_model(filename)
+
+        for specie in species:
+            self.add_species(specie)
+
+        for rxn in reactions:
+            self._add_reaction(rxn)
+
+        for param in parameters:
+            self._add_param(param)
 
     def _add_species(self, species):
         """
@@ -1280,6 +1300,8 @@ cdef class Model:
             self.species2index[species] = self._next_species_index
             self._next_species_index += 1
 
+    def _add_reaction(self, reaction):
+        raise NotImplementedError("_add_reaction not implemented")
 
     def _add_param(self, param):
         """
@@ -1339,15 +1361,6 @@ cdef class Model:
         Model = xml.find_all('model')
         if len(Model) != 1:
             raise SyntaxError('Did not include global model tag in XML file')
-
-
-        self._next_species_index = 0
-        self._next_params_index = 0
-        self.species2index = {}
-        self.params2index = {}
-        self.propensities = []
-        self.delays = []
-        self.repeat_rules = []
 
         reaction_updates = []
         delay_reaction_updates = []
