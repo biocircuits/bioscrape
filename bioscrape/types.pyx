@@ -1305,7 +1305,7 @@ cdef class Model:
 
         :param filename: (str) the file to read the model
         """
-
+        print("Model instantiator")
         self._next_species_index = 0
         self._next_params_index = 0
         self.species2index = {}
@@ -1358,6 +1358,8 @@ cdef class Model:
     #   delay_reaction_update_dict: same as reaction_dict but for the delayed part of a reaction
     #   delay_object: an instance of one of a delay_object
     def _add_reaction(self, reaction_update_dict, propensity_object, delay_reaction_update_dict = {}, delay_object = None):
+        print("Adding Reaction")
+
         self.reaction_updates.append(reaction_update_dict)
         self.propensities.append(propensity_object)
         self.c_propensities.push_back(<void*> propensity_object)
@@ -1386,7 +1388,7 @@ cdef class Model:
     #   delay_param_dict: a dictionary of the parameters for the delay distribution
     def create_reaction(self, reactants, products, propensity_type, propensity_param_dict,
                          delay_type = None, delay_reactants = None, delay_products = None, delay_param_dict = None):
-
+        print("Creating Reaction")
         #Reaction Reactants and Products stored in a dictionary
         reaction_update_dict = {}
         for r in reactants:
@@ -1539,6 +1541,7 @@ cdef class Model:
                          that a file handle was passed in.
         :return: None
         """
+        print("Parsing Model")
         # open XML file from the filename and use BeautifulSoup to parse it
         if type(filename) == str:
             xml_file = open(filename,'r')
