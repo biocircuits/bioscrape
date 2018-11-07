@@ -97,3 +97,5 @@ ENV/
 
 # Rope project settings
 .ropeproject
+interactive_testing.ipynb
+*.py
