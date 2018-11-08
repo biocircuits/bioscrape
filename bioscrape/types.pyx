@@ -343,7 +343,7 @@ cdef class NegativeProportionalHillPropensity(Propensity):
                 self.d_index = species_indices[species['d']]
             else:
                 warnings.warn('Warning! Useless field for NegativeProportionalHillPropensity '+str(key))
-    def set_parameters(self,parameters, parameter_indices):
+    def set_parameters(self, parameters, parameter_indices):
         for key in parameters:
             if key == 'K':
                 self.K_index = parameter_indices[parameters[key]]
@@ -1284,6 +1284,8 @@ cdef class Model:
         self.delays = []
         self.repeat_rules = []
         self.reaction_parameters = {} #Dict rxn_ind --> (propensity param dict, delay param dict)
+        self.params_values = np.array([])
+        self.species_values = np.array([])
 
         #These must be updated later
         self.update_array = None
@@ -1306,7 +1308,6 @@ cdef class Model:
         for rule in rules:
             self.create_rule(rule)
 
-        self._initialize_propensities_and_delays()
         self._create_stochiometric_matrices()
 
     def _add_species(self, species):
@@ -1323,6 +1324,15 @@ cdef class Model:
         if species not in self.species2index:
             self.species2index[species] = self._next_species_index
             self._next_species_index += 1
+            self.species_values = np.concatenate((self.species_values, np.array([np.nan])))
+
+    def _set_species_value(self, specie, value):
+        if specie not in self.species2index:
+            self.species2index[specie] = self._next_species_index
+            self._next_species_index += 1
+            self.species_values = np.concatenate((self.species_values, np.array(value)))
+        else:
+            self.species_values[self.species2index[specie]] = value
 
     #Helper function to add a reaction to the model
     #Inputs:
@@ -1336,21 +1346,32 @@ cdef class Model:
     def _add_reaction(self, reaction_update_dict, propensity_object, propensity_param_dict,
         delay_reaction_update_dict = {}, delay_object = None, delay_param_dict = {}):
 
+        species_names, param_names = propensity_object.get_species_and_parameters(propensity_param_dict)
+
+        for species_name in species_names:
+            self._add_species(species_name)
+        for param_name in param_names:
+            self._add_param(param_name)
+
         self.reaction_updates.append(reaction_update_dict)
         self.propensities.append(propensity_object)
         self.c_propensities.push_back(<void*> propensity_object)
+        propensity_object.initialize(propensity_param_dict, self.species2index, self.params2index)
+
 
         if delay_object == None:
            delay_object = NoDelay()
+
+        species_names, param_names = delay_object.get_species_and_parameters(delay_param_dict)
+
+        for species_name in species_names:
+            self._add_species(species_name)
+        for param_name in param_names:
+            self._add_param(param_name)
         self.delays.append(delay_object)
         self.c_delays.push_back(<void*> delay_object)
         self.delay_reaction_updates.append(delay_reaction_update_dict)
-
-        self.reaction_parameters[self._next_reaction_index] = (propensity_param_dict, delay_param_dict)
-        self._next_reaction_index += 1
-
-    def _add_rule(self, rule):
-        raise NotImplementedError()
+        delay_object.initialize(delay_param_dict, self.species2index, self.params2index)
 
     #A function to programatically create a reaction (and add automatically add it to the model).
     #   Supports all native propensity types and delay types.
@@ -1419,13 +1440,6 @@ cdef class Model:
         else:
             raise SyntaxError('Propensity Type is not supported: ' + propensity_type)
 
-        species_names, param_names = prop_object.get_species_and_parameters(propensity_param_dict)
-
-        for species_name in species_names:
-            self._add_species(species_name)
-        for param_name in param_names:
-            self._add_param(param_name)
-
         #prop_object.initialize(propensity_param_dict, self.species2index, self.params2index)
 
         #Create Delay Object
@@ -1460,19 +1474,8 @@ cdef class Model:
         else:
             raise SyntaxError('Unknown delay type: ' + delay_type)
 
-        species_names, param_names = delay_object.get_species_and_parameters(delay_param_dict)
-
-        for species_name in species_names:
-            self._add_species(species_name)
-        for param_name in param_names:
-            self._add_param(param_name)
-
-
-        #delay_object.initialize(delay_param_dict,self.species2index,self.params2index)
-
         self._add_reaction(reaction_update_dict, prop_object, propensity_param_dict, delay_reaction_update_dict, delay_object, delay_param_dict)
-        return reaction_update_dict, prop_object, delay_reaction_update_dict, delay_object
-
+        
 
     def _add_param(self, param):
         """
@@ -1488,6 +1491,74 @@ cdef class Model:
         if param not in self.params2index:
             self.params2index[param] = self._next_params_index
             self._next_params_index += 1
+            self.params_values = np.concatenate((self.params_values, np.array([np.nan])))
+
+    #Creates a rule and adds it to the model.
+    #Inputs:
+    #   rule_type (str): The type of rule. Supported: "additive" and "assignment"
+    #   rule_attributes (dict): A dictionary of rule parameters / attributes. 
+    #       NOTE: the only attributes used by additive/assignment rules are 'equation'
+    #   rule_frequency: must be 'repeated'
+    #Rule Types Supported:
+    def create_rule(self, rule_type, rule_attributes, rule_frequency = "repeated"):
+            
+        # Parse the rule by rule type
+        if rule_type == 'additive':
+            rule_object = AdditiveAssignmentRule()
+        elif rule_type == 'assignment':
+            rule_object = GeneralAssignmentRule()
+        else:
+            raise SyntaxError('Invalid type of Rule: ' + rule_type)
+
+        # Add species and params to model
+        species_names, params_names = rule_object.get_species_and_parameters(rule_attributes)
+        for s in species_names: self._add_species(s)
+        for p in params_names: self._add_param(p)
+
+        # initialize the rule
+        rule_attributes.pop('type')
+        rule_object.initialize(rule_attributes,self.species2index,self.params2index)
+        # Add the rule to the right place
+        if rule_frequency == 'repeated':
+            self.repeat_rules.append(rule_object)
+            self.c_repeat_rules.push_back(<void*> rule_object)
+        else:
+            raise SyntaxError('Invalid Rule Frequency: ' + str(rule_frequency))
+
+    #Sets the value of a parameter in the model
+    def set_parameter(self, param_name, param_value):
+        if param_name not in self.params2index:
+            warnings.warn('Warning! parameter '+ param_name+" does not show up in any currently defined reactions or rules.")
+            self._add_param(param_name)
+
+        param_index = self.params2index[param_name]
+        self.params_values[param_index] = param_value
+
+    #Checks that all parameters have values
+    def check_parameters(self):
+        error_string = "Unspecified Parameters: "
+        unspecified_parameters = False
+        for p in self.params2index:
+            i = self.params2index[p]
+            if self.params_values[i] == np.nan:
+                unspecified_parameters = True
+                error_string += p+', '
+
+        if unspecified_parameters:
+            raise ValueError(error_string[:-2])
+
+    #Checks that species' values are all set. Unset values default to 0 and warning is raised.
+    def check_species(self):
+        uninitialized_species = False
+        warning_txt = "The follow species are uninitialized and their value has defaulted to 0: "
+        for s in self.species2index:
+            i = self.species2index[s]
+            if self.species_values[i] == np.nan:
+                uninitialized_species = True
+                warning_txt += s+", "
+                self._set_species_value(s, 0)
+        if uninitialized_species:
+            warnings.warn(warning_txt)
 
     #Helper Function to Create Stochiometric Matrices for Reactions and Delay Reactions
     def _create_stochiometric_matrices(self):
@@ -1506,17 +1577,6 @@ cdef class Model:
                 self.delay_update_array[self.species2index[sp],reaction_index] = delay_reaction_update_dict[sp]
 
         return self.update_array, self.delay_update_array
-
-    #Helper function to initialize propensities and delays. This occurs after all the reactions have been added to avoid errors.
-    def _initialize_propensities_and_delays(self):
-        for i in range(self._next_reaction_index):
-            prop_object = self.propensities[i]
-            prop_params = self.reaction_parameters[i][0]
-            prop_object.initialize(prop_params, self.species2index, self.params2index)
-
-            delay_object = self.delays[i]
-            delay_params = self.reaction_parameters[i][1]
-            delay_object.initialize(delay_params, self.species2index, self.params2index)
 
     def parse_model(self, filename):
         """
@@ -1591,91 +1651,41 @@ cdef class Model:
             delay_param_dict = delay.attrs
             delay_type = delay['type']
 
-            reaction_update_dict, prop_object, delay_reaction_update_dict, delay_object = self.create_reaction(
-                reactants = reactants, products = products, propensity_type = propensity['type'], propensity_param_dict = propensity_param_dict,
+            self.create_reaction(reactants = reactants, products = products, propensity_type = propensity['type'], propensity_param_dict = propensity_param_dict,
                 delay_reactants=delay_reactants, delay_products=delay_products, delay_param_dict = delay_param_dict)
 
 
         # Parse through the rules
         Rules = xml.find_all('rule')
-        cdef Rule rule_object
         for rule in Rules:
-            init_dictionary = rule.attrs
-            # Parse the rule by rule type
-            if rule['type'] == 'additive':
-                rule_object = AdditiveAssignmentRule()
-            elif rule['type'] == 'assignment':
-                rule_object = GeneralAssignmentRule()
-            else:
-                raise SyntaxError('Invalid type of Rule: ' + rule['type'])
-
-            # Add species and params to model
-            species_names, params_names = rule_object.get_species_and_parameters(init_dictionary)
-            for s in species_names: self._add_species(s)
-            for p in params_names: self._add_param(p)
-
-            # initialize the rule
-            init_dictionary.pop('type')
-            rule_object.initialize(init_dictionary,self.species2index,self.params2index)
-            # Add the rule to the right place
-            if rule['frequency'] == 'repeated':
-                self.repeat_rules.append(rule_object)
-                self.c_repeat_rules.push_back(<void*> rule_object)
-            else:
-                raise SyntaxError('Invalid Rule Frequency: ' + rule['frequency'])
-
+            rule_attrs = rule.attrs
+            rule_type = rule['type']
+            rule_frequency = rule['frequency']
+            self.create_rule(rule_type = rule_type, rule_attributes = rule_attrs, rule_frequency=rule_frequency)
 
         # Generate species values and parameter values
-        self.params_values = np.empty(len(self.params2index.keys()), )
-        self.params_values.fill(np.nan)
         unspecified_param_names = set(self.params2index.keys())
         Parameters = xml.find_all('parameter')
         for param in Parameters:
             param_value = float(param['value'])
             param_name = param['name']
-            if param_name not in self.params2index:
-                warnings.warn('Warning! Useless parameter '+ param_name)
-            else:
-                param_index = self.params2index[param_name]
-                self.params_values[param_index] = param_value
-                unspecified_param_names.remove(param_name)
+            self.set_parameter(param_name = param_name, param_value = param_value)
 
-        if len(unspecified_param_names) > 0:
-                error_string = 'Did not specify parameters: '
-                for pn in unspecified_param_names:
-                    error_string += pn
-                    error_string += ', '
-                error_string = error_string[:len(error_string)-2]
-                raise SyntaxError(error_string)
+        #Check for unspecified parameters
+        self.check_parameters()
 
-        self.species_values = np.empty(len(self.species2index.keys()), )
-        self.species_values.fill(np.nan)
-        unspecified_species_names = set(self.species2index.keys())
+        
         Species = xml.find_all('species')
         for species in Species:
             species_value = float(species['value'])
             species_name = species['name']
             if species_name not in self.species2index:
-                print ('Warning! Useless species value ' + species_name)
-            else:
-                species_index = self.species2index[species_name]
-                self.species_values[species_index] = species_value
-                unspecified_species_names.remove(species_name)
+                print ('Warning! Species'+ species_name + ' not currently used in any rules or reactions.')
+            self._set_species_value(species_name, species_value)
 
-        if len(unspecified_species_names) > 0:
-            error_string = "Didn't specify all species, setting the following to 0: "
-            for sn in unspecified_species_names:
-                error_string += (sn + ', ')
-            error_string = error_string[:len(error_string)-2]
-            warnings.warn(error_string)
-
-        self.species_values[np.isnan(self.species_values)] = 0.0
-
-
-        #print(self.species2index)
-        #print(self.params2index)
-        #print(self.update_array)
-        #print(self.delay_update_array)
+        #Check for species without intial conditions.
+        #Set these initial conditions to 0 and issue a warning.
+        self.check_species()
 
     def get_species_list(self):
         l = [None] * self.get_number_of_species()
