@@ -84,6 +84,9 @@ cdef class CSimInterface:
     cdef void calculate_determinstic_derivative(self, double *x, double *dxdt, double t)
     # end of deterministic simulation stuff
 
+    #method meant to be overwritten to check if interfaces/models are correct. called by simulators.
+    cdef void check_interface(self)
+
     cdef np.ndarray get_update_array(self)
     cdef np.ndarray get_delay_update_array(self)
     cdef double compute_delay(self, double *state, unsigned rxn_index)

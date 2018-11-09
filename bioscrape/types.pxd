@@ -533,7 +533,6 @@ cdef class Model:
     """
     cdef unsigned _next_species_index
     cdef unsigned _next_params_index
-    cdef unsigned _next_reaction_index
 
     cdef vector[void*] c_propensities
     cdef list propensities
@@ -553,7 +552,7 @@ cdef class Model:
     cdef np.ndarray delay_update_array
     cdef list reaction_updates
     cdef list delay_reaction_updates
-    cdef dict reaction_parameters
+    cdef int initialized
 
     cdef (vector[void*])* get_c_propensities(self)
     cdef (vector[void*])* get_c_delays(self)

@@ -65,8 +65,6 @@ cdef class Propensity:
 
 
     def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
-        if param_dictionary == None:
-            param_dictionary = self.params
         """
         Initializes the parameters and species to look at the right indices in the state
         :param dictionary: (dict:str--> str) the fields for the propensity 'k','s1' etc map to the actual parameter
@@ -1275,7 +1273,6 @@ cdef class Model:
 
         :param filename: (str) the file to read the model
         """
-        self._next_reaction_index = 0
         self._next_species_index = 0
         self._next_params_index = 0
         self.species2index = {}
@@ -1283,7 +1280,6 @@ cdef class Model:
         self.propensities = []
         self.delays = []
         self.repeat_rules = []
-        self.reaction_parameters = {} #Dict rxn_ind --> (propensity param dict, delay param dict)
         self.params_values = np.array([])
         self.species_values = np.array([])
 
@@ -1292,6 +1288,7 @@ cdef class Model:
         self.delay_update_array = None
         self.reaction_updates = []
         self.delay_reaction_updates = []
+        self.initialized = False #set to True when the stochiometric matrices are created and model checked by the initialize() function
 
         if filename != None:
             self.parse_model(filename)
@@ -1300,15 +1297,36 @@ cdef class Model:
             self._add_species(specie)
 
         for rxn in reactions:
-            self.create_reaction(rxn)
+            if len(rxn) == 4:
+                reactants, products, propensity_type, propensity_param_dict = rxn
+                delay_type, delay_reactants, delay_products, delay_param_dict = None, None,  None, None
+            elif len(rxn) == 8:
+                reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict = rxn
+            else:
+                raise ValueError("Reaction Tuple of the wrong length! Must be of length 4 (no delay) or 8 (with delays). See BioSCRAPE Model API for details.")
+            self.create_reaction(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict)
 
-        for param in parameters:
+        for param, param_val in parameters:
             self._add_param(param)
+            self.set_parameter(param, param_val)
 
         for rule in rules:
             self.create_rule(rule)
 
+        self._initialize()
+
+    def _initialize(self):
+        #Create Stochiometric Matrices
         self._create_stochiometric_matrices()
+
+        #Check for unspecified parameters
+        self.check_parameters()
+
+        #Check for species without intial conditions.
+        #Set these initial conditions to 0 and issue a warning.
+        self.check_species()
+
+        self.initialized = True
 
     def _add_species(self, species):
         """
@@ -1320,7 +1338,7 @@ cdef class Model:
         :param species: (str) the species name
         :return: None
         """
-
+        self.initialized = False
         if species not in self.species2index:
             self.species2index[species] = self._next_species_index
             self._next_species_index += 1
@@ -1328,9 +1346,7 @@ cdef class Model:
 
     def _set_species_value(self, specie, value):
         if specie not in self.species2index:
-            self.species2index[specie] = self._next_species_index
-            self._next_species_index += 1
-            self.species_values = np.concatenate((self.species_values, np.array(value)))
+            self._add_species(specie)
         else:
             self.species_values[self.species2index[specie]] = value
 
@@ -1345,6 +1361,7 @@ cdef class Model:
 
     def _add_reaction(self, reaction_update_dict, propensity_object, propensity_param_dict,
         delay_reaction_update_dict = {}, delay_object = None, delay_param_dict = {}):
+        self.initialized = False
 
         species_names, param_names = propensity_object.get_species_and_parameters(propensity_param_dict)
 
@@ -1388,6 +1405,8 @@ cdef class Model:
     #   delay_param_dict: a dictionary of the parameters for the delay distribution
     def create_reaction(self, reactants, products, propensity_type, propensity_param_dict,
                          delay_type = None, delay_reactants = None, delay_products = None, delay_param_dict = None):
+        self.initialized = False
+
         #Reaction Reactants and Products stored in a dictionary
         reaction_update_dict = {}
         for r in reactants:
@@ -1477,7 +1496,7 @@ cdef class Model:
         self._add_reaction(reaction_update_dict, prop_object, propensity_param_dict, delay_reaction_update_dict, delay_object, delay_param_dict)
         
 
-    def _add_param(self, param):
+    def _add_param(self, param_name):
         """
         Helper function for putting together the parameter vector (converting parameter names to indices in vector)
 
@@ -1487,9 +1506,10 @@ cdef class Model:
         :param param: (str) the parameter name
         :return: None
         """
+        self.initialized = False
 
-        if param not in self.params2index:
-            self.params2index[param] = self._next_params_index
+        if param_name not in self.params2index:
+            self.params2index[param_name] = self._next_params_index
             self._next_params_index += 1
             self.params_values = np.concatenate((self.params_values, np.array([np.nan])))
 
@@ -1501,7 +1521,8 @@ cdef class Model:
     #   rule_frequency: must be 'repeated'
     #Rule Types Supported:
     def create_rule(self, rule_type, rule_attributes, rule_frequency = "repeated"):
-            
+        self.initialized = False
+
         # Parse the rule by rule type
         if rule_type == 'additive':
             rule_object = AdditiveAssignmentRule()
@@ -1671,8 +1692,7 @@ cdef class Model:
             param_name = param['name']
             self.set_parameter(param_name = param_name, param_value = param_value)
 
-        #Check for unspecified parameters
-        self.check_parameters()
+        
 
         
         Species = xml.find_all('species')
@@ -1683,9 +1703,7 @@ cdef class Model:
                 print ('Warning! Species'+ species_name + ' not currently used in any rules or reactions.')
             self._set_species_value(species_name, species_value)
 
-        #Check for species without intial conditions.
-        #Set these initial conditions to 0 and issue a warning.
-        self.check_species()
+        
 
     def get_species_list(self):
         l = [None] * self.get_number_of_species()
@@ -1729,7 +1747,6 @@ cdef class Model:
         :param param_dict: (dict:str -> double) Dictionary containing the parameters to set mapped to desired values.
         :return: None
         """
-
         param_names = set(self.params2index.keys())
         for p in param_dict:
             if p in param_names:
@@ -1875,6 +1892,7 @@ def _add_underscore_to_parameters(formula, parameters):
 
 
 def convert_sbml_to_string(sbml_file):
+
     """
     Convert a SBML model file to a BioSCRAPE compatible XML file. Note that events, compartments, non-standard
     function definitions, and rules that are not assignment rules are not supported. Furthermore, reversible
@@ -2012,7 +2030,8 @@ def read_model_from_sbml(sbml_file):
     model_string = convert_sbml_to_string(sbml_file)
     import io
     string_file = io.StringIO(model_string)
-    return Model(string_file)
+
+    return Model(filename = string_file)
 
 
 
