@@ -1481,9 +1481,10 @@ cdef class Model:
                     delay_reaction_update_dict[p] = 0
                 delay_reaction_update_dict[p]  += 1
 
-        delay_param_dict.pop('type',None)
+        
         if delay_type == 'none' or delay_type == None:
             delay_object = NoDelay()
+            delay_param_dict = {}
         elif delay_type == 'fixed':
             delay_object = FixedDelay()
         elif delay_type == 'gaussian':
@@ -1492,7 +1493,7 @@ cdef class Model:
             delay_object = GammaDelay()
         else:
             raise SyntaxError('Unknown delay type: ' + delay_type)
-
+        delay_param_dict.pop('type',None)
         self._add_reaction(reaction_update_dict, prop_object, propensity_param_dict, delay_reaction_update_dict, delay_object, delay_param_dict)
         
 
