@@ -25,6 +25,7 @@ cdef class Propensity:
         Set the propensity type enum variable.
         """
         self.propensity_type = PropensityType.unset
+
     def py_get_propensity(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params,
                           double time = 0.0):
         """
@@ -63,7 +64,7 @@ cdef class Propensity:
 
 
 
-    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices):
+    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
         """
         Initializes the parameters and species to look at the right indices in the state
         :param dictionary: (dict:str--> str) the fields for the propensity 'k','s1' etc map to the actual parameter
@@ -95,14 +96,15 @@ cdef class ConstitutivePropensity(Propensity):
     cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
         return params[self.rate_index] * volume
 
-    def initialize(self, dict dictionary, species_indices, parameter_indices):
-        for key,value in dictionary.items():
+    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+        for key,value in param_dictionary.items():
             if key == 'k':
                 self.rate_index = parameter_indices[value]
             elif key == 'species':
                 pass
             else:
-                warnings.warn('Warning! Useless field for constitutive reaction', key)
+                warnings.warn('Warning! Useless field for ConstitutivePropensity'+str(key))
+
     def get_species_and_parameters(self, dict fields):
         return ([],[fields['k']])
 
@@ -121,14 +123,15 @@ cdef class UnimolecularPropensity(Propensity):
         return params[self.rate_index] * state[self.species_index]
 
 
-    def initialize(self, dict dictionary, species_indices, parameter_indices):
-        for key,value in dictionary.items():
+    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+
+        for key,value in param_dictionary.items():
             if key == 'species':
                 self.species_index = species_indices[value]
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                warnings.warn('Useless field for unimolecular reaction', key)
+                warnings.warn('Warning! Useless field for UnimolecularPropensity '+str(key))
 
     def get_species_and_parameters(self, dict fields):
         return ([ fields['species'] ],[ fields['k'] ])
@@ -148,8 +151,9 @@ cdef class BimolecularPropensity(Propensity):
         return params[self.rate_index] * state[self.s1_index] * state[self.s2_index] / volume
 
 
-    def initialize(self, dict dictionary, species_indices, parameter_indices):
-        for key,value in dictionary.items():
+    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+
+        for key,value in param_dictionary.items():
             if key == 'species':
                 species_names = [x.strip() for x in value.split('*')]
                 species_names = [x for x in species_names if x != '']
@@ -159,7 +163,7 @@ cdef class BimolecularPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                warnings.warn('Useless field for bimolecular reaction', key)
+                warnings.warn('Warning! Useless field for BimolecularPropensity'+str(key))
 
     def get_species_and_parameters(self, dict fields):
         return ([ x.strip() for x in fields['species'].split('*') ],[ fields['k'] ])
@@ -185,8 +189,9 @@ cdef class PositiveHillPropensity(Propensity):
         cdef double rate = params[self.rate_index]
         return rate * (X / K) ** n / (1 + (X/K)**n)
 
-    def initialize(self, dict dictionary, species_indices, parameter_indices):
-        for key,value in dictionary.items():
+    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+
+        for key,value in param_dictionary.items():
             if key == 's1':
                 self.s1_index = species_indices[value]
             elif key == 'K':
@@ -196,7 +201,7 @@ cdef class PositiveHillPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                warnings.warn('Warning! Useless field for Hill propensity', key)
+                warnings.warn('Warning! Useless field for PositiveHillPropensity '+str(key))
 
     def get_species_and_parameters(self, dict fields):
         return ([ fields['s1'] ],[ fields['K'],fields['n'],fields['k'] ])
@@ -225,8 +230,9 @@ cdef class PositiveProportionalHillPropensity(Propensity):
         return d * rate * (X / K) ** n / (1 + (X/K)**n)
 
 
-    def initialize(self, dict dictionary, species_indices, parameter_indices):
-        for key,value in dictionary.items():
+    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+
+        for key,value in param_dictionary.items():
             if key == 's1':
                 self.s1_index = species_indices[value]
             elif key == 'd':
@@ -238,7 +244,7 @@ cdef class PositiveProportionalHillPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                warnings.warn('Warning! Useless field for proportional Hill propensity', key)
+                warnings.warn('Warning! Useless field for PositiveProportionalHillPropensity '+str(key))
 
 
     def get_species_and_parameters(self, dict fields):
@@ -266,8 +272,9 @@ cdef class NegativeHillPropensity(Propensity):
         cdef double rate = params[self.rate_index]
         return rate * 1 / (1 + (X/K)**n)
 
-    def initialize(self, dict dictionary, species_indices, parameter_indices):
-        for key,value in dictionary.items():
+    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+
+        for key,value in param_dictionary.items():
             if key == 's1':
                 self.s1_index = species_indices[value]
             elif key == 'K':
@@ -277,7 +284,7 @@ cdef class NegativeHillPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                warnings.warn('Warning! Useless field for Hill propensity', key)
+                warnings.warn('Warning! Useless field for NegativeHillPropensity '+str(key))
 
     def get_species_and_parameters(self, dict fields):
         return ([ fields['s1'] ],[ fields['K'],fields['n'],fields['k'] ])
@@ -307,8 +314,9 @@ cdef class NegativeProportionalHillPropensity(Propensity):
         return d * rate * 1 / (1 + (X/K)**n)
 
 
-    def initialize(self, dict dictionary, species_indices, parameter_indices):
-        for key,value in dictionary.items():
+    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+
+        for key,value in param_dictionary.items():
             if key == 's1':
                 self.s1_index = species_indices[value]
             elif key == 'd':
@@ -320,7 +328,7 @@ cdef class NegativeProportionalHillPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                warnings.warn('Warning! Useless field for proportional Hill propensity', key)
+                warnings.warn('Warning! Useless field for NegativeProportionalHillPropensity '+str(key))
 
     def get_species_and_parameters(self, dict fields):
         return ([ fields['s1'], fields['d'] ],[ fields['K'],fields['n'],fields['k'] ])
@@ -332,8 +340,8 @@ cdef class NegativeProportionalHillPropensity(Propensity):
             elif key == 'd':
                 self.d_index = species_indices[species['d']]
             else:
-                warnings.warn('Warning! Useless species for Hill propensity', key)
-    def set_parameters(self,parameters, parameter_indices):
+                warnings.warn('Warning! Useless field for NegativeProportionalHillPropensity '+str(key))
+    def set_parameters(self, parameters, parameter_indices):
         for key in parameters:
             if key == 'K':
                 self.K_index = parameter_indices[parameters[key]]
@@ -342,7 +350,7 @@ cdef class NegativeProportionalHillPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[parameters[key]]
             else:
-                warnings.warn('Warning! Useless parameter for Hill propensity', key)
+                warnings.warn('Warning! Useless field for NegativeProportionalHillPropensity '+str(key))
 
 
 
@@ -374,8 +382,9 @@ cdef class MassActionPropensity(Propensity):
             return ans / (volume ** (self.num_species - 1) )
 
 
-    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices):
-        for key, value in dictionary.items():
+    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+
+        for key,value in param_dictionary.items():
             if key == 'species':
                 if '+' in value or '-' in value:
                     raise SyntaxError('Plus or minus character in mass action propensity string.')
@@ -388,7 +397,7 @@ cdef class MassActionPropensity(Propensity):
             elif key == 'k':
                 self.k_index = parameter_indices[value]
             else:
-                warnings.warn('Warning: useless field for mass action propensity', key)
+                warnings.warn('Warning! Useless field for MassActionPropensity '+str(key))
 
     def get_species_and_parameters(self, dict fields):
         species_list = [x.strip()   for x in fields['species'].split('*') ]
@@ -794,7 +803,6 @@ cdef class Delay:
         """
         Set the delay_type attribute to the appropriate enum value.
         """
-
         self.delay_type = DelayType.unset_delay
 
     def py_get_delay(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params):
@@ -822,7 +830,8 @@ cdef class Delay:
 
         return -1.0
 
-    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices):
+    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+
         """
         Initializes the parameters and species to look at the right indices in the state
         :param dictionary: (dict:str--> str) the fields for the propensity 'k','s1' etc map to the actual parameter
@@ -857,8 +866,9 @@ cdef class FixedDelay(Delay):
     cdef double get_delay(self, double* state, double* params):
         return params[self.delay_index]
 
-    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices):
-        for key,value in dictionary.items():
+    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+
+        for key,value in param_dictionary.items():
             if key == 'delay':
                 self.delay_index = parameter_indices[value]
             else:
@@ -876,8 +886,9 @@ cdef class GaussianDelay(Delay):
         return cyrandom.normal_rv(params[self.mean_index],params[self.std_index])
 
 
-    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices):
-        for key,value in dictionary.items():
+    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+
+        for key,value in param_dictionary.items():
             if key == 'mean':
                 self.mean_index = parameter_indices[value]
             elif key == 'std':
@@ -895,11 +906,13 @@ cdef class GammaDelay(Delay):
     def __init__(self):
         self.delay_type = DelayType.gamma
 
+
     cdef double get_delay(self, double* state, double* params):
         return cyrandom.gamma_rv(params[self.k_index],params[self.theta_index])
+   
+    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
 
-    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices):
-        for key,value in dictionary.items():
+        for key,value in param_dictionary.items():
             if key == 'k':
                 self.k_index = parameter_indices[value]
             elif key == 'theta':
@@ -1254,16 +1267,66 @@ cdef class StateDependentVolume(Volume):
 #################################################                     ################################################
 
 cdef class Model:
-    def __init__(self, filename):
+    def __init__(self, filename = None, species = [], reactions = [], parameters = [], rules = []):
         """
         Read in a model from a file using XML format for the model.
 
         :param filename: (str) the file to read the model
         """
-
         self._next_species_index = 0
         self._next_params_index = 0
-        self.parse_model(filename)
+        self.species2index = {}
+        self.params2index = {}
+        self.propensities = []
+        self.delays = []
+        self.repeat_rules = []
+        self.params_values = np.array([])
+        self.species_values = np.array([])
+
+        #These must be updated later
+        self.update_array = None
+        self.delay_update_array = None
+        self.reaction_updates = []
+        self.delay_reaction_updates = []
+        self.initialized = False #set to True when the stochiometric matrices are created and model checked by the initialize() function
+
+        if filename != None:
+            self.parse_model(filename)
+
+        for specie in species:
+            self._add_species(specie)
+
+        for rxn in reactions:
+            if len(rxn) == 4:
+                reactants, products, propensity_type, propensity_param_dict = rxn
+                delay_type, delay_reactants, delay_products, delay_param_dict = None, None,  None, None
+            elif len(rxn) == 8:
+                reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict = rxn
+            else:
+                raise ValueError("Reaction Tuple of the wrong length! Must be of length 4 (no delay) or 8 (with delays). See BioSCRAPE Model API for details.")
+            self.create_reaction(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict)
+
+        for param, param_val in parameters:
+            self._add_param(param)
+            self.set_parameter(param, param_val)
+
+        for rule in rules:
+            self.create_rule(rule)
+
+        self._initialize()
+
+    def _initialize(self):
+        #Create Stochiometric Matrices
+        self._create_stochiometric_matrices()
+
+        #Check for unspecified parameters
+        self.check_parameters()
+
+        #Check for species without intial conditions.
+        #Set these initial conditions to 0 and issue a warning.
+        self.check_species()
+
+        self.initialized = True
 
     def _add_species(self, species):
         """
@@ -1275,13 +1338,165 @@ cdef class Model:
         :param species: (str) the species name
         :return: None
         """
-
+        self.initialized = False
         if species not in self.species2index:
             self.species2index[species] = self._next_species_index
             self._next_species_index += 1
+            self.species_values = np.concatenate((self.species_values, np.array([np.nan])))
+
+    def _set_species_value(self, specie, value):
+        if specie not in self.species2index:
+            self._add_species(specie)
+        else:
+            self.species_values[self.species2index[specie]] = value
+
+    #Helper function to add a reaction to the model
+    #Inputs:
+    #   reaction_update_dict (dictionary): species_index --> change in count. Species not in the products or reactants can be omitted
+    #   propensity_object: an instance of a propensity_object
+    #   propensity_param_dict: a dictionary containing the parameters of the propensity
+    #   delay_reaction_update_dict: same as reaction_dict but for the delayed part of a reaction
+    #   delay_object: an instance of one of a delay_object
+    #   delay_param_dict: a dictionary containing the parameters of the delay distribution
+
+    def _add_reaction(self, reaction_update_dict, propensity_object, propensity_param_dict,
+        delay_reaction_update_dict = {}, delay_object = None, delay_param_dict = {}):
+        self.initialized = False
+
+        species_names, param_names = propensity_object.get_species_and_parameters(propensity_param_dict)
+
+        for species_name in species_names:
+            self._add_species(species_name)
+        for param_name in param_names:
+            self._add_param(param_name)
+
+        self.reaction_updates.append(reaction_update_dict)
+        self.propensities.append(propensity_object)
+        self.c_propensities.push_back(<void*> propensity_object)
+        propensity_object.initialize(propensity_param_dict, self.species2index, self.params2index)
 
 
-    def _add_param(self, param):
+        if delay_object == None:
+           delay_object = NoDelay()
+
+        species_names, param_names = delay_object.get_species_and_parameters(delay_param_dict)
+
+        for species_name in species_names:
+            self._add_species(species_name)
+        for param_name in param_names:
+            self._add_param(param_name)
+        self.delays.append(delay_object)
+        self.c_delays.push_back(<void*> delay_object)
+        self.delay_reaction_updates.append(delay_reaction_update_dict)
+        delay_object.initialize(delay_param_dict, self.species2index, self.params2index)
+
+    #A function to programatically create a reaction (and add automatically add it to the model).
+    #   Supports all native propensity types and delay types.
+    #Required Inputs:
+    #   reactants (list): a list of reactant specie names (strings)
+    #   products (list): a list of product specie names (strings)
+    #   propensity_type: a string indicating the type of propensity
+    #       Supported types: "massaction", "hillpositive", "proportionalhillpositive", "hillnegative", "proportionalhillnegative", "general"
+    #   propensity_param_dict: a dictionary of parameters for the given propensity type
+    #Optional Inputs:
+    #   delay_type: a string indicating the type of delay
+    #   delay_reactants (list): a list of delay reaction reactant specie names (strings)
+    #   delay_products: a list of delay reaction products specie names (strings)
+    #   delay_param_dict: a dictionary of the parameters for the delay distribution
+    def create_reaction(self, reactants, products, propensity_type, propensity_param_dict,
+                         delay_type = None, delay_reactants = None, delay_products = None, delay_param_dict = None):
+        self.initialized = False
+
+        #Reaction Reactants and Products stored in a dictionary
+        reaction_update_dict = {}
+        for r in reactants:
+            # if the species hasn't been seen add it to the index
+            self._add_species(r)
+
+            # update the update array
+            if r not in reaction_update_dict:
+                reaction_update_dict[r] = 0
+
+            reaction_update_dict[r]  -= 1
+
+        for p in products:
+            # if the species hasn't been seen add it to the index
+            self._add_species(p)
+            # update the update array
+            if p not in reaction_update_dict:
+                reaction_update_dict[p] = 0
+            reaction_update_dict[p]  += 1
+
+        propensity_param_dict.pop('type')
+        #Create propensity object
+        if propensity_type == 'hillpositive':
+            prop_object = PositiveHillPropensity()
+
+        elif propensity_type == 'proportionalhillpositive':
+            prop_object = PositiveProportionalHillPropensity()
+
+        elif propensity_type == 'hillnegative':
+            prop_object = NegativeHillPropensity()
+
+        elif propensity_type == 'proportionalhillnegative':
+            prop_object = NegativeProportionalHillPropensity()
+
+        elif propensity_type == 'massaction':
+            species_names = reactants
+
+            # if mass action propensity has less than 3 things, then use consitutitve, uni, bimolecular for speed.
+            if len(species_names) == 0:
+                prop_object = ConstitutivePropensity()
+            elif len(species_names) == 1:
+                prop_object = UnimolecularPropensity()
+            elif len(species_names) == 2:
+                prop_object = BimolecularPropensity()
+            else:
+                prop_object = MassActionPropensity()
+
+        elif propensity_type == 'general':
+            prop_object = GeneralPropensity()
+        else:
+            raise SyntaxError('Propensity Type is not supported: ' + propensity_type)
+
+        #prop_object.initialize(propensity_param_dict, self.species2index, self.params2index)
+
+        #Create Delay Object
+        #Delay Reaction Reactants and Products Stored in a Dictionary
+        delay_reaction_update_dict = {}
+        if delay_reactants != None:
+            for r in delay_reactants:
+                # if the species hasn't been seen add it to the index
+                self._add_species(r)
+                # update the update array
+                if r not in delay_reaction_update_dict:
+                    delay_reaction_update_dict[r] = 0
+                delay_reaction_update_dict[r]  -= 1
+        if delay_products != None:
+            for p in delay_products:
+                # if the species hasn't been seen add it to the index
+                self._add_species(p)
+                # update the update array
+                if p not in delay_reaction_update_dict:
+                    delay_reaction_update_dict[p] = 0
+                delay_reaction_update_dict[p]  += 1
+
+        delay_param_dict.pop('type',None)
+        if delay_type == 'none' or delay_type == None:
+            delay_object = NoDelay()
+        elif delay_type == 'fixed':
+            delay_object = FixedDelay()
+        elif delay_type == 'gaussian':
+            delay_object = GaussianDelay()
+        elif delay_type == 'gamma':
+            delay_object = GammaDelay()
+        else:
+            raise SyntaxError('Unknown delay type: ' + delay_type)
+
+        self._add_reaction(reaction_update_dict, prop_object, propensity_param_dict, delay_reaction_update_dict, delay_object, delay_param_dict)
+        
+
+    def _add_param(self, param_name):
         """
         Helper function for putting together the parameter vector (converting parameter names to indices in vector)
 
@@ -1291,11 +1506,98 @@ cdef class Model:
         :param param: (str) the parameter name
         :return: None
         """
+        self.initialized = False
 
-        if param not in self.params2index:
-            self.params2index[param] = self._next_params_index
+        if param_name not in self.params2index:
+            self.params2index[param_name] = self._next_params_index
             self._next_params_index += 1
+            self.params_values = np.concatenate((self.params_values, np.array([np.nan])))
 
+    #Creates a rule and adds it to the model.
+    #Inputs:
+    #   rule_type (str): The type of rule. Supported: "additive" and "assignment"
+    #   rule_attributes (dict): A dictionary of rule parameters / attributes. 
+    #       NOTE: the only attributes used by additive/assignment rules are 'equation'
+    #   rule_frequency: must be 'repeated'
+    #Rule Types Supported:
+    def create_rule(self, rule_type, rule_attributes, rule_frequency = "repeated"):
+        self.initialized = False
+
+        # Parse the rule by rule type
+        if rule_type == 'additive':
+            rule_object = AdditiveAssignmentRule()
+        elif rule_type == 'assignment':
+            rule_object = GeneralAssignmentRule()
+        else:
+            raise SyntaxError('Invalid type of Rule: ' + rule_type)
+
+        # Add species and params to model
+        species_names, params_names = rule_object.get_species_and_parameters(rule_attributes)
+        for s in species_names: self._add_species(s)
+        for p in params_names: self._add_param(p)
+
+        # initialize the rule
+        rule_attributes.pop('type')
+        rule_object.initialize(rule_attributes,self.species2index,self.params2index)
+        # Add the rule to the right place
+        if rule_frequency == 'repeated':
+            self.repeat_rules.append(rule_object)
+            self.c_repeat_rules.push_back(<void*> rule_object)
+        else:
+            raise SyntaxError('Invalid Rule Frequency: ' + str(rule_frequency))
+
+    #Sets the value of a parameter in the model
+    def set_parameter(self, param_name, param_value):
+        if param_name not in self.params2index:
+            warnings.warn('Warning! parameter '+ param_name+" does not show up in any currently defined reactions or rules.")
+            self._add_param(param_name)
+
+        param_index = self.params2index[param_name]
+        self.params_values[param_index] = param_value
+
+    #Checks that all parameters have values
+    def check_parameters(self):
+        error_string = "Unspecified Parameters: "
+        unspecified_parameters = False
+        for p in self.params2index:
+            i = self.params2index[p]
+            if self.params_values[i] == np.nan:
+                unspecified_parameters = True
+                error_string += p+', '
+
+        if unspecified_parameters:
+            raise ValueError(error_string[:-2])
+
+    #Checks that species' values are all set. Unset values default to 0 and warning is raised.
+    def check_species(self):
+        uninitialized_species = False
+        warning_txt = "The follow species are uninitialized and their value has defaulted to 0: "
+        for s in self.species2index:
+            i = self.species2index[s]
+            if self.species_values[i] == np.nan:
+                uninitialized_species = True
+                warning_txt += s+", "
+                self._set_species_value(s, 0)
+        if uninitialized_species:
+            warnings.warn(warning_txt)
+
+    #Helper Function to Create Stochiometric Matrices for Reactions and Delay Reactions
+    def _create_stochiometric_matrices(self):
+        # With all reactions read in, generate the update array
+        num_species = len(self.species2index.keys())
+        num_reactions = len(self.reaction_updates)
+        self.update_array = np.zeros((num_species, num_reactions))
+        self.delay_update_array = np.zeros((num_species,num_reactions))
+        for reaction_index in range(num_reactions):
+            reaction_update_dict = self.reaction_updates[reaction_index]
+            delay_reaction_update_dict = self.delay_reaction_updates[reaction_index]
+            for sp in reaction_update_dict:
+                self.update_array[self.species2index[sp],reaction_index] = reaction_update_dict[sp]
+
+            for sp in delay_reaction_update_dict:
+                self.delay_update_array[self.species2index[sp],reaction_index] = delay_reaction_update_dict[sp]
+
+        return self.update_array, self.delay_update_array
 
     def parse_model(self, filename):
         """
@@ -1306,8 +1608,6 @@ cdef class Model:
                          that a file handle was passed in.
         :return: None
         """
-
-
         # open XML file from the filename and use BeautifulSoup to parse it
         if type(filename) == str:
             xml_file = open(filename,'r')
@@ -1340,74 +1640,21 @@ cdef class Model:
         if len(Model) != 1:
             raise SyntaxError('Did not include global model tag in XML file')
 
-
-        self._next_species_index = 0
-        self._next_params_index = 0
-        self.species2index = {}
-        self.params2index = {}
-        self.propensities = []
-        self.delays = []
-        self.repeat_rules = []
-
-        reaction_updates = []
-        delay_reaction_updates = []
-        reaction_index = 0
-
         Reactions = xml.find_all('reaction')
         for reaction in Reactions:
-            # create a new set of updates
-            reaction_update_dict = {}
-
             # Parse the stoichiometry
             text = reaction['text']
             reactants = [s for s in [r.strip() for r in text.split('--')[0].split('+')] if s]
             products = [s for s in [r.strip() for r in text.split('--')[1].split('+')] if s]
 
-            for r in reactants:
-                # if the species hasn't been seen add it to the index
-                self._add_species(r)
-                # update the update array
-                if r not in reaction_update_dict:
-                    reaction_update_dict[r] = 0
-                reaction_update_dict[r]  -= 1
-
-            for p in products:
-                # if the species hasn't been seen add it to the index
-                self._add_species(p)
-                # update the update array
-                if p not in reaction_update_dict:
-                    reaction_update_dict[p] = 0
-                reaction_update_dict[p]  += 1
-
-            reaction_updates.append(reaction_update_dict)
-
-
             # parse the delayed part of the reaction the same way as we did before.
-            delay_reaction_update_dict = {}
-
             if reaction.has_attr('after'):
                 text = reaction['after']
-                reactants = [s for s in [r.strip() for r in text.split('--')[0].split('+')] if s]
-                products = [s for s in [r.strip() for r in text.split('--')[1].split('+')] if s]
-
-                for r in reactants:
-                    # if the species hasn't been seen add it to the index
-                    self._add_species(r)
-                    # update the update array
-                    if r not in delay_reaction_update_dict:
-                        delay_reaction_update_dict[r] = 0
-                    delay_reaction_update_dict[r]  -= 1
-
-                for p in products:
-                    # if the species hasn't been seen add it to the index
-                    self._add_species(p)
-                    # update the update array
-                    if p not in delay_reaction_update_dict:
-                        delay_reaction_update_dict[p] = 0
-                    delay_reaction_update_dict[p]  += 1
-
-            delay_reaction_updates.append(delay_reaction_update_dict)
-
+                delay_reactants = [s for s in [r.strip() for r in text.split('--')[0].split('+')] if s]
+                delay_products = [s for s in [r.strip() for r in text.split('--')[1].split('+')] if s]
+            else:
+                delay_reactants = None
+                delay_products = None
 
             # Then look at the propensity and set up a propensity object
             propensity = reaction.find_all('propensity')
@@ -1415,186 +1662,48 @@ cdef class Model:
                 raise SyntaxError('Incorrect propensity tags in XML model\n' + propensity)
             propensity = propensity[0]
             # go through propensity types
-
-            init_dictionary = propensity.attrs
-
-            if propensity['type'] == 'hillpositive':
-                prop_object = PositiveHillPropensity()
-
-            elif propensity['type'] == 'proportionalhillpositive':
-                prop_object = PositiveProportionalHillPropensity()
-
-            elif propensity['type'] == 'hillnegative':
-                prop_object = NegativeHillPropensity()
-
-            elif propensity['type'] == 'proportionalhillnegative':
-                prop_object = NegativeProportionalHillPropensity()
-
-            elif propensity['type'] == 'massaction':
-                species_names = [s.strip() for s in propensity['species'].split('*') ]
-                species_names = [x for x in species_names if x != '']
-
-                # if mass action propensity has less than 3 things, then use consitutitve, uni, bimolecular for speed.
-                if len(species_names) == 0:
-                    prop_object = ConstitutivePropensity()
-                elif len(species_names) == 1:
-                    prop_object = UnimolecularPropensity()
-                elif len(species_names) == 2:
-                    prop_object = BimolecularPropensity()
-                else:
-                    prop_object = MassActionPropensity()
-
-            elif propensity['type'] == 'general':
-                prop_object = GeneralPropensity()
-
-            else:
-                raise SyntaxError('Propensity Type makes no sense: ' + propensity['type'])
-
-            species_names, param_names = prop_object.get_species_and_parameters(init_dictionary)
-
-            for species_name in species_names:
-                self._add_species(species_name)
-            for param_name in param_names:
-                self._add_param(param_name)
-
-            init_dictionary.pop('type')
-            prop_object.initialize(init_dictionary,self.species2index,self.params2index)
-
-            self.propensities.append(prop_object)
-            self.c_propensities.push_back(<void*> prop_object)
-
+            propensity_param_dict = propensity.attrs
 
             # Then look at the delay and set up a delay object
             delay = reaction.find_all('delay')
             if len(delay) != 1:
                 raise SyntaxError('Incorrect delay spec')
             delay = delay[0]
-            init_dictionary = delay.attrs
+            delay_param_dict = delay.attrs
+            delay_type = delay['type']
 
-            if delay['type'] == 'none':
-                delay_object = NoDelay()
-
-            elif delay['type'] == 'fixed':
-                delay_object = FixedDelay()
-
-            elif delay['type'] == 'gaussian':
-                delay_object = GaussianDelay()
-
-            elif delay['type'] == 'gamma':
-                delay_object = GammaDelay()
-
-            else:
-                raise SyntaxError('Unknown delay type: ' + delay['type'])
-
-            species_names, param_names = delay_object.get_species_and_parameters(init_dictionary)
-
-            for species_name in species_names:
-                self._add_species(species_name)
-            for param_name in param_names:
-                self._add_param(param_name)
-
-            init_dictionary.pop('type',None)
-            delay_object.initialize(init_dictionary,self.species2index,self.params2index)
-
-            self.delays.append(delay_object)
-            self.c_delays.push_back(<void*> delay_object)
+            self.create_reaction(reactants = reactants, products = products, propensity_type = propensity['type'], propensity_param_dict = propensity_param_dict,
+                delay_reactants=delay_reactants, delay_products=delay_products, delay_param_dict = delay_param_dict)
 
 
         # Parse through the rules
-
         Rules = xml.find_all('rule')
-        cdef Rule rule_object
         for rule in Rules:
-            init_dictionary = rule.attrs
-            # Parse the rule by rule type
-            if rule['type'] == 'additive':
-                rule_object = AdditiveAssignmentRule()
-            elif rule['type'] == 'assignment':
-                rule_object = GeneralAssignmentRule()
-            else:
-                raise SyntaxError('Invalid type of Rule: ' + rule['type'])
-
-            # Add species and params to model
-            species_names, params_names = rule_object.get_species_and_parameters(init_dictionary)
-            for s in species_names: self._add_species(s)
-            for p in params_names: self._add_param(p)
-
-            # initialize the rule
-            init_dictionary.pop('type')
-            rule_object.initialize(init_dictionary,self.species2index,self.params2index)
-            # Add the rule to the right place
-            if rule['frequency'] == 'repeated':
-                self.repeat_rules.append(rule_object)
-                self.c_repeat_rules.push_back(<void*> rule_object)
-            else:
-                raise SyntaxError('Invalid Rule Frequency: ' + rule['frequency'])
-
-        # With all reactions read in, generate the update array
-
-        num_species = len(self.species2index.keys())
-        num_reactions = len(Reactions)
-        self.update_array = np.zeros((num_species, num_reactions))
-        self.delay_update_array = np.zeros((num_species,num_reactions))
-        for reaction_index in range(num_reactions):
-            reaction_update_dict = reaction_updates[reaction_index]
-            delay_reaction_update_dict = delay_reaction_updates[reaction_index]
-            for sp in reaction_update_dict:
-                self.update_array[self.species2index[sp],reaction_index] = reaction_update_dict[sp]
-            for sp in delay_reaction_update_dict:
-                self.delay_update_array[self.species2index[sp],reaction_index] = delay_reaction_update_dict[sp]
-
+            rule_attrs = rule.attrs
+            rule_type = rule['type']
+            rule_frequency = rule['frequency']
+            self.create_rule(rule_type = rule_type, rule_attributes = rule_attrs, rule_frequency=rule_frequency)
 
         # Generate species values and parameter values
-        self.params_values = np.empty(len(self.params2index.keys()), )
-        self.params_values.fill(np.nan)
         unspecified_param_names = set(self.params2index.keys())
         Parameters = xml.find_all('parameter')
         for param in Parameters:
             param_value = float(param['value'])
             param_name = param['name']
-            if param_name not in self.params2index:
-                warnings.warn('Warning! Useless parameter '+ param_name)
-            else:
-                param_index = self.params2index[param_name]
-                self.params_values[param_index] = param_value
-                unspecified_param_names.remove(param_name)
+            self.set_parameter(param_name = param_name, param_value = param_value)
 
-        if len(unspecified_param_names) > 0:
-                error_string = 'Did not specify parameters: '
-                for pn in unspecified_param_names:
-                    error_string += pn
-                    error_string += ', '
-                error_string = error_string[:len(error_string)-2]
-                raise SyntaxError(error_string)
+        
 
-        self.species_values = np.empty(len(self.species2index.keys()), )
-        self.species_values.fill(np.nan)
-        unspecified_species_names = set(self.species2index.keys())
+        
         Species = xml.find_all('species')
         for species in Species:
             species_value = float(species['value'])
             species_name = species['name']
             if species_name not in self.species2index:
-                print ('Warning! Useless species value ' + species_name)
-            else:
-                species_index = self.species2index[species_name]
-                self.species_values[species_index] = species_value
-                unspecified_species_names.remove(species_name)
+                print ('Warning! Species'+ species_name + ' not currently used in any rules or reactions.')
+            self._set_species_value(species_name, species_value)
 
-        if len(unspecified_species_names) > 0:
-            error_string = "Didn't specify all species, setting the following to 0: "
-            for sn in unspecified_species_names:
-                error_string += (sn + ', ')
-            error_string = error_string[:len(error_string)-2]
-            warnings.warn(error_string)
-
-        self.species_values[np.isnan(self.species_values)] = 0.0
-
-
-        #print(self.species2index)
-        #print(self.params2index)
-        #print(self.update_array)
-        #print(self.delay_update_array)
+        
 
     def get_species_list(self):
         l = [None] * self.get_number_of_species()
@@ -1635,11 +1744,9 @@ cdef class Model:
     def set_params(self, param_dict):
         """
         Set parameter values
-
         :param param_dict: (dict:str -> double) Dictionary containing the parameters to set mapped to desired values.
         :return: None
         """
-
         param_names = set(self.params2index.keys())
         for p in param_dict:
             if p in param_names:
@@ -1785,6 +1892,7 @@ def _add_underscore_to_parameters(formula, parameters):
 
 
 def convert_sbml_to_string(sbml_file):
+
     """
     Convert a SBML model file to a BioSCRAPE compatible XML file. Note that events, compartments, non-standard
     function definitions, and rules that are not assignment rules are not supported. Furthermore, reversible
@@ -1922,7 +2030,8 @@ def read_model_from_sbml(sbml_file):
     model_string = convert_sbml_to_string(sbml_file)
     import io
     string_file = io.StringIO(model_string)
-    return Model(string_file)
+
+    return Model(filename = string_file)
 
 
 

@@ -321,6 +321,7 @@ cdef class Delay:
 
     Attributes:
         delay_type (DelayType): the type of delay
+        delay_params (dictionary): parameters for the delay distribution
 
     """
     # delay type
@@ -546,8 +547,12 @@ cdef class Model:
     cdef dict params2index
     cdef np.ndarray species_values
     cdef np.ndarray params_values
+
     cdef np.ndarray update_array
     cdef np.ndarray delay_update_array
+    cdef list reaction_updates
+    cdef list delay_reaction_updates
+    cdef int initialized
 
     cdef (vector[void*])* get_c_propensities(self)
     cdef (vector[void*])* get_c_delays(self)
