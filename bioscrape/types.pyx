@@ -1275,6 +1275,8 @@ cdef class Model:
         """
         self._next_species_index = 0
         self._next_params_index = 0
+        self._dummy_param_counter = 0
+
         self.species2index = {}
         self.params2index = {}
         self.propensities = []
@@ -1342,13 +1344,12 @@ cdef class Model:
         if species not in self.species2index:
             self.species2index[species] = self._next_species_index
             self._next_species_index += 1
-            self.species_values = np.concatenate((self.species_values, np.array([np.nan])))
+            self.species_values = np.concatenate((self.species_values, np.array([-1])))
 
     def _set_species_value(self, specie, value):
         if specie not in self.species2index:
             self._add_species(specie)
-        else:
-            self.species_values[self.species2index[specie]] = value
+        self.species_values[self.species2index[specie]] = value
 
     #Helper function to add a reaction to the model
     #Inputs:
@@ -1404,7 +1405,14 @@ cdef class Model:
     #   delay_products: a list of delay reaction products specie names (strings)
     #   delay_param_dict: a dictionary of the parameters for the delay distribution
     def create_reaction(self, reactants, products, propensity_type, propensity_param_dict,
-                         delay_type = None, delay_reactants = None, delay_products = None, delay_param_dict = None):
+                         delay_type = None, delay_reactants = None, delay_products = None, delay_param_dict = None, input_printout = False):
+
+        if input_printout:
+            warnings.warn("creating reaction with:"+
+                "\n\tPropensity_type="+str(propensity_type)+" Inputs="+str(reactants)+" Outputs="+str(products)+
+                "\n\tpropensity_param_dict="+str(propensity_param_dict)+
+                "\n\tDelay_type="+str(delay_type)+" delay inputs ="+str(delay_reactants)+" delay outputs="+str(delay_products)+
+                "\n\tdelay_param_dict="+str(delay_param_dict))
         self.initialized = False
 
         #Reaction Reactants and Products stored in a dictionary
@@ -1430,15 +1438,35 @@ cdef class Model:
         propensity_param_dict.pop('type')
         #Create propensity object
         if propensity_type == 'hillpositive':
+            #Check required propensity parameters and convert numeric parameters to dummy variables.
+            self._param_dict_check(propensity_param_dict, "k", "DummyVar_PositiveHillPropensity")
+            self._param_dict_check(propensity_param_dict, "K", "DummyVar_PositiveHillPropensity")
+            self._param_dict_check(propensity_param_dict, "s1", "DummyVar_PositiveHillPropensity")
+            self._param_dict_check(propensity_param_dict, "n", "DummyVar_PositiveHillPropensity")
             prop_object = PositiveHillPropensity()
 
+
         elif propensity_type == 'proportionalhillpositive':
+            self._param_dict_check(propensity_param_dict, "k", "DummyVar_PositiveProportionalHillPropensity")
+            self._param_dict_check(propensity_param_dict, "K", "DummyVar_PositiveProportionalHillPropensity")
+            self._param_dict_check(propensity_param_dict, "s1", "DummyVar_PositiveProportionalHillPropensity")
+            self._param_dict_check(propensity_param_dict, "d", "DummyVar_PositiveProportionalHillPropensity")
+            self._param_dict_check(propensity_param_dict, "n", "DummyVar_PositiveProportionalHillPropensity")
             prop_object = PositiveProportionalHillPropensity()
 
         elif propensity_type == 'hillnegative':
+            self._param_dict_check(propensity_param_dict, "k", "DummyVar_NegativeHillPropensity")
+            self._param_dict_check(propensity_param_dict, "K", "DummyVar_NegativeHillPropensity")
+            self._param_dict_check(propensity_param_dict, "s1", "DummyVar_NegativeHillPropensity")
+            self._param_dict_check(propensity_param_dict, "n", "DummyVar_NegativeHillPropensity")
             prop_object = NegativeHillPropensity()
 
         elif propensity_type == 'proportionalhillnegative':
+            self._param_dict_check(propensity_param_dict, "k", "DummyVar_NegativeProportionalHillPropensity")
+            self._param_dict_check(propensity_param_dict, "K", "DummyVar_NegativeProportionalHillPropensity")
+            self._param_dict_check(propensity_param_dict, "s1", "DummyVar_NegativeProportionalHillPropensity")
+            self._param_dict_check(propensity_param_dict, "d", "DummyVar_NegativeProportionalHillPropensity")
+            self._param_dict_check(propensity_param_dict, "n", "DummyVar_NegativeProportionalHillPropensity")
             prop_object = NegativeProportionalHillPropensity()
 
         elif propensity_type == 'massaction':
@@ -1447,12 +1475,26 @@ cdef class Model:
             # if mass action propensity has less than 3 things, then use consitutitve, uni, bimolecular for speed.
             if len(species_names) == 0:
                 prop_object = ConstitutivePropensity()
+                self._param_dict_check(propensity_param_dict, "k", "DummyVar_ConstitutivePropensity")
+
             elif len(species_names) == 1:
                 prop_object = UnimolecularPropensity()
+                self._param_dict_check(propensity_param_dict, "k", "DummyVar_UnimolecularPropensity")
+
             elif len(species_names) == 2:
                 prop_object = BimolecularPropensity()
+                self._param_dict_check(propensity_param_dict, "k", "DummyVar_BimolecularPropensity")
+
             else:
                 prop_object = MassActionPropensity()
+                self._param_dict_check(propensity_param_dict, "k", "DummyVar_MassActionPropensity")
+
+            if 'species' not in propensity_param_dict:
+                reactant_string = ""
+                for s in reactants:
+                    reactant_string += s+"*"
+                propensity_param_dict['species'] = reactant_string[:len(reactant_string)-1]
+
 
         elif propensity_type == 'general':
             prop_object = GeneralPropensity()
@@ -1486,10 +1528,15 @@ cdef class Model:
             delay_object = NoDelay()
             delay_param_dict = {}
         elif delay_type == 'fixed':
+            self._param_dict_check(delay_param_dict, "delay", "DummyVar_FixedDelay")
             delay_object = FixedDelay()
         elif delay_type == 'gaussian':
+            self._param_dict_check(delay_param_dict, "mean", "DummyVar_GaussianDelay")
+            self._param_dict_check(delay_param_dict, "std", "DummyVar_GaussianDelay")
             delay_object = GaussianDelay()
         elif delay_type == 'gamma':
+            self._param_dict_check(delay_param_dict, "k", "DummyVar_GammaDelay")
+            self._param_dict_check(delay_param_dict, "theta", "DummyVar_GammaDelay")
             delay_object = GammaDelay()
         else:
             raise SyntaxError('Unknown delay type: ' + delay_type)
@@ -1562,7 +1609,7 @@ cdef class Model:
         unspecified_parameters = False
         for p in self.params2index:
             i = self.params2index[p]
-            if self.params_values[i] == np.nan:
+            if np.isnan(self.params_values[i]):
                 unspecified_parameters = True
                 error_string += p+', '
 
@@ -1573,14 +1620,37 @@ cdef class Model:
     def check_species(self):
         uninitialized_species = False
         warning_txt = "The follow species are uninitialized and their value has defaulted to 0: "
-        for s in self.species2index:
+        for s in self.species2index.keys():
             i = self.species2index[s]
-            if self.species_values[i] == np.nan:
+            if self.species_values[i] == -1:
                 uninitialized_species = True
                 warning_txt += s+", "
-                self._set_species_value(s, 0)
+                self.species_values[i] = 0
         if uninitialized_species:
             warnings.warn(warning_txt)
+
+    #Checks if the dictionary dic contains the keyword key.
+    #if dic[key] = str: do nothing
+    #if dic[key] = float (or a string that can be cast to a float without an error):
+    #   create a dummy parameter and set its value to float then set dict[key] = dummy_param
+    def _param_dict_check(self, dic, key, param_object_name):
+        if key not in dic:
+            raise ValueError("param dictionary does not contain required key: "+str(key)+" for param object "+param_object_name)
+        else:
+            try:
+                val = float(dic[key])
+                float_val = True
+            except ValueError:
+                float_val = False
+
+            if float_val:
+                dummy_var = param_object_name+"_"+str(key)+"_"+str(self._dummy_param_counter)
+                if dummy_var in self.params2index:
+                    raise ValueError("Trying to create a dummy parameter that already exists. Dummy Param Name: "+dummy_var+". Please don't name your parameters like this to avoid errors.")
+                self._add_param(dummy_var)
+                self.set_parameter(dummy_var, val)
+                dic[key] = dummy_var
+                self._dummy_param_counter += 1
 
     #Helper Function to Create Stochiometric Matrices for Reactions and Delay Reactions
     def _create_stochiometric_matrices(self):
@@ -1692,9 +1762,6 @@ cdef class Model:
             param_value = float(param['value'])
             param_name = param['name']
             self.set_parameter(param_name = param_name, param_value = param_value)
-
-        
-
         
         Species = xml.find_all('species')
         for species in Species:
@@ -1704,7 +1771,6 @@ cdef class Model:
                 print ('Warning! Species'+ species_name + ' not currently used in any rules or reactions.')
             self._set_species_value(species_name, species_value)
 
-        
 
     def get_species_list(self):
         l = [None] * self.get_number_of_species()
