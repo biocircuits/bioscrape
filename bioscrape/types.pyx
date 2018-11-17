@@ -58,6 +58,19 @@ cdef class Propensity:
         """
         return -1.0
 
+
+    cdef double get_stochastic_propensity(self, double* state, double* params, double time):
+        """
+        By default, stochastic propensities are the same as deterministic propensities but can be overwritten for specific propensity types.
+        """
+        return self.get_propensity(state, params, time)
+
+    cdef double get_stochastic_volume_propensity(self, double* state, double* params, double volume, double time):
+        """
+        By default, stochastic propensities are the same as deterministic propensities but can be overwritten for specific propensity types.
+        """
+        return self.get_volume_propensity(state, params, volume, time)
+
     def py_get_volume_propensity(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params,
                                  double volume, double time = 0.0):
         return self.get_volume_propensity(<double*> state.data, <double*> params.data, volume, time)
@@ -109,8 +122,6 @@ cdef class ConstitutivePropensity(Propensity):
         return ([],[fields['k']])
 
 
-
-
 cdef class UnimolecularPropensity(Propensity):
     # constructor
     def __init__(self):
@@ -147,10 +158,23 @@ cdef class BimolecularPropensity(Propensity):
     cdef double get_propensity(self, double* state, double* params, double time):
         return params[self.rate_index] * state[self.s1_index] * state[self.s2_index]
 
+    cdef double get_stochastic_propensity(self, double* state, double* params, double time):
+        if self.s1_index != self.s2_index:
+            return params[self.rate_index] * state[self.s1_index] * state[self.s2_index]
+        else:
+            return params[self.rate_index]*state[self.s1_index]*max(state[self.s1_index]-1, 0)
+
+
     cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
         return params[self.rate_index] * state[self.s1_index] * state[self.s2_index] / volume
 
+    cdef double get_stochastic_volume_propensity(self, double* state, double* params, double volume, double time):
+        if self.s1_index != self.s2_index:
+            return params[self.rate_index] * state[self.s1_index] * state[self.s2_index] / volume
+        else:
+            return params[self.rate_index]*state[self.s1_index]*max(state[self.s1_index]-1, 0) / volume
 
+    
     def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
 
         for key,value in param_dictionary.items():
@@ -366,6 +390,15 @@ cdef class MassActionPropensity(Propensity):
 
         return ans
 
+    cdef double get_stochastic_propensity(self, double* state, double* params, double time):
+        cdef double ans = params[self.k_index]
+        cdef int i
+        for i in range(len(self.sp_inds)):
+            for j in range(len(self.sp_counts[i])):
+                ans *= max(state[self.sp_inds[i]]-j, 0)
+
+        return ans
+
     cdef double get_volume_propensity(self, double *state, double *params,
                                       double volume, double time):
         cdef double ans = params[self.k_index]
@@ -381,9 +414,23 @@ cdef class MassActionPropensity(Propensity):
         else:
             return ans / (volume ** (self.num_species - 1) )
 
+    cdef double get_stochastic_volume_propensity(self, double *state, double *params, double volume, double time):
+        
+        cdef double ans = self.get_stochastic_propensity(state, params, time)
+        if self.num_species == 0:
+            return ans*volume
+        elif self.num_species == 1:
+            return ans
+        elif self.num_species == 2:
+            return ans / volume
+        else:
+            return ans / (volume ** (self.num_species - 1))
+
 
     def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
 
+        sp_ind_dict = {}
+        sp_ind_counter = 0
         for key,value in param_dictionary.items():
             if key == 'species':
                 if '+' in value or '-' in value:
@@ -392,12 +439,22 @@ cdef class MassActionPropensity(Propensity):
                 for species_name in species_names:
                     if species_name == '':
                         continue
-                    self.sp_inds.push_back(species_indices[species_name])
-                self.num_species = self.sp_inds.size()
+                    if species_name not in sp_ind_dict:
+                        self.sp_inds.push_back(species_indices[species_name])
+                        self.sp_counts.push_back(1)
+                        sp_ind_dict[species_name] = sp_ind_counter
+                        sp_ind_counter += 1
+                    else:
+                        sp_ind =sp_ind_dict[species_name]
+                        self.sp_counts[sp_ind] += 1
+
+                self.num_species = int(sum(self.sp_counts))
             elif key == 'k':
                 self.k_index = parameter_indices[value]
             else:
                 warnings.warn('Warning! Useless field for MassActionPropensity '+str(key))
+
+
 
     def get_species_and_parameters(self, dict fields):
         species_list = [x.strip()   for x in fields['species'].split('*') ]
@@ -1043,6 +1100,10 @@ cdef class GeneralAssignmentRule(Rule):
             species_names.append(dest_name)
 
         return species_names, param_names
+
+
+
+
 
 
 ##################################################                ####################################################
