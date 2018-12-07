@@ -1434,8 +1434,8 @@ cdef class Model:
             if p not in reaction_update_dict:
                 reaction_update_dict[p] = 0
             reaction_update_dict[p]  += 1
-
-        propensity_param_dict.pop('type')
+        if 'type' in propensity_param_dict:
+            propensity_param_dict.pop('type')
         #Create propensity object
         if propensity_type == 'hillpositive':
             #Check required propensity parameters and convert numeric parameters to dummy variables.
