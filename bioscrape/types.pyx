@@ -1328,7 +1328,7 @@ cdef class StateDependentVolume(Volume):
 #################################################                     ################################################
 
 cdef class Model:
-    def __init__(self, filename = None, species = [], reactions = [], parameters = [], rules = []):
+    def __init__(self, filename = None, species = [], reactions = [], parameters = [], rules = [], initial_condition_dict = None):
         """
         Read in a model from a file using XML format for the model.
 
@@ -1375,7 +1375,12 @@ cdef class Model:
 
         for rule in rules:
             self.create_rule(rule)
-
+            
+        if initial_condition_dict != None:
+            for specie in initial_condition_dict:
+                self._add_species(specie)
+            self.set_species(initial_condition_dict)
+            
         self._initialize()
 
     def _initialize(self):
