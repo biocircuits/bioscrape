@@ -385,7 +385,7 @@ cdef class MassActionPropensity(Propensity):
     cdef double get_propensity(self, double* state, double* params, double time):
         cdef double ans = params[self.k_index]
         cdef int i
-        for i in range(self.num_species):
+        for i in range(len(self.sp_inds)):
             ans *= state[self.sp_inds[i]]
 
         return ans
@@ -394,7 +394,7 @@ cdef class MassActionPropensity(Propensity):
         cdef double ans = params[self.k_index]
         cdef int i
         for i in range(len(self.sp_inds)):
-            for j in range(len(self.sp_counts[i])):
+            for j in range(self.sp_counts[i]):
                 ans *= max(state[self.sp_inds[i]]-j, 0)
 
         return ans
