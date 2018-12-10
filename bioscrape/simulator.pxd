@@ -92,6 +92,8 @@ cdef class CSimInterface:
     cdef double compute_delay(self, double *state, unsigned rxn_index)
     cdef void compute_propensities(self, double *state, double *propensity_destination, double time)
     cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
+    cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time)
+    cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
     cdef unsigned requires_delay(self)
 
     cdef void apply_repeated_rules(self, double *state, double time)
@@ -125,6 +127,8 @@ cdef class ModelCSimInterface(CSimInterface):
     cdef double compute_delay(self, double *state, unsigned rxn_index)
     cdef void compute_propensities(self, double *state, double *propensity_destination, double time)
     cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
+    cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time)
+    cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
     cdef np.ndarray get_initial_state(self)
 
     cdef void apply_repeated_rules(self, double *state,double time)

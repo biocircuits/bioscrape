@@ -274,9 +274,16 @@ cdef class CSimInterface:
     # must be overriden by subclass
     cdef void compute_propensities(self, double *state, double *propensity_destination, double time):
         pass
-    cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume,
-                                          double time):
+    cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time):
         pass
+
+    # by default stochastic propensities are assumed to be the same as normal propensities. This may be overwritten by the subclass, however.
+    cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time):
+        self.compute_propensities(state, propensity_destination, time)
+
+    # by default stochastic propensities are assumed to be the same as normal propensities. This may be overwritten by the subclass, however.
+    cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time):
+        self.compute_volume_propensities(state, propensity_destination, volume, time)
 
     cdef unsigned requires_delay(self):
         return self.delay_flag
@@ -436,12 +443,23 @@ cdef class ModelCSimInterface(CSimInterface):
         cdef unsigned rxn
         for rxn in range(self.num_reactions):
             propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_propensity(state,
-                                                                                                       self.c_param_values,                                                                                            time)
+                                                                                                       self.c_param_values, time)
 
     cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time):
         cdef unsigned rxn
         for rxn in range(self.num_reactions):
             propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_volume_propensity(state, self.c_param_values,
+                                                                                                              volume, time)
+    cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time):
+        cdef unsigned rxn
+        for rxn in range(self.num_reactions):
+            propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_stochastic_propensity(state,
+                                                                                                       self.c_param_values, time)
+
+    cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time):
+        cdef unsigned rxn
+        for rxn in range(self.num_reactions):
+            propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_stochastic_volume_propensity(state, self.c_param_values,
                                                                                                               volume, time)
 
     cdef unsigned get_number_of_rules(self):
@@ -1070,7 +1088,7 @@ cdef class CustomSplitter(VolumeSplitter):
         return self.split_function(parent)
 
 ##################################################                ####################################################
-######################################              SIMULATORS                        ################################
+######################################              CS                        ################################
 #################################################                     ################################################
 
 # Regular simulations with no volume or delay involved.
@@ -1284,7 +1302,7 @@ cdef class SSASimulator(RegularSimulator):
         while current_index < num_timepoints:
             # Compute propensity in place
             sim.apply_repeated_rules(<double*> c_current_state.data,current_time)
-            sim.compute_propensities(<double*> c_current_state.data, <double*> c_propensity.data,current_time)
+            sim.compute_stochastic_propensities(<double*> c_current_state.data, <double*> c_propensity.data,current_time)
             # Sample the next reaction time and update
             Lambda = cyrandom.array_sum(<double*> c_propensity.data,num_reactions)
 
@@ -1348,7 +1366,7 @@ cdef class SafeModeSSASimulator(RegularSimulator):
 
             # Compute propensity in place
             sim.apply_repeated_rules(<double*> c_current_state.data,current_time)
-            sim.compute_propensities(<double*> c_current_state.data, <double*> c_propensity.data,current_time)
+            sim.compute_stochastic_propensities(<double*> c_current_state.data, <double*> c_propensity.data,current_time)
             # Sample the next reaction time and update
             Lambda = cyrandom.array_sum(<double*> c_propensity.data,num_reactions)
 
@@ -1414,7 +1432,7 @@ cdef class TimeDependentSSASimulator(RegularSimulator):
         while current_index < num_timepoints:
             # Compute propensity in place
             sim.apply_repeated_rules(<double*> c_current_state.data,current_time)
-            sim.compute_propensities(<double*> c_current_state.data, <double*> c_propensity.data,current_time)
+            sim.compute_stochastic_propensities(<double*> c_current_state.data, <double*> c_propensity.data,current_time)
             # Sample the next reaction time and update
             Lambda = cyrandom.array_sum(<double*> c_propensity.data,num_reactions)
 
@@ -1516,7 +1534,7 @@ cdef class DelaySSASimulator(DelaySimulator):
         while current_index < num_timepoints:
             # Compute the propensity in place
             sim.apply_repeated_rules(<double*> c_current_state.data, current_time)
-            sim.compute_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data), current_time)
+            sim.compute_stochastic_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data), current_time)
             Lambda = cyrandom.array_sum(<double*> (c_propensity.data), num_reactions)
 
             # Either we are going to move to the next queued time, or we move to the next reaction time.
@@ -1641,7 +1659,7 @@ cdef class VolumeSSASimulator(VolumeSimulator):
         while current_index < num_timepoints:
             # Compute the propensity in place
             sim.apply_repeated_rules(<double*> c_current_state.data,current_time)
-            sim.compute_volume_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data),
+            sim.compute_stochastic_volume_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data),
                                             current_volume, current_time)
             Lambda = cyrandom.array_sum(<double*> (c_propensity.data), num_reactions)
 
@@ -1772,7 +1790,7 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
         while current_index < num_timepoints:
             # Compute the propensity in place
             sim.apply_repeated_rules(<double*> c_current_state.data, current_time)
-            sim.compute_volume_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data),
+            sim.compute_stochastic_volume_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data),
                                             current_volume, current_time)
             Lambda = cyrandom.array_sum(<double*> (c_propensity.data), num_reactions)
 

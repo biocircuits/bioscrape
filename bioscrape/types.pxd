@@ -37,6 +37,8 @@ cdef class Propensity:
 
     cdef double get_propensity(self, double* state, double* params, double time)
     cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
+    cdef double get_stochastic_propensity(self, double* state, double* params, double time)
+    cdef double get_stochastic_volume_propensity(self, double *state, double *params, double volume, double time)
 
 
 cdef class ConstitutivePropensity(Propensity):
@@ -52,6 +54,8 @@ cdef class ConstitutivePropensity(Propensity):
 
     cdef double get_propensity(self, double* state, double* params, double time)
     cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
+    cdef double get_stochastic_propensity(self, double* state, double* params, double time)
+    cdef double get_stochastic_volume_propensity(self, double *state, double *params, double volume, double time)
 
 cdef class UnimolecularPropensity(Propensity):
     """
@@ -70,6 +74,8 @@ cdef class UnimolecularPropensity(Propensity):
 
     cdef double get_propensity(self, double* state, double* params, double time)
     cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
+    cdef double get_stochastic_propensity(self, double* state, double* params, double time)
+    cdef double get_stochastic_volume_propensity(self, double *state, double *params, double volume, double time)
 
 
 cdef class BimolecularPropensity(Propensity):
@@ -90,6 +96,8 @@ cdef class BimolecularPropensity(Propensity):
 
     cdef double get_propensity(self, double* state, double* params, double time)
     cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
+    cdef double get_stochastic_propensity(self, double* state, double* params, double time)
+    cdef double get_stochastic_volume_propensity(self, double *state, double *params, double volume, double time)
 
 cdef class PositiveHillPropensity(Propensity):
     """
@@ -109,6 +117,8 @@ cdef class PositiveHillPropensity(Propensity):
 
     cdef double get_propensity(self, double* state, double* params, double time)
     cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
+    cdef double get_stochastic_propensity(self, double* state, double* params, double time)
+    cdef double get_stochastic_volume_propensity(self, double *state, double *params, double volume, double time)
 
 cdef class PositiveProportionalHillPropensity(Propensity):
     """
@@ -133,6 +143,8 @@ cdef class PositiveProportionalHillPropensity(Propensity):
 
     cdef double get_propensity(self, double* state, double* params, double time)
     cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
+    cdef double get_stochastic_propensity(self, double* state, double* params, double time)
+    cdef double get_stochastic_volume_propensity(self, double *state, double *params, double volume, double time)
 
 cdef class NegativeHillPropensity(Propensity):
     """
@@ -153,6 +165,8 @@ cdef class NegativeHillPropensity(Propensity):
 
     cdef double get_propensity(self, double* state, double* params, double time)
     cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
+    cdef double get_stochastic_propensity(self, double* state, double* params, double time)
+    cdef double get_stochastic_volume_propensity(self, double *state, double *params, double volume, double time)
 
 cdef class NegativeProportionalHillPropensity(Propensity):
     """
@@ -176,15 +190,20 @@ cdef class NegativeProportionalHillPropensity(Propensity):
 
     cdef double get_propensity(self, double* state, double* params, double time)
     cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
+    cdef double get_stochastic_propensity(self, double* state, double* params, double time)
+    cdef double get_stochastic_volume_propensity(self, double *state, double *params, double volume, double time)
 
 cdef class MassActionPropensity(Propensity):
     # variables
     cdef vector[int] sp_inds
+    cdef vector[int] sp_counts
     cdef unsigned k_index
     cdef int num_species
 
     cdef double get_propensity(self, double* state, double* params, double time)
     cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
+    cdef double get_stochastic_propensity(self, double* state, double* params, double time)
+    cdef double get_stochastic_volume_propensity(self, double *state, double *params, double volume, double time)
 
 cdef class Term:
     cdef double evaluate(self, double *species, double *params, double time)
@@ -297,6 +316,8 @@ cdef class GeneralPropensity(Propensity):
 
     cdef double get_propensity(self, double* state, double* params, double time)
     cdef double get_volume_propensity(self, double *state, double *params, double volume, double time)
+    cdef double get_stochastic_propensity(self, double* state, double* params, double time)
+    cdef double get_stochastic_volume_propensity(self, double *state, double *params, double volume, double time)
 
 
 ##################################################                ####################################################
@@ -415,6 +436,32 @@ cdef class GeneralAssignmentRule(Rule):
 
     cdef void execute_rule(self, double *state, double *params, double time)
     cdef void execute_volume_rule(self, double *state, double *params, double volume, double time)
+
+
+cdef class GrowthRule(Rule):
+    """
+    A class for assigning rules to govern volume growth in cell division simulations
+    """
+    cdef void execute_rule(self, double *state, double *params, double time)
+    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time)
+
+
+cdef class DivisionRule(Rule):
+    """
+    A class for assigning rules to govern cell division
+    """
+    cdef void execute_rule(self, double *state, double *params, double time)
+    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time)
+
+
+cdef class DeathRule(Rule):
+    """
+    A class for assigning rules to govern cell death
+    """
+    cdef void execute_rule(self, double *state, double *params, double time)
+    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time)
+
+
 
 ##################################################                ####################################################
 ######################################              VOLUME  TYPES                       ##############################
@@ -622,8 +669,8 @@ cdef class Lineage:
     Attributes:
         schnitzes (list): A list of all the Schnitz's in the lineage.
         c_schnitzes (vector[void*]): A vector containing void pointers to all the Schnitz's in the lineage
-
     """
+    
     cdef list schnitzes
     cdef vector[void*] c_schnitzes
 
