@@ -168,10 +168,16 @@ cdef class VolumeSSAResult(SSAResult):
     """
     cdef np.ndarray volume
     cdef unsigned cell_divided_flag
+    cdef unsigned cell_dead_flag
     cdef Volume volume_object
 
     cdef inline unsigned cell_divided(self):
         return self.cell_divided_flag
+    cdef inline unsigned cell_dead(self):
+        return self.cell_dead_flag
+    cdef inline void set_cell_dead(self, unsigned dead):
+        self.cell_dead_flag = dead
+        
     cdef inline np.ndarray get_volume(self):
         return self.volume
 
