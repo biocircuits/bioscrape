@@ -243,7 +243,7 @@ cdef class VolumeCellState(CellState):
     """
     cdef double volume
     cdef Volume volume_object
-
+    
     cdef inline void set_volume(self, double volume):
         self.volume = volume
 

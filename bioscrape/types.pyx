@@ -1464,49 +1464,8 @@ cdef class Model:
         self.delay_reaction_updates.append(delay_reaction_update_dict)
         delay_object.initialize(delay_param_dict, self.species2index, self.params2index)
 
-    #A function to programatically create a reaction (and add automatically add it to the model).
-    #   Supports all native propensity types and delay types.
-    #Required Inputs:
-    #   reactants (list): a list of reactant specie names (strings)
-    #   products (list): a list of product specie names (strings)
-    #   propensity_type: a string indicating the type of propensity
-    #       Supported types: "massaction", "hillpositive", "proportionalhillpositive", "hillnegative", "proportionalhillnegative", "general"
-    #   propensity_param_dict: a dictionary of parameters for the given propensity type
-    #Optional Inputs:
-    #   delay_type: a string indicating the type of delay
-    #   delay_reactants (list): a list of delay reaction reactant specie names (strings)
-    #   delay_products: a list of delay reaction products specie names (strings)
-    #   delay_param_dict: a dictionary of the parameters for the delay distribution
-    def create_reaction(self, reactants, products, propensity_type, propensity_param_dict,
-                         delay_type = None, delay_reactants = None, delay_products = None, delay_param_dict = None, input_printout = False):
 
-        if input_printout:
-            warnings.warn("creating reaction with:"+
-                "\n\tPropensity_type="+str(propensity_type)+" Inputs="+str(reactants)+" Outputs="+str(products)+
-                "\n\tpropensity_param_dict="+str(propensity_param_dict)+
-                "\n\tDelay_type="+str(delay_type)+" delay inputs ="+str(delay_reactants)+" delay outputs="+str(delay_products)+
-                "\n\tdelay_param_dict="+str(delay_param_dict))
-        self.initialized = False
-
-        #Reaction Reactants and Products stored in a dictionary
-        reaction_update_dict = {}
-        for r in reactants:
-            # if the species hasn't been seen add it to the index
-            self._add_species(r)
-
-            # update the update array
-            if r not in reaction_update_dict:
-                reaction_update_dict[r] = 0
-
-            reaction_update_dict[r]  -= 1
-
-        for p in products:
-            # if the species hasn't been seen add it to the index
-            self._add_species(p)
-            # update the update array
-            if p not in reaction_update_dict:
-                reaction_update_dict[p] = 0
-            reaction_update_dict[p]  += 1
+    def create_propensity(self, propensity_type, propensity_param_dict):
         if 'type' in propensity_param_dict:
             propensity_param_dict.pop('type')
         #Create propensity object
@@ -1562,18 +1521,63 @@ cdef class Model:
                 prop_object = MassActionPropensity()
                 self._param_dict_check(propensity_param_dict, "k", "DummyVar_MassActionPropensity")
 
-            if 'species' not in propensity_param_dict:
-                reactant_string = ""
-                for s in reactants:
-                    reactant_string += s+"*"
-                propensity_param_dict['species'] = reactant_string[:len(reactant_string)-1]
-
-
         elif propensity_type == 'general':
             prop_object = GeneralPropensity()
         else:
             raise SyntaxError('Propensity Type is not supported: ' + propensity_type)
 
+        return prop_object
+    #A function to programatically create a reaction (and add automatically add it to the model).
+    #   Supports all native propensity types and delay types.
+    #Required Inputs:
+    #   reactants (list): a list of reactant specie names (strings)
+    #   products (list): a list of product specie names (strings)
+    #   propensity_type: a string indicating the type of propensity
+    #       Supported types: "massaction", "hillpositive", "proportionalhillpositive", "hillnegative", "proportionalhillnegative", "general"
+    #   propensity_param_dict: a dictionary of parameters for the given propensity type
+    #Optional Inputs:
+    #   delay_type: a string indicating the type of delay
+    #   delay_reactants (list): a list of delay reaction reactant specie names (strings)
+    #   delay_products: a list of delay reaction products specie names (strings)
+    #   delay_param_dict: a dictionary of the parameters for the delay distribution
+    def create_reaction(self, reactants, products, propensity_type, propensity_param_dict,
+                         delay_type = None, delay_reactants = None, delay_products = None, delay_param_dict = None, input_printout = False):
+
+        if input_printout:
+            warnings.warn("creating reaction with:"+
+                "\n\tPropensity_type="+str(propensity_type)+" Inputs="+str(reactants)+" Outputs="+str(products)+
+                "\n\tpropensity_param_dict="+str(propensity_param_dict)+
+                "\n\tDelay_type="+str(delay_type)+" delay inputs ="+str(delay_reactants)+" delay outputs="+str(delay_products)+
+                "\n\tdelay_param_dict="+str(delay_param_dict))
+        self.initialized = False
+
+        #Reaction Reactants and Products stored in a dictionary
+        reaction_update_dict = {}
+        for r in reactants:
+            # if the species hasn't been seen add it to the index
+            self._add_species(r)
+
+            # update the update array
+            if r not in reaction_update_dict:
+                reaction_update_dict[r] = 0
+
+            reaction_update_dict[r]  -= 1
+
+        for p in products:
+            # if the species hasn't been seen add it to the index
+            self._add_species(p)
+            # update the update array
+            if p not in reaction_update_dict:
+                reaction_update_dict[p] = 0
+            reaction_update_dict[p]  += 1
+
+        if 'species' not in propensity_param_dict and propensity_type == "massaction":
+                reactant_string = ""
+                for s in reactants:
+                    reactant_string += s+"*"
+                propensity_param_dict['species'] = reactant_string[:len(reactant_string)-1]
+
+        prop_object = self.create_propensity(propensity_type, propensity_param_dict):
         #prop_object.initialize(propensity_param_dict, self.species2index, self.params2index)
 
         #Create Delay Object
