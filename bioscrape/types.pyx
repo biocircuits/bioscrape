@@ -1374,7 +1374,14 @@ cdef class Model:
             self.set_parameter(param, param_val)
 
         for rule in rules:
-            self.create_rule(rule)
+            if len(rule) == 2:
+                rule_type, rule_attributes = rule
+                self.create_rule(rule_type, rule_attributes)
+            elif len(rule) == 3:
+                rule_type, rule_attributes, rule_frequency = rule
+                self.create_rule(rule_type, rule_attributes, rule_frequency = rule_frequency)
+            else:
+                raise ValueError("Rules must be a tuple: (rule_type (string), rule_attributes (dict), rule_frequency (optional))")
             
         if initial_condition_dict != None:
             for specie in initial_condition_dict:
