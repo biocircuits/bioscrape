@@ -615,7 +615,7 @@ cdef class LineageModel(Model):
 		else:
 			self.global_volume = global_volume
 		self._add_param("global_volume")
-		self.set_parameter("global_volume", global_volume)
+		self.set_parameter("global_volume", self.global_volume)
 
 		#add global reactions (which are recaled by 1/volume_global^[# global species in reactants])
 		global_rxn_count = 0
