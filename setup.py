@@ -1,32 +1,34 @@
-from distutils.core import setup
-from Cython.Build import cythonize
-from numpy import get_include
-from distutils.extension import Extension
 import os
+import sys
 
-numpyInclude = [get_include(), '.']
-
-# cyrandom module: has random number generation stuff
-
-sourceFiles = ['random.pyx', 'types.pyx', 'simulator.pyx', 'inference.pyx']
-
-
-ext_options = {}
-ext_options['language'] = 'c++'
-ext_options['include_dirs'] = numpyInclude
-extra_compile_args = []
-
-
-# building part
-src_dir = 'bioscrape'
-extensions = [Extension('bioscrape.'+s.split('.')[0],[src_dir+'/'+s], **ext_options) for s in sourceFiles]
-
-setup(
-    name = 'bioscrape',
-    packages = ['bioscrape'],
-    package_dir = {'bioscrape' : src_dir},
-    package_data = {'bioscrape': ['*.pxd']},
-    ext_modules = cythonize(extensions),
-    zip_safe=False
-)
-
+if len(sys.argv) == 1:
+	print('Installing Bioscrape')
+	os.system("python setup_bioscrape.py install")
+	print("Installing Bioscrape Lineages")
+	os.system("python setup_lineages.py install")
+elif len(sys.argv) == 2:
+	if sys.argv[1] == "install":
+		print('Installing Bioscrape')
+		os.system("python setup_bioscrape.py install")
+		print("Installing Bioscrape Lineages")
+		os.system("python setup_lineages.py install")
+	elif sys.argv[1] == "bioscrape":
+		print('Installing Bioscrape')
+		os.system("python setup_bioscrape.py install")
+	elif sys.argv[1] == "lineages":
+		print('Installing lineages')
+		os.system("python setup_lineages.py install")
+	else:
+		raise ValueError("setup.py accepts the arguments: install, bioscrape, and lineages. By default, will install both bioscrape and lineages unless just one is specified.")
+elif len(sys.argv) == 3:
+	if sys.argv[1] != "install":
+		raise ValueError("setup.py accepts the arguments: install, bioscrape, and lineages. By default, will install both bioscrape and lineages unless just one is specified.")
+	else:
+		if sys.argv[2] == "bioscrape":
+			print('Installing Bioscrape')
+			os.system("python setup_bioscrape.py install")
+		elif sys.argv[2] == "lineages":
+			print('Installing lineages')
+			os.system("python setup_lineages.py install")
+		else:
+			raise ValueError("setup.py accepts the arguments: install, bioscrape, and lineages. By default, will install both bioscrape and lineages unless just one is specified.")
