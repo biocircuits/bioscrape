@@ -123,7 +123,6 @@ cdef class ModelCSimInterface(CSimInterface):
     cdef double *c_param_values
     cdef np.ndarray np_param_values
 
-
     cdef double compute_delay(self, double *state, unsigned rxn_index)
     cdef void compute_propensities(self, double *state, double *propensity_destination, double time)
     cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
@@ -137,8 +136,16 @@ cdef class ModelCSimInterface(CSimInterface):
     cdef double* get_param_values(self)
     cdef unsigned get_num_parameters(self)
 
-# Simulation output values here
 
+cdef class SafeModelCSimInterface(ModelCSimInterface):
+    cdef int[:, :, :] c_update_array
+
+    cdef void compute_propensities(self, double *state, double *propensity_destination, double time)
+    cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
+    cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time)
+    cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
+
+# Simulation output values here
 cdef class SSAResult:
     """
     A class for keeping track of the result from a regular simulation (timepoints and species over time).

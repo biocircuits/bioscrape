@@ -26,6 +26,7 @@ setup(
     packages = ['bioscrape'],
     package_dir = {'bioscrape' : src_dir},
     package_data = {'bioscrape': ['*.pxd']},
-    ext_modules = cythonize(extensions)
+    ext_modules = cythonize(extensions),
+    zip_safe=False
 )
 
