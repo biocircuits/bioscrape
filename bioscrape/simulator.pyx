@@ -417,7 +417,7 @@ cdef class ModelCSimInterface(CSimInterface):
         self.model = external_model
         #Check Model and initialization
         if not self.model.initialized:
-            self.model._initialize()
+            self.model.py_initialize()
             warnings.warn("Uninitialized Model Passed into ModelCSimInterface. Model.initialize() called automatically.")
         self.check_interface()
         self.c_propensities = self.model.get_c_propensities()
@@ -442,8 +442,7 @@ cdef class ModelCSimInterface(CSimInterface):
     cdef void compute_propensities(self, double *state, double *propensity_destination, double time):
         cdef unsigned rxn
         for rxn in range(self.num_reactions):
-            propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_propensity(state,
-                                                                                                       self.c_param_values, time)
+            propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_propensity(state, self.c_param_values, time)
 
     cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time):
         cdef unsigned rxn
@@ -455,12 +454,10 @@ cdef class ModelCSimInterface(CSimInterface):
         for rxn in range(self.num_reactions):
             propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_stochastic_propensity(state,
                                                                                                        self.c_param_values, time)
-
     cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time):
         cdef unsigned rxn
         for rxn in range(self.num_reactions):
-            propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_stochastic_volume_propensity(state, self.c_param_values,
-                                                                                                              volume, time)
+            propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_stochastic_volume_propensity(state, self.c_param_values, volume, time)
 
     cdef unsigned get_number_of_rules(self):
         return self.c_repeat_rules[0].size()
@@ -469,7 +466,6 @@ cdef class ModelCSimInterface(CSimInterface):
         cdef unsigned rule_number
         for rule_number in range(self.c_repeat_rules[0].size()):
             (<Rule> (self.c_repeat_rules[0][rule_number])).execute_rule(state, self.c_param_values, time)
-
 
     cdef np.ndarray get_initial_state(self):
         return self.initial_state
@@ -486,6 +482,63 @@ cdef class ModelCSimInterface(CSimInterface):
     cdef unsigned get_num_parameters(self):
         return self.np_param_values.shape[0]
 
+cdef class SafeModelCSimInterface(ModelCSimInterface):
+    def __init__(self, external_model):
+        super().__init__(external_model)
+
+        self.c_update_array = self.update_array #WHY DOESN'T THIS WORK?
+        raise RuntimeError("SafeModelCSimInterface not functional")
+
+    cdef void compute_propensities(self, double *state, double *propensity_destination, double time):
+        cdef unsigned rxn
+        cdef unsigned s
+        cdef unsigned prop_is_0 = 0
+        for rxn in range(self.num_reactions):
+            for s in range(self.num_species):
+                if state[s] + self.update_array[s, rxn] < 0:
+                    propensity_destination[rxn] = 0
+                    prop_is_0 = 1
+            if prop_is_0 == 0:
+                propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_propensity(state, self.c_param_values, time)
+
+    cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time):
+        cdef unsigned rxn
+        cdef unsigned s
+        cdef unsigned prop_is_0 = 0
+        for rxn in range(self.num_reactions):
+            for s in range(self.num_species):
+                if state[s] + self.update_array[s, rxn] < 0:
+                    propensity_destination[rxn] = 0
+                    prop_is_0 = 1
+            if prop_is_0 == 0:
+                propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_volume_propensity(state, self.c_param_values,volume, time)
+
+
+    cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time):
+        cdef unsigned rxn
+        cdef unsigned s
+        cdef unsigned prop_is_0 = 0
+        for rxn in range(self.num_reactions):
+            for s in range(self.num_species):
+                if state[s] + self.update_array[s, rxn] < 0:
+                    propensity_destination[rxn] = 0
+                    prop_is_0 = 1
+                    break
+            if prop_is_0 == 0:
+                propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_stochastic_propensity(state, self.c_param_values, time)
+
+    cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time):
+        cdef unsigned rxn
+        cdef unsigned s
+        cdef unsigned prop_is_0 = 0
+        for rxn in range(self.num_reactions):
+            for s in range(self.num_species):
+                if state[s] + self.update_array[s, rxn] < 0:
+                    propensity_destination[rxn] = 0
+                    prop_is_0 = 1
+                    break
+            if prop_is_0 == 0:
+                propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_stochastic_volume_propensity(state, self.c_param_values, volume, time)
 
 cdef class SSAResult:
     def __init__(self, np.ndarray timepoints, np.ndarray result):

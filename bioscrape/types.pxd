@@ -598,19 +598,21 @@ cdef class Model:
 
     cdef np.ndarray update_array
     cdef np.ndarray delay_update_array
+    cdef list reaction_list
     cdef list reaction_updates
     cdef list delay_reaction_updates
     cdef int initialized
 
     cdef (vector[void*])* get_c_propensities(self)
     cdef (vector[void*])* get_c_delays(self)
-
     cdef (vector[void*])* get_c_repeat_rules(self)
 
     cdef np.ndarray get_update_array(self)
     cdef np.ndarray get_delay_update_array(self)
     cdef np.ndarray get_species_values(self)
     cdef np.ndarray get_params_values(self)
+
+    cdef void _initialize(self)
 
 
 
