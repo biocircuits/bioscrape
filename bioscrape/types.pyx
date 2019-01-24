@@ -1345,6 +1345,7 @@ cdef class Model:
         self.repeat_rules = []
         self.params_values = np.array([])
         self.species_values = np.array([])
+        self.txt_dict = {'reactions':"", 'rules':""} # A dictionary to store XML txt to write bioscrape xml
 
         #These must be updated later
         self.update_array = None
@@ -1632,6 +1633,9 @@ cdef class Model:
                 if r not in delay_reaction_update_dict:
                     delay_reaction_update_dict[r] = 0
                 delay_reaction_update_dict[r]  -= 1
+        else:
+            delay_reactants = []
+
         if delay_products != None:
             for p in delay_products:
                 # if the species hasn't been seen add it to the index
@@ -1640,6 +1644,8 @@ cdef class Model:
                 if p not in delay_reaction_update_dict:
                     delay_reaction_update_dict[p] = 0
                 delay_reaction_update_dict[p]  += 1
+        else:
+            delay_products = []
 
         
         if delay_type == 'none' or delay_type == None:
@@ -1659,8 +1665,53 @@ cdef class Model:
         else:
             raise SyntaxError('Unknown delay type: ' + delay_type)
         delay_param_dict.pop('type',None)
+
         self._add_reaction(reaction_update_dict, prop_object, propensity_param_dict, delay_reaction_update_dict, delay_object, delay_param_dict)
-        
+        self.write_rxn_txt(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict)
+    
+    def write_rxn_txt(self, reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict):
+        #Write bioscrape XML and save it to the xml dictionary
+        rxn_txt = '<reaction text= "'
+        for r in reactants:
+            rxn_txt += r +" + "
+        if len(reactants)>0:
+            rxn_txt = rxn_txt[:-2]
+        rxn_txt += "-- "
+        for p in products:
+            rxn_txt += p+" + "
+        if len(products)>0:
+            rxn_txt = rxn_txt[:-2]
+        rxn_txt +='"'
+        if len(delay_reactants) > 0 or len(delay_products)> 0:
+            rxn_txt += ' after= "'
+            if len(delay_reactants) > 0:
+                for r in delay_reactants:
+                    rxn_txt += r +" + "
+                if len(delay_reactants) > 0:
+                    rxn_txt = rxn_txt[:-2]
+            rxn_txt += "-- "
+            if len(delay_products)> 0:
+                for p in delay_products:
+                    rxn_txt += p+" + "
+                if len(delay_products)>0:
+                    rxn_txt = rxn_txt[:-2]
+                rxn_txt +='"'
+        rxn_txt += '>\n\t<propensity type="'
+        rxn_txt += propensity_type+'" '
+        for k in propensity_param_dict:
+            rxn_txt+=k+'="'+propensity_param_dict[k]+'" '
+        rxn_txt += '/>\n\t<delay type="'
+        if delay_type == None:
+            rxn_txt += 'none" />'
+        else:
+            rxn_txt += delay_type+'" '
+            for k in delay_param_dict:
+                rxn_txt += 'k="'+delay_param_dict[k]+'" '
+            rxn_txt+='/>'
+        rxn_txt += '\n</reaction>\n'
+        self.txt_dict['reactions']+=rxn_txt
+
+
 
     def _add_param(self, param_name):
         """
@@ -1714,6 +1765,14 @@ cdef class Model:
             self.repeat_rules.append(rule_object)
         else:
             raise SyntaxError('Invalid Rule Frequency: ' + str(rule_frequency))
+
+    def write_rule_txt(self, rule_type, rule_attributes, rule_frequency):
+        rule_txt = '<rule type="'+rule_type+'" frequency="'+rule_frequency+" "
+        for k in rule_attributes:
+            rule_txt += k+' = "'+rule_attributes[k]+" "
+
+        rule_txt += " />/n"
+        self.txt_dict["rules"]+=rule_txt
 
     #Sets the value of a parameter in the model
     def set_parameter(self, param_name, param_value):
@@ -2069,6 +2128,33 @@ cdef class Model:
     def parse_general_expression(self, instring):
         return parse_expression(instring,self.species2index,self.params2index)
 
+
+    def write_bioscrape_xml(self, file_name):
+        #Writes Bioscrape XML
+        txt = "<model>\n"
+        species = self.get_species_list()
+
+        #Write the Species
+        for s in species:
+            v = self.get_species_value(s)
+            txt+='<species name="'+s+'" value="'+str(v)+'" />\n'
+        txt+='\n'
+        parameters = self.get_param_list()
+        for p in parameters:
+            v = self.get_param_value(p)
+            txt+='<parameter name="'+p+'" value="'+str(v)+'" />\n'
+        txt+='\n'
+        txt += self.txt_dict["reactions"]
+        txt+='\n'
+        txt += self.txt_dict["rules"]
+        txt += "</model>" 
+        
+        f = open(file_name, 'w')
+        f.write(txt)
+        f.close()
+
+        
+
     ##################################################                ####################################################
     ######################################              SBML CONVERSION                     ##############################
     #################################################                     ################################################
@@ -2352,6 +2438,10 @@ cdef class Model:
         out += '</model>\n'
         return out
 
+
+
+
+
 def read_model_from_sbml(sbml_file):
     #model_string = convert_sbml_to_string(sbml_file)
     #import io
@@ -2394,6 +2484,23 @@ cdef class Schnitz:
 
     def py_get_volume(self):
         return self.volume
+
+    def py_get_dataframe(self, Model = None):
+        try:
+            import pandas
+            if Model == None:
+                warnings.warn("No Model passed into py_get_dataframe. No species names will be attached to the data frame.")
+                df = pandas.DataFrame(data = self.py_get_data())
+            else:
+                columns = Model.get_species_list()
+                df = pandas.DataFrame(data = self.py_get_data(), columns = columns)
+            df['time'] = self.time
+            df['volume'] = self.volume
+            return df
+
+        except ModuleNotFoundError:
+            warnings.warn("py_get_dataframe requires the pandas Module to return a Pandas Dataframe object. Numpy array being returned instead.")
+            return self.py_get_result()
 
     def py_get_parent(self):
         return self.parent

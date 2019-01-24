@@ -1143,6 +1143,7 @@ cdef class LineageVolumeCellState(DelayVolumeCellState):
 
 	cdef void set_divided(self, divided):
 		self.divided = divided
+
 	cdef int get_divided(self):
 		return self.divided
 
@@ -1241,6 +1242,17 @@ cdef class LineageVolumeSplitter(VolumeSplitter):
 		cdef double v0d, v0e, t0, p, q, c1, c2
 		# set times
 		t0 = parent.get_time()
+
+		# partition the states, copying already takes care of duplication replications.
+		cdef np.ndarray[np.double_t,ndim=1] dstate = parent.get_state().copy()
+		cdef np.ndarray[np.double_t,ndim=1] estate = parent.get_state().copy()
+		cdef unsigned length = dstate.shape[0]
+
+		cdef unsigned loop_index = 0
+		cdef unsigned species_index = 0
+		cdef unsigned amount = 0
+		cdef unsigned amount2 = 0
+		cdef double d_value = 0.0
 		
 		# simulate partitioning noise
 		if self.how_to_split_v == 0: #Binomial
@@ -1267,17 +1279,6 @@ cdef class LineageVolumeSplitter(VolumeSplitter):
 			if v0d <= 0 or v0e <= 0:
 				raise ValueError("splitter "+self.ind2customsplitter[species_index]+" returned negative quantities for volume")
 
-
-		# partition the states, copying already takes care of duplication replications.
-		cdef np.ndarray[np.double_t,ndim=1] dstate = parent.get_state().copy()
-		cdef np.ndarray[np.double_t,ndim=1] estate = parent.get_state().copy()
-		cdef unsigned length = dstate.shape[0]
-
-		cdef unsigned loop_index = 0
-		cdef unsigned species_index = 0
-		cdef unsigned amount = 0
-		cdef unsigned amount2 = 0
-		cdef double d_value = 0.0
 
 		# take care of perfect splitting
 		for loop_index in range(self.perfect_indices.size()):
@@ -1313,8 +1314,8 @@ cdef class LineageVolumeSplitter(VolumeSplitter):
 
 		# create return structure
 		cdef np.ndarray ans = np.empty(2, dtype=np.object)
-		cdef LineageVolumeCellState d = LineageVolumeCellState(v0 = v0d, t0 = t0, state = dstate)
-		cdef LineageVolumeCellState e = LineageVolumeCellState(v0 = v0e, t0 = t0, state = estate)
+		cdef LineageVolumeCellState d = LineageVolumeCellState(v0 = v0d, t0 = parent.get_time(), state = dstate)
+		cdef LineageVolumeCellState e = LineageVolumeCellState(v0 = v0e, t0 = parent.get_time(), state = estate)
 		ans[0] = d
 		ans[1] = e
 
@@ -1495,10 +1496,14 @@ cdef class LineageSSASimulator():
 
 		return self.SimulateSingleCell(interface, v, timepoints)
 
-def py_SimulateSingleCell(np.ndarray timepoints, LineageModel Model = None, LineageCSimInterface interface = None, LineageVolumeCellState v = None):
+def py_SimulateSingleCell(np.ndarray timepoints, LineageModel Model = None, LineageCSimInterface interface = None, LineageVolumeCellState v = None, return_dataframes = True):
 	simulator = LineageSSASimulator()
 	result = simulator.py_SimulateSingleCell(timepoints, Model = Model, interface = interface, v = v)
-	return result
+
+	if return_dataframes:
+		return result.py_get_dataframe(Model = Model)
+	else:
+		return result
 
 cdef Lineage SimulateCellLineage(LineageCSimInterface sim, list initial_cell_states, np.ndarray timepoints, LineageSSASimulator simulator):
 	# Prepare a lineage structure to save the data output.
@@ -1562,7 +1567,6 @@ cdef Lineage SimulateCellLineage(LineageCSimInterface sim, list initial_cell_sta
 			else:
 				warnings.warn("Daughter cell simulation went over the total time. Simulation has been discarded. Check for model errors.")
 
-			c_truncated_timepoints = c_timepoints[c_timepoints > cs.get_time()]
 			r = simulator.SimulateSingleCell(sim, d2, c_truncated_timepoints)
 			daughter_schnitz2 = r.get_schnitz()
 			d2final = r.get_final_cell_state()
@@ -1607,7 +1611,7 @@ cdef list PropagateCells(LineageCSimInterface sim, list initial_cell_states, np.
 	cdef list final_cell_states = []
 	cdef double final_time = c_timepoints[timepoints.shape[0]-1]
 	cdef unsigned list_index = 0
-	cdef list old_cell_states = list(initial_cell_states)
+	cdef list old_cell_states = []
 	cdef LineageVolumeCellState cs
 
 	for i in range(len(initial_cell_states)):
@@ -1615,11 +1619,13 @@ cdef list PropagateCells(LineageCSimInterface sim, list initial_cell_states, np.
 		old_cell_states.append(cs)
 
 	while list_index < len(old_cell_states):
+		
 		cs = old_cell_states[list_index]
 		list_index += 1
 
+
 		#If the cell has already simulated all its time, do nothing
-		if cs.get_time() >= final_time- 1E-9:
+		if cs.get_time() >= final_time - final_time*1E-10:
 			final_cell_states.append(cs)
 		#If the cell is dead, do nothing
 		elif cs.get_dead() >= 0:
@@ -1637,23 +1643,15 @@ cdef list PropagateCells(LineageCSimInterface sim, list initial_cell_states, np.
 			d1final = simulator.SimulateSingleCell(sim, d1, c_truncated_timepoints).get_final_cell_state()
 
 			# Add on the new daughter if final time wasn't reached.
-			if d1final.get_time() < final_time + 1E-9:
-				old_cell_states.append(d1final)
-			else:
-				warnings.warn("Daughter cell simulation went over the total time. Simulation has been discarded. Check for model errors.")
-
-			c_truncated_timepoints = c_timepoints[c_timepoints > cs.get_initial_time()]
+			old_cell_states.append(d1final)
 			d2final = simulator.SimulateSingleCell(sim, d2, c_truncated_timepoints).get_final_cell_state()
 
-			if d2final.get_time() < final_time + 1E-9:
-				old_cell_states.append(d2final)
-			else:
-				warnings.warn("Daughter cell simulation went over the total time. Simulation has been discarded. Check for model errors.")
+			old_cell_states.append(d2final)
 
 	return final_cell_states
 
 
-def  py_PropagateCells(timepoints, initial_cell_states = [], LineageModel Model = None, LineageCSimInterface interface = None, LineageSSASimulator simulator = None, include_dead_cells = 0):
+def  py_PropagateCells(timepoints, initial_cell_states = [], LineageModel Model = None, LineageCSimInterface interface = None, LineageSSASimulator simulator = None, include_dead_cells = False, return_dataframes = True):
 
 	if Model == None and interface == None:
 		raise ValueError('py_PropagateCells requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
@@ -1665,7 +1663,25 @@ def  py_PropagateCells(timepoints, initial_cell_states = [], LineageModel Model 
 	if simulator == None:
 		simulator = LineageSSASimulator()
 
-	return PropagateCells(interface, initial_cell_states, timepoints, include_dead_cells, simulator)
+	final_cell_states = PropagateCells(interface, initial_cell_states, timepoints, include_dead_cells, simulator)
+	
+	if return_dataframes:
+		try:
+			import pandas
+			darray = np.array([np.append(cs.py_get_state(), cs.py_get_volume()) for cs in final_cell_states])
+			if Model == None:
+				warnings.warn("Without passing in a model, the data frame will not be indexable by species name.")
+				df = pandas.DataFrame(darray)
+			else:
+				columns = Model.get_species_list()+["volume"]
+				df = pandas.DataFrame(darray, columns = columns)
+			return df
+		except ModuleNotFoundError:
+			warnings.warn("return_dataframes=True requires that pandas be installed. Instead a numpy array is being returned (each column is a species, the last column is volume, and rows are cell states)")
+
+		
+	else:
+		return final_cell_states
 
 #Propogates a single cell trajectory, ignoring half the daughters every division.
 cdef list SingleCellLineage(LineageCSimInterface sim, LineageVolumeCellState initial_cell, np.ndarray timepoints, LineageSSASimulator simulator):
@@ -1714,7 +1730,7 @@ cdef list SingleCellLineage(LineageCSimInterface sim, LineageVolumeCellState ini
 				warnings.warn("Daughter cell simulation went over the total time. Simulation has been discarded. Check for model errors.")
 	return single_cell_trajectory
 
-def py_SingleCellLineage(np.ndarray timepoints, LineageVolumeCellState initial_cell = None,LineageModel Model = None, LineageCSimInterface interface = None, LineageSSASimulator simulator = None):
+def py_SingleCellLineage(np.ndarray timepoints, LineageVolumeCellState initial_cell = None,LineageModel Model = None, LineageCSimInterface interface = None, LineageSSASimulator simulator = None, return_dataframes = True):
 	if Model == None and interface == None:
 		raise ValueError('py_SingleCellPropogation requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 	elif interface == None:
@@ -1724,7 +1740,14 @@ def py_SingleCellLineage(np.ndarray timepoints, LineageVolumeCellState initial_c
 		initial_cell = LineageVolumeCellState(v0 = 1, t0 = 0, state = Model.get_species_array())
 	if simulator == None:
 		simulator = LineageSSASimulator()
-	return SingleCellLineage(interface, initial_cell, timepoints, simulator)
+
+	single_cell_trajectory = SingleCellLineage(interface, initial_cell, timepoints, simulator)
+
+	if return_dataframes:
+		df_trajectory = [r.py_get_dataframe(Model = Model) for r in single_cell_trajectory]
+		return df_trajectory
+	else:
+		return single_cell_trajectory
 
 
 #Inputs:
@@ -1907,7 +1930,6 @@ cdef Lineage SimulateInteractingCellLineage(list sim_interfaces, list initial_ce
 					d1final = r.get_final_cell_state()
 
 					#simulate the second daughter
-					c_truncated_timepoints = c_period_timepoints[c_period_timepoints > cs.get_time()]
 					r = simulator.SimulateSingleCell(sim, d2, c_truncated_timepoints)
 					daughter_schnitz2 = r.get_schnitz()
 					d2final = r.get_final_cell_state()
@@ -1941,7 +1963,6 @@ cdef Lineage SimulateInteractingCellLineage(list sim_interfaces, list initial_ce
 
 			#If the cell isn't dead or divided, simulate it more
 			else:
-				c_truncated_timepoints = c_period_timepoints[c_period_timepoints > cs.get_time()]
 				#print("period_Time", period_time, "len(c_period_timepoints)", len(c_period_timepoints), "c_period_timepoints[0]=", c_period_timepoints[0], "c_period_timepoints[-1]=", c_period_timepoints[len(c_period_timepoints)-1])
 				#print("cs.get_time()=", cs.get_time(), "len(c_truncated_timepoints)", len(c_truncated_timepoints), "c_truncated_timepoints[0]=", c_truncated_timepoints[0], "c_truncated_timepoints[-1]=", c_truncated_timepoints[len(c_truncated_timepoints)-1])
 

@@ -551,6 +551,24 @@ cdef class SSAResult:
     def py_get_result(self):
         return self.get_result()
 
+    #Returns a Pandas Data Frame
+    def py_get_dataframe(self, Model = None):
+        try:
+            import pandas
+            if Model == None:
+                warnings.warn("No Model passed into py_get_dataframe. No species names will be attached to the data frame.")
+                df = pandas.DataFrame(data = self.get_result())
+            else:
+                columns = Model.get_species_list()
+                df = pandas.DataFrame(data = self.get_result(), columns = columns)
+            df['time'] = self.timepoints
+            return df
+
+        except ModuleNotFoundError:
+            warnings.warn("py_get_dataframe requires the pandas Module to return a Pandas Dataframe object. Numpy array being returned instead.")
+            return self.py_get_result()
+
+
 
 cdef class DelaySSAResult(SSAResult):
     def __init__(self, np.ndarray timepoints, np.ndarray result, DelayQueue queue):
@@ -573,6 +591,14 @@ cdef class VolumeSSAResult(SSAResult):
     def py_get_volume(self):
         return self.get_volume()
 
+    def py_get_dataframe(self, Model = None):
+        df = super().py_get_dataframe(Model = Model)
+        try:
+            import pandas
+            df["volume"] = self.volume
+            return df
+        except ModuleNotFoundError:
+            return df
 
     cdef VolumeCellState get_final_cell_state(self):
         """
@@ -630,6 +656,23 @@ cdef class CellState:
     def py_get_time(self):
         return self.time
 
+    def py_get_dataframe(self, Model = None):
+        try:
+            import pandas
+            if Model == None:
+                warnings.warn("No Model passed into py_get_dataframe. No species names will be attached to the data frame.")
+                df = pandas.DataFrame(data = np.expand_dims(self.state, 0))
+            else:
+                columns = Model.get_species_list()
+                df = pandas.DataFrame(data = np.expand_dims(self.state, 0), columns = columns)
+                
+            df['time'] = self.time
+            return df
+
+        except ModuleNotFoundError:
+            warnings.warn("py_get_dataframe requires the pandas Module to return a Pandas Dataframe object. Numpy array being returned instead.")
+            return self.state
+
 cdef class DelayCellState(CellState):
     def py_get_delay_queue(self):
         return self.delay_queue
@@ -661,6 +704,15 @@ cdef class VolumeCellState(CellState):
     def __getstate__(self):
         return (self.time, self.volume, self.state)
 
+    def py_get_dataframe(self, Model = None):
+        df = super().py_get_dataframe(Model = Model)
+        try:
+            import pandas
+            df["volume"] = self.volume
+        except ModuleNotFoundError:
+            pass
+        return df
+
 cdef class DelayVolumeCellState(VolumeCellState):
     def py_get_delay_queue(self):
         return self.delay_queue
@@ -673,7 +725,6 @@ cdef class DelayVolumeCellState(VolumeCellState):
 #################################################                     ################################################
 
 import sys
-
 cdef Lineage simulate_cell_lineage(CSimInterface sim, Volume v, np.ndarray timepoints,
                                    VolumeSimulator vsim, VolumeSplitter vsplit):
 
@@ -1931,6 +1982,72 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
 
         return DelayVolumeSSAResult(c_timepoints,c_results,c_volume_trace,q,cell_divided)
 
+
+#A wrapper function to allow easy simulation of Models
+def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = False, delay = None, safe = False, volume = False, return_dataframe = True):
+    #Check model and interface
+    if Model == None and Interface == None:
+        raise ValueError("py_simulate_model requires either a Model or CSimInterface to be passed in.")
+    elif Model!=None and Interface!=None:
+        raise ValueError("py_simulate_model requires either a Model OR a CSimInterface to be passed in. Note both.")
+    elif Interface == None:
+        if safe:
+            raise NotImplementedError("SafeCSimInterfaces not implemented yet.")
+        else:
+            Interface = ModelCSimInterface(Model)
+
+
+    #Create Volume (if necessary)
+    if isinstance(volume, Volume):
+        pass
+    elif volume == False:
+        v = None
+    else:
+        if volume == True:
+            v = Volume()
+            v.py_set_volume(1.0)
+        else:
+            try:
+                if volume > 0:
+                    v = Volume()
+                    v.py_set_volume(volume)
+            except TypeError:
+                warnings.warn("Caught TypeError: invalid volume keyword. Setting volume to 1.")
+                v = Volume()
+                v.py_set_volume(1.0)
+            
+    #Create Simulator and Simulate    
+    if delay:
+        if not stochastic:
+            warnings.warn("Delay Simulators only exist for stochastic simulations. Defaulting to Stochastic simulation")
+
+        q = ArrayDelayQueue.setup_queue(Interface.py_get_num_reactions(),len(timepoints),timepoints[1]-timepoints[0])
+        if v == None:
+            Sim = DelaySSASimulator()
+            result = Sim.py_delay_simulate(Interface, q, timepoints)
+        else :
+            Sim = DelayVolumeSimulator()
+            result = Sim.py_delay_volume_simulate(Interface, q, v, timepoints)
+    elif stochastic:
+        if v == None:
+            Sim = SSASimulator()
+            result = Sim.py_simulate(Interface, timepoints)
+        else:
+            Sim = VolumeSSASimulator()
+            result = Sim.py_volume_simulate(Interface, v, timepoints)
+    else:
+        if v != None:
+            warnings.warn("uncessary volume parameter for deterministic simulation.")
+        Sim = DeterministicSimulator()
+        Interface.py_prep_deterministic_simulation()
+        result = Sim.py_simulate(Interface, timepoints)
+
+    if return_dataframe:
+        return result.py_get_dataframe(Model = Model)
+    else:
+        return result
+
+
 cdef list propagate_cell(ModelCSimInterface sim, VolumeCellState cell, double end_time,
                                VolumeSimulator vsim, VolumeSplitter vsplit):
     cells_to_simulate = [cell]
@@ -2021,3 +2138,5 @@ def py_propagate_cells(ModelCSimInterface sim, list cells, double end_time,
               the cells divided there will be muliple entries for each original cell
     """
     return propagate_cells(sim,cells,end_time,vsim,vsplit)
+
+
