@@ -18,8 +18,7 @@ ext_options['include_dirs'] = numpyInclude
 if platform.system() == "Darwin":
     ext_options['extra_compile_args'] = ['-std=c++11', "-mmacosx-version-min=10.9"]
     ext_options['extra_link_args'] = ["-stdlib=libc++", "-mmacosx-version-min=10.9"]
-    print('Using other args')
-extra_compile_args = []
+    print('Using macOS clang args')
 
 
 # building part
