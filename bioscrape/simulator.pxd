@@ -84,11 +84,16 @@ cdef class CSimInterface:
     cdef void calculate_determinstic_derivative(self, double *x, double *dxdt, double t)
     # end of deterministic simulation stuff
 
+    #method meant to be overwritten to check if interfaces/models are correct. called by simulators.
+    cdef void check_interface(self)
+
     cdef np.ndarray get_update_array(self)
     cdef np.ndarray get_delay_update_array(self)
     cdef double compute_delay(self, double *state, unsigned rxn_index)
     cdef void compute_propensities(self, double *state, double *propensity_destination, double time)
     cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
+    cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time)
+    cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
     cdef unsigned requires_delay(self)
 
     cdef void apply_repeated_rules(self, double *state, double time)
@@ -118,10 +123,11 @@ cdef class ModelCSimInterface(CSimInterface):
     cdef double *c_param_values
     cdef np.ndarray np_param_values
 
-
     cdef double compute_delay(self, double *state, unsigned rxn_index)
     cdef void compute_propensities(self, double *state, double *propensity_destination, double time)
     cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
+    cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time)
+    cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
     cdef np.ndarray get_initial_state(self)
 
     cdef void apply_repeated_rules(self, double *state,double time)
@@ -130,8 +136,16 @@ cdef class ModelCSimInterface(CSimInterface):
     cdef double* get_param_values(self)
     cdef unsigned get_num_parameters(self)
 
-# Simulation output values here
 
+cdef class SafeModelCSimInterface(ModelCSimInterface):
+    cdef int[:, :, :] c_update_array
+
+    cdef void compute_propensities(self, double *state, double *propensity_destination, double time)
+    cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
+    cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time)
+    cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
+
+# Simulation output values here
 cdef class SSAResult:
     """
     A class for keeping track of the result from a regular simulation (timepoints and species over time).
@@ -161,10 +175,16 @@ cdef class VolumeSSAResult(SSAResult):
     """
     cdef np.ndarray volume
     cdef unsigned cell_divided_flag
+    cdef unsigned cell_dead_flag
     cdef Volume volume_object
 
     cdef inline unsigned cell_divided(self):
         return self.cell_divided_flag
+    cdef inline unsigned cell_dead(self):
+        return self.cell_dead_flag
+    cdef inline void set_cell_dead(self, unsigned dead):
+        self.cell_dead_flag = dead
+        
     cdef inline np.ndarray get_volume(self):
         return self.volume
 
@@ -230,7 +250,7 @@ cdef class VolumeCellState(CellState):
     """
     cdef double volume
     cdef Volume volume_object
-
+    
     cdef inline void set_volume(self, double volume):
         self.volume = volume
 
