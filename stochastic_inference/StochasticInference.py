@@ -178,8 +178,6 @@ class StochasticInference(object):
                 diff = np.abs(d1 - exp_data.get_values()) 
                 '''
                 TODO : Experimental data having multiple output case is important to implement here. 
-                We can already handle multiple measurements. Right now what we are doing is WRONG (for multiple outputs case), because we are 
-                subtracting the same experimental data from different output responses. 
                 '''
                 if cost == 'inf':
                     infinity_error = np.max(diff)
