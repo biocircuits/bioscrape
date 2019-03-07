@@ -385,7 +385,6 @@ cdef class CSimInterface:
         # Set the global simulation object to this model
         global global_sim
         global_sim = self
-        #print(self.S_indices)
 
     def py_prep_deterministic_simulation(self):
         self.prep_deterministic_simulation()
@@ -395,8 +394,7 @@ cdef class CSimInterface:
         # Get propensities before doing anything else.
         cdef double *prop = <double*> (self.propensity_buffer.data)
         self.compute_propensities(x,  prop, t)
-        # if t <= 9000.0:
-        #     prop[36] = 0.0
+
 
         cdef unsigned s
         cdef unsigned j
@@ -483,62 +481,76 @@ cdef class ModelCSimInterface(CSimInterface):
         return self.np_param_values.shape[0]
 
 cdef class SafeModelCSimInterface(ModelCSimInterface):
-    def __init__(self, external_model):
+    def __init__(self, external_model, max_volume = 1000, max_species_count = 1000):
+        self.max_volume = max_volume
+        self.max_species_count = max_species_count
         super().__init__(external_model)
+        self.initialize_reaction_inputs()
+        
+    cdef void initialize_reaction_inputs(self):
+        self.rxn_ind = 0
+        self.s_ind = 0
+        cdef unsigned ind = 0
 
-        self.c_update_array = self.update_array #WHY DOESN'T THIS WORK?
-        raise RuntimeError("SafeModelCSimInterface not functional")
+        #Stores a list of the species index that are inputs to reaction r in a numpy array. List is over when -1 is reached
+        empty_array = -np.ones((self.num_reactions, self.num_species, 2), dtype = np.int32)
+        self.reaction_input_indices = empty_array.data
+        #Parallel array to the one above
+        for self.rxn_ind in range(self.num_reactions):
+            ind = 0
+            for self.s_ind in range(self.num_species):
+                #IF a species s is consumed either by the reaction or delay reaction
+                if (self.update_array[self.s_ind, self.rxn_ind] < 0) or (self.delay_update_array[self.s_ind, self.rxn_ind] < 0):
+                    #add s to the reaction_update_indices[rxn_ind, :, 0] vector
+                    self.reaction_input_indices[self.rxn_ind, ind, 0] = self.s_ind
 
-    cdef void compute_propensities(self, double *state, double *propensity_destination, double time):
-        cdef unsigned rxn
-        cdef unsigned s
-        cdef unsigned prop_is_0 = 0
-        for rxn in range(self.num_reactions):
-            for s in range(self.num_species):
-                if state[s] + self.update_array[s, rxn] < 0:
-                    propensity_destination[rxn] = 0
-                    prop_is_0 = 1
-            if prop_is_0 == 0:
-                propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_propensity(state, self.c_param_values, time)
-
-    cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time):
-        cdef unsigned rxn
-        cdef unsigned s
-        cdef unsigned prop_is_0 = 0
-        for rxn in range(self.num_reactions):
-            for s in range(self.num_species):
-                if state[s] + self.update_array[s, rxn] < 0:
-                    propensity_destination[rxn] = 0
-                    prop_is_0 = 1
-            if prop_is_0 == 0:
-                propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_volume_propensity(state, self.c_param_values,volume, time)
-
+                    #set self.reaction_input_indices[self.rxn_ind, ind, 1] vector the maximum amount of the species that could be consumed
+                    if (self.update_array[self.s_ind, self.rxn_ind] < 0) and (self.delay_update_array[self.s_ind, self.rxn_ind] < 0):
+                        self.reaction_input_indices[self.rxn_ind, ind, 1] = -(self.update_array[self.s_ind, self.rxn_ind]+self.delay_update_array[self.s_ind, self.rxn_ind])
+                    else:
+                         self.reaction_input_indices[self.rxn_ind, ind, 1] = -min(self.update_array[self.s_ind, self.rxn_ind], self.delay_update_array[self.s_ind, self.rxn_ind])
+                    ind += 1
 
     cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time):
-        cdef unsigned rxn
-        cdef unsigned s
-        cdef unsigned prop_is_0 = 0
-        for rxn in range(self.num_reactions):
-            for s in range(self.num_species):
-                if state[s] + self.update_array[s, rxn] < 0:
-                    propensity_destination[rxn] = 0
-                    prop_is_0 = 1
-                    break
-            if prop_is_0 == 0:
-                propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_stochastic_propensity(state, self.c_param_values, time)
+        self.check_count_function(state, 1)
+        self.rxn_ind = 0
+        for self.rxn_ind in range(self.num_reactions):
+            self.prop_is_0 = 0
+            self.s_ind = 0
+            while self.reaction_input_indices[self.rxn_ind, self.s_ind, 0] > -1 and self.prop_is_0 == 0:
+                if state[self.reaction_input_indices[self.rxn_ind, self.s_ind, 0]] < self.reaction_input_indices[self.rxn_ind, self.s_ind, 1]:
+                    propensity_destination[self.rxn_ind] = 0
+                    self.prop_is_0 = 1
+                self.s_ind+=1
+            if self.prop_is_0 == 0:
+                propensity_destination[self.rxn_ind] = (<Propensity> (self.c_propensities[0][self.rxn_ind]) ).get_stochastic_propensity(state, self.c_param_values, time)
 
     cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time):
-        cdef unsigned rxn
-        cdef unsigned s
-        cdef unsigned prop_is_0 = 0
-        for rxn in range(self.num_reactions):
-            for s in range(self.num_species):
-                if state[s] + self.update_array[s, rxn] < 0:
-                    propensity_destination[rxn] = 0
-                    prop_is_0 = 1
-                    break
-            if prop_is_0 == 0:
-                propensity_destination[rxn] = (<Propensity> (self.c_propensities[0][rxn]) ).get_stochastic_volume_propensity(state, self.c_param_values, volume, time)
+        self.check_count_function(state, volume)
+        self.rxn_ind = 0
+        for self.rxn_ind in range(self.num_reactions):
+            self.prop_is_0 = 0
+            self.s_ind = 0
+            while self.reaction_input_indices[self.rxn_ind, self.s_ind, 0] != -1 and self.prop_is_0 == 0:
+                if state[self.reaction_input_indices[self.rxn_ind, self.s_ind, 0]] < self.reaction_input_indices[self.rxn_ind, self.s_ind, 1]:
+                    propensity_destination[self.rxn_ind] = 0
+                    self.prop_is_0 = 1
+                self.s_ind+=1
+            if self.prop_is_0 == 0:
+                propensity_destination[self.rxn_ind] = (<Propensity> (self.c_propensities[0][self.rxn_ind]) ).get_stochastic_volume_propensity(state, self.c_param_values, volume, time)
+
+    cdef void check_count_function(self, double *state, double volume):
+        self.s_ind = 0
+
+        for self.s_ind in range(self.num_species):
+            if state[self.s_ind] > self.max_species_count:
+                warnings.warn("Species #"+str(self.s_ind)+"="+str(state[self.s_ind])+" > Max Count="+str(self.max_species_count))
+            elif state[self.s_ind] < 0:
+                 warnings.warn("Species #"+str(self.s_ind)+"="+str(state[self.s_ind])+" < 0")
+        if volume > self.max_volume:
+            warnings.warn("Volume="+str(volume)+" > Max Volume="+str(self.max_volume))
+        elif volume <= 0:
+            warnings.warn("Volume="+str(volume)+" > Max Volume="+str(self.max_volume))
 
 cdef class SSAResult:
     def __init__(self, np.ndarray timepoints, np.ndarray result):
@@ -1599,6 +1611,7 @@ cdef class DelaySimulator:
         raise NotImplementedError("Did not implement simulate function for DelaySimulator")
 
     def py_delay_simulate(self, CSimInterface sim, DelayQueue dq, np.ndarray timepoints):
+        sim.check_interface()
         return self.delay_simulate(sim,dq,timepoints)
 
 
@@ -1720,6 +1733,7 @@ cdef class VolumeSimulator:
         raise NotImplementedError("Did not implement simulation function for Volume Simulator")
 
     def py_volume_simulate(self, CSimInterface sim, Volume v, np.ndarray timepoints):
+        sim.check_interface()
         return self.volume_simulate(sim,v,timepoints)
 
 
@@ -1849,6 +1863,7 @@ cdef class DelayVolumeSimulator:
         raise NotImplementedError("Did not implement simulation function for delay/volume simulator.")
 
     def py_delay_volume_simulate(self,CSimInterface sim, DelayQueue q, Volume v, np.ndarray timepoints):
+        sim.check_interface()
         return self.delay_volume_simulate(sim,q,v,timepoints)
 
 cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
@@ -1995,10 +2010,15 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
     elif Model!=None and Interface!=None:
         raise ValueError("py_simulate_model requires either a Model OR a CSimInterface to be passed in. Note both.")
     elif Interface == None:
-        if safe:
-            raise NotImplementedError("SafeCSimInterfaces not implemented yet.")
+        if safe and stochastic:
+            Interface = SafeModelCSimInterface(Model)
+        elif safe:
+            warnings.warn("Safe=True is only an option for stochastic simulation")
+            Interface = ModelCSimInterface(Model)
         else:
             Interface = ModelCSimInterface(Model)
+    elif Interface != None and safe:
+        warnings.warn("Cannot gaurantee that the interface passed in is safe. Simulating anyway.")
 
 
     #Create Volume (if necessary)
@@ -2036,6 +2056,7 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
         if v == None:
             Sim = SSASimulator()
             result = Sim.py_simulate(Interface, timepoints)
+
         else:
             Sim = VolumeSSASimulator()
             result = Sim.py_volume_simulate(Interface, v, timepoints)
@@ -2072,11 +2093,8 @@ cdef list propagate_cell(ModelCSimInterface sim, VolumeCellState cell, double en
         sim.set_initial_time(cs.get_time())
         timepoints = np.linspace(cs.get_time(),end_time,int( (end_time-cs.get_time())/sim.get_dt() )+10)
         r = vsim.volume_simulate(sim, cs.get_volume_object(), timepoints)
-        #print(timepoints)
-        #print(r.get_schnitz().get_volume())
 
         cs = r.get_final_cell_state()
-        #print("sim:",cs.get_time(),cs.get_state(),cs.get_volume())
         if cs.get_time() >= end_time - sim.get_dt() - 1E-8:
             cs.set_time(end_time)
             cells_to_return.append(cs)
@@ -2085,10 +2103,6 @@ cdef list propagate_cell(ModelCSimInterface sim, VolumeCellState cell, double en
             daughters = vsplit.partition(cs)
             d1 = <VolumeCellState>(daughters[0])
             d2 = <VolumeCellState>(daughters[1])
-
-            #print('adding',d1.get_time(),d1.get_state(),d1.get_volume())
-            #print('adding',d2.get_time(),d2.get_state(),d2.get_volume())
-
 
             d1.set_volume_object(cs.get_volume_object().copy())
             d1.get_volume_object().initialize(<double*> d1.get_state().data,sim.get_param_values(),
