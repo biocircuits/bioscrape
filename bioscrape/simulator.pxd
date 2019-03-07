@@ -143,11 +143,14 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
     cdef unsigned s_ind
     cdef unsigned prop_is_0
     cdef int[:, :, :] reaction_input_indices
+    cdef int max_species_count
+    cdef int max_volume
 
     cdef void initialize_reaction_inputs(self)
     cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time)
     cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
-
+    cdef void check_count_function(self, double *state, double volume)
+    
 # Simulation output values here
 cdef class SSAResult:
     """

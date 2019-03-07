@@ -481,7 +481,9 @@ cdef class ModelCSimInterface(CSimInterface):
         return self.np_param_values.shape[0]
 
 cdef class SafeModelCSimInterface(ModelCSimInterface):
-    def __init__(self, external_model):
+    def __init__(self, external_model, max_volume = 1000, max_species_count = 1000):
+        self.max_volume = max_volume
+        self.max_species_count = max_species_count
         super().__init__(external_model)
         self.initialize_reaction_inputs()
         
@@ -510,6 +512,7 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
                     ind += 1
 
     cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time):
+        self.check_count_function(state, 1)
         self.rxn_ind = 0
         for self.rxn_ind in range(self.num_reactions):
             self.prop_is_0 = 0
@@ -523,7 +526,7 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
                 propensity_destination[self.rxn_ind] = (<Propensity> (self.c_propensities[0][self.rxn_ind]) ).get_stochastic_propensity(state, self.c_param_values, time)
 
     cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time):
-
+        self.check_count_function(state, volume)
         self.rxn_ind = 0
         for self.rxn_ind in range(self.num_reactions):
             self.prop_is_0 = 0
@@ -535,6 +538,19 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
                 self.s_ind+=1
             if self.prop_is_0 == 0:
                 propensity_destination[self.rxn_ind] = (<Propensity> (self.c_propensities[0][self.rxn_ind]) ).get_stochastic_volume_propensity(state, self.c_param_values, volume, time)
+
+    cdef void check_count_function(self, double *state, double volume):
+        self.s_ind = 0
+
+        for self.s_ind in range(self.num_species):
+            if state[self.s_ind] > self.max_species_count:
+                warnings.warn("Species #"+str(self.s_ind)+"="+str(state[self.s_ind])+" > Max Count="+str(self.max_species_count))
+            elif state[self.s_ind] < 0:
+                 warnings.warn("Species #"+str(self.s_ind)+"="+str(state[self.s_ind])+" < 0")
+        if volume > self.max_volume:
+            warnings.warn("Volume="+str(volume)+" > Max Volume="+str(self.max_volume))
+        elif volume <= 0:
+            warnings.warn("Volume="+str(volume)+" > Max Volume="+str(self.max_volume))
 
 cdef class SSAResult:
     def __init__(self, np.ndarray timepoints, np.ndarray result):
