@@ -23,7 +23,7 @@ import warnings
 
 
 #Events are general objects that happen with some internal propensity but are not chemical reactions
-cdef class Event():
+cdef class Event:
 
 	cdef initialize(self, dict event_params, dict species_indices, dict parameter_indices):
 		raise NotImplementedError("VolumeReactions Must be subclassed")
@@ -135,7 +135,7 @@ cdef class DeathEvent(Event):
 		return 1
 
 #Dummy class to help with inheritance, compilation, and code simplification. Does nothing
-cdef class LineageRule():
+cdef class LineageRule:
 	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
 		raise NotImplementedError("LineageRule must be subclassed")
 
@@ -1321,7 +1321,7 @@ cdef class LineageVolumeSplitter(VolumeSplitter):
 
 		return ans 
 
-cdef class LineageSSASimulator():
+cdef class LineageSSASimulator:
 	#SSA for a single cell. Simulates until it devides or dies using division / death rules and/or reactions.
 	cdef SingleCellSSAResult SimulateSingleCell(self, LineageCSimInterface sim, LineageVolumeCellState v, np.ndarray timepoints):
 		cdef np.ndarray[np.double_t,ndim=1] c_timepoints = timepoints.copy()

@@ -668,6 +668,10 @@ cdef class CellState:
     def py_get_time(self):
         return self.time
 
+    def py_set_species(self, model, specie, value):
+        ind = model.get_species_index(specie)
+        self.state[ind] = value
+
     def py_get_dataframe(self, Model = None):
         try:
             import pandas
