@@ -97,6 +97,7 @@ cdef class CSimInterface:
     cdef unsigned requires_delay(self)
 
     cdef void apply_repeated_rules(self, double *state, double time)
+    cdef void apply_repeated_volume_rules(self, double *state, double volume, double time)
     cdef unsigned get_number_of_rules(self)
 
     cdef np.ndarray get_initial_state(self)

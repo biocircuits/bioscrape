@@ -1382,7 +1382,7 @@ cdef class LineageSSASimulator:
 		# Do the SSA part now
 		while current_index < num_timepoints:
 			# Compute rules in place
-			sim.apply_repeated_rules(<double*> c_current_state.data, current_time)
+			sim.apply_repeated_volume_rules(<double*> c_current_state.data, current_volume, current_time)
 
 			#returns the index of the first DeathRule that returned True and -1 otherwise
 			cell_dead = sim.apply_death_rules(<double*> c_current_state.data, current_volume, current_time, initial_volume, initial_time)
@@ -1588,14 +1588,14 @@ cdef Lineage SimulateCellLineage(LineageCSimInterface sim, list initial_cell_sta
 
 	return l
 
-def py_SimulateCellLineage(timepoints, initial_cell_states = [], LineageCSimInterface interface = None, LineageModel Model = None, LineageSSASimulator simulator = None):
+def py_SimulateCellLineage(timepoints, initial_cell_states = [], initial_cell_count = 1, LineageCSimInterface interface = None, LineageModel Model = None, LineageSSASimulator simulator = None):
 	if Model == None and interface == None:
 		raise ValueError('py_SimulateCellLineage requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 	elif interface == None:
 		interface = LineageCSimInterface(Model)
 		interface.py_set_initial_time(timepoints[0])
 	if len(initial_cell_states) == 0:
-		initial_cell_states = [LineageVolumeCellState(v0 = 1, t0 = 0)]
+		initial_cell_states = [LineageVolumeCellState(v0 = 1, t0 = 0) for i in range(initial_cell_count)]
 	if simulator == None:
 		simulator = LineageSSASimulator()
 

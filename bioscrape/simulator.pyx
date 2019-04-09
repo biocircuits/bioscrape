@@ -359,6 +359,9 @@ cdef class CSimInterface:
     cdef void apply_repeated_rules(self, double *state, double time):
         pass
 
+    cdef void apply_repeated_volume_rules(self, double *state, double volume, double time):
+        pass
+
     def py_apply_repeated_rules(self, np.ndarray[np.double_t, ndim=1] state, double time=0.0):
         self.apply_repeated_rules(<double*> state.data,time)
 
@@ -464,6 +467,11 @@ cdef class ModelCSimInterface(CSimInterface):
         cdef unsigned rule_number
         for rule_number in range(self.c_repeat_rules[0].size()):
             (<Rule> (self.c_repeat_rules[0][rule_number])).execute_rule(state, self.c_param_values, time)
+
+    cdef void apply_repeated_volume_rules(self, double *state, double volume, double time):
+        cdef unsigned rule_number
+        for rule_number in range(self.c_repeat_rules[0].size()):
+            (<Rule> (self.c_repeat_rules[0][rule_number])).execute_volume_rule(state, self.c_param_values, volume, time)
 
     cdef np.ndarray get_initial_state(self):
         return self.initial_state
@@ -1780,7 +1788,7 @@ cdef class VolumeSSASimulator(VolumeSimulator):
 
         while current_index < num_timepoints:
             # Compute the propensity in place
-            sim.apply_repeated_rules(<double*> c_current_state.data,current_time)
+            sim.apply_repeated_volume_rules(<double*> c_current_state.data, current_volume, current_time)
             sim.compute_stochastic_volume_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data),
                                             current_volume, current_time)
             Lambda = cyrandom.array_sum(<double*> (c_propensity.data), num_reactions)
@@ -1912,7 +1920,7 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
 
         while current_index < num_timepoints:
             # Compute the propensity in place
-            sim.apply_repeated_rules(<double*> c_current_state.data, current_time)
+            sim.apply_repeated_volume_rules(<double*> c_current_state.data, current_volume, current_time)
             sim.compute_stochastic_volume_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data),
                                             current_volume, current_time)
             Lambda = cyrandom.array_sum(<double*> (c_propensity.data), num_reactions)
