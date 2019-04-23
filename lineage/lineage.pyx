@@ -1555,7 +1555,7 @@ cdef Lineage SimulateCellLineage(LineageCSimInterface sim, list initial_cell_sta
 			d2 = <LineageVolumeCellState>(daughter_cells[1])
 
 			#Create a new timepoint array and simulate the first daughter and queue if it doesn't reach final time.
-			c_truncated_timepoints = c_timepoints[c_timepoints > cs.get_time()]
+			c_truncated_timepoints = c_timepoints[c_timepoints >= cs.get_time()]
 			r = simulator.SimulateSingleCell(sim, d1, c_truncated_timepoints)
 			daughter_schnitz1 = r.get_schnitz()
 			d1final = r.get_final_cell_state()
@@ -1639,7 +1639,7 @@ cdef list PropagateCells(LineageCSimInterface sim, list initial_cell_states, np.
 			d2 = <LineageVolumeCellState>(daughter_cells[1])
 
 			#Create a new timepoint array and simulate the first daughter and queue if it doesn't reach final time.
-			c_truncated_timepoints = c_timepoints[c_timepoints > cs.get_time()]
+			c_truncated_timepoints = c_timepoints[c_timepoints >= cs.get_time()]
 			d1final = simulator.SimulateSingleCell(sim, d1, c_truncated_timepoints).get_final_cell_state()
 
 			# Add on the new daughter if final time wasn't reached.
@@ -1717,7 +1717,7 @@ cdef list SingleCellLineage(LineageCSimInterface sim, LineageVolumeCellState ini
 			#Create a new timepoint array and simulate a random daughter and queue if it doesn't reach final time.
 			ind = <unsigned>cyrandom.uniform_rv()>.5
 			d = <LineageVolumeCellState>(daughter_cells[ind])
-			c_truncated_timepoints = c_timepoints[c_timepoints > cs.get_time()]
+			c_truncated_timepoints = c_timepoints[c_timepoints >= cs.get_time()]
 			r = simulator.SimulateSingleCell(sim, d, c_truncated_timepoints)
 			single_cell_trajectory.append(r)
 			dfinal = r.get_final_cell_state()
