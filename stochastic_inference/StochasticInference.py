@@ -186,7 +186,6 @@ class StochasticInference(object):
                     L2_norm_error = diff**2
                     L2_norm_error = np.linalg.norm(diff)
                     total_error += L2_norm_error
-        # print(total_error)
         return -total_error*penalty
     
 
@@ -194,6 +193,7 @@ class StochasticInference(object):
 
         nwalkers = kwargs.get('nwalkers')
         nsteps = kwargs.get('nsteps')
+        log_likelihood = kwargs.get('log_likelihood')
         penalty = kwargs.get('penalty')
         cost = kwargs.get('cost')
         measurements = kwargs.get('measurements')
@@ -205,6 +205,8 @@ class StochasticInference(object):
             nwalkers = self.num_walkers
         if not nsteps:
             nsteps = self.num_iterations
+        if not log_likelihood:
+            log_likelihood = self.log_likelihood
         if not penalty:
             penalty = self.penalty
         if not cost:
@@ -239,12 +241,12 @@ class StochasticInference(object):
             p0.append(np.array(plist))
             # print(p0)
         # print('going to run emcee now')    
-            print('Sample log-like: {0}'.format(self.log_likelihood(np.array(ploglist))))
+            print('Sample log-like: {0}'.format(log_likelihood(np.array(ploglist))))
 
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, self.log_likelihood)
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, log_likelihood)
         # for i, junk in enumerate(sampler.sample(p0, iterations=nsteps)):
         #     print('Step %d' % i)
-        # TODO: Add progress bar here 
+        # TODO: Add progress percentage update display code here 
         sampler.run_mcmc(p0, nsteps)    
         # Write results
         import csv
@@ -254,7 +256,8 @@ class StochasticInference(object):
             f.close()
             
         print('Successfully completed MCMC parameter identification procedure.')
-
+        
+        # TODO : Refactor the following code into another plotting function. This should not be in run_mcmc
         best_p = []
         for i in range(len(self.params_to_estimate)):
             my_list = [tup[i] for tup in sampler.flatchain]

@@ -111,10 +111,10 @@ fit_model.export_sbml('sbml_fit.xml')
 # fit_model.export_bioscrape('bs_fit.xml')
 
 # TODO list:
-# 1. Give option to create custom log-likelihood function and use with run_mcmc
-# 2. Fix the single output problem 
-# 3. Refactor the code, include setup_inference etc.
+# 1. Give option to create custom log-likelihood function and use with run_mcmc. - Done.
+# 2. Fix the multiple output case in the built-in log-likelihood function. 
+# 3. Include setup_inference for easier installation. 
 # 4. Setup StochasticInference module along with bioscrape installation or provide a separate installtion command like we have with lineages
-# 5. Fix all other TODO at other places
-# 6. Add bioscrape Model compatibility as the central model maybe and then just have one place where you import sbml (currently it's all over)
-# 7. Finish integration with bioscrape.inference somehow
+# 5. Fix all other TODO at other places.
+# 6. Add bioscrape Model compatibility as the central model maybe and then just have one place where you import sbml (currently it's a bit messed up)
+# 7. Finish integration with bioscrape.inference somehow.
