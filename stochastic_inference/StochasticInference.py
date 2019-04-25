@@ -101,16 +101,14 @@ class StochasticInference(object):
         self.sbml = None
         self.params_to_estimate = {}
         self.prior = None
-        self.num_walkers = 500
-        self.num_iterations = 100
-        self.num_samples = 100
-        self.likelihoods = []
+        self.nwalkers = 100
+        self.nsteps = 1000
+        self.nsamples = 500
         self.dimension = 0
         self.cost = 'L2norm'
         self.penalty = 1
         self.exp_data = None
         self.timepoints = []
-        self.nsamples = 50
         self.measurements = ['']
         self.species = {}
         self.parameters = {}
@@ -133,7 +131,6 @@ class StochasticInference(object):
                 return False
         return True
         
-    
     def log_likelihood(self, log_params):
         measurements = self.measurements
         timepoints = self.timepoints
@@ -149,7 +146,8 @@ class StochasticInference(object):
         # Check prior
         if self.log_prior(param_dict, prior) == False:
             return -np.inf
-
+        
+        # Simulate for each sample in nsample and store the result for the desired output species in result array
         if self.sbml:
             try:
                 import libsbml
@@ -162,23 +160,36 @@ class StochasticInference(object):
             outputs = []
             for species in measurements:
                 outputs.append(m.get_species_index(species))
+#             print('outputs are')
+#             print(outputs)
             results = np.zeros((len(timepoints), len(outputs), nsamples))
+#             print('the shape of results is')
+#             print(np.shape(results))
             for sample in range(nsamples):
-                sim,m  = self.simulate(timepoints, type = 'stochastic')
+                sim, m = self.simulate(timepoints, type = 'stochastic')
                 for i in range(len(outputs)):
                     out = outputs[i]
                     results[:,i,sample] = sim[:,out]
+#             print('the results have now been filled in after simulation')
+#             print(results)
         else:
-            raise NotImplementedError('SBML models only (for now).')
+            raise NotImplementedError('SBML models only (for now)!')
 
+        # Error calculation here
+#         print('the experimental data has shape')
+#         print(np.shape(exp_data.get_values()))
+#         print('the actual experimental data values are ')
+#         print(exp_data.get_values())
         total_error = 0
         for i in range(len(outputs)):
+#             print('for output- ')
+#             print(outputs[i])
+#             print('we have nsamples ')
             for j in range(nsamples):
                 d1 = results[:,i,j]
-                diff = np.abs(d1 - exp_data.get_values()) 
-                '''
-                TODO : Experimental data having multiple output case is important to implement here. 
-                '''
+#                 print('the shape of result : i, j is')
+#                 print(np.shape(d1))
+                diff = np.abs(d1 - exp_data.get_values()[i]) 
                 if cost == 'inf':
                     infinity_error = np.max(diff)
                     total_error += infinity_error**2
@@ -188,76 +199,80 @@ class StochasticInference(object):
                     total_error += L2_norm_error
         return -total_error*penalty
     
-
-    def run_mcmc(self, params, prior, timepoints, expdata, **kwargs):
-
+    def prepare_mcmc(self, **kwargs):
+        
+        timepoints = kwargs.get('timepoints')
+        exp_data = kwargs.get('exp_data')
+        params = kwargs.get('params')
+        prior = kwargs.get('prior')
         nwalkers = kwargs.get('nwalkers')
+        nsamples = kwargs.get('nsamples')
         nsteps = kwargs.get('nsteps')
         log_likelihood = kwargs.get('log_likelihood')
         penalty = kwargs.get('penalty')
         cost = kwargs.get('cost')
         measurements = kwargs.get('measurements')
-        plot_show = kwargs.get('plot_show')
 
-        if not params:
-            params = self.params_to_estimate
-        if not nwalkers:
-            nwalkers = self.num_walkers
-        if not nsteps:
-            nsteps = self.num_iterations
-        if not log_likelihood:
-            log_likelihood = self.log_likelihood
-        if not penalty:
-            penalty = self.penalty
-        if not cost:
-            cost = self.cost
-        if not measurements:
-            measurements = self.measurements
+        if timepoints.size:
+            self.timepoints = timepoints
+        if exp_data:
+            self.exp_data = exp_data
+        if params:
+            self.params_to_estimate = params
+        if prior:
+            self.prior = prior
+        if nwalkers:
+            self.nwalkers = nwalkers
+        if nsamples:
+            self.nsamples = nsamples    
+        if nsteps:
+            self.nsteps = nsteps
+        if log_likelihood:
+            self.log_likelihood = log_likelihood
+        if penalty:
+            self.penalty = penalty
+        if cost:
+            self.cost = cost
+        if measurements:
+            self.measurements = measurements
+
+        
+    def run_mcmc(self, **kwargs):
+        plot_show = kwargs.get('plot_show')
         if not plot_show:
             plot_show = False
-
-        # TODO: Refactor this into a new function: setup_inference that does all of this globally 
-        self.params = params
-        self.prior = prior
-        self.timepoints = timepoints
-        self.exp_data = expdata
-
-
-        # Run emcee
         try:
             import emcee
         except:
             print('emcee package not installed')
-
-        ndim = len(params)
+        ndim = len(self.params_to_estimate)
         p0 = []
-        for walker in range(nwalkers):
+        for walker in range(self.nwalkers):
             plist = []
             ploglist = []
-            for key, value in params.items():
-                pinit = np.random.normal(value, 0.5*value)
+            for key, value in self.params_to_estimate.items():
+                pinit = np.random.normal(value, 0.25*value)
                 plist.append(pinit)
                 ploglist.append(np.log(pinit))
-            p0.append(np.array(plist))
-            # print(p0)
-        # print('going to run emcee now')    
-            print('Sample log-like: {0}'.format(log_likelihood(np.array(ploglist))))
+            p0.append(np.array(plist))   
+            print('Sample log-like: {0}'.format(self.log_likelihood(np.array(ploglist))))
 
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, log_likelihood)
+        sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.log_likelihood)
         # for i, junk in enumerate(sampler.sample(p0, iterations=nsteps)):
         #     print('Step %d' % i)
         # TODO: Add progress percentage update display code here 
-        sampler.run_mcmc(p0, nsteps)    
+        sampler.run_mcmc(p0, self.nsteps)    
         # Write results
         import csv
         with open('mcmc_results.csv','w', newline = "") as f:
             writer = csv.writer(f)
             writer.writerows(sampler.flatchain)
             f.close()
-            
-        print('Successfully completed MCMC parameter identification procedure.')
-        
-        # TODO : Refactor the following code into another plotting function. This should not be in run_mcmc
+        print('Successfully completed MCMC parameter identification procedure. Parameter distribution data written to mcmc_results.csv file')
+        fitted_model, params = self.plot_mcmc_results(sampler, plot_show)
+        return fitted_model, params
+    
+    def plot_mcmc_results(self, sampler, plot_show = True):
         best_p = []
         for i in range(len(self.params_to_estimate)):
             my_list = [tup[i] for tup in sampler.flatchain]
@@ -291,11 +306,10 @@ class StochasticInference(object):
             params[p_name] = p_sampled_value
 
         fitted_model.parameters = params
-
-        # Simulate again
-        fitted_model.simulate(timepoints, type = 'stochastic', species_to_plot = ['c1'], plot_show = plot_show)
+        # Simulate again 
+        fitted_model.simulate(self.timepoints, type = 'stochastic', species_to_plot = self.measurements, plot_show = plot_show)
         return fitted_model, params
-
+    
     def simulate(self, timepoints, **kwargs):
         ''' 
         To simulate using bioscrape.

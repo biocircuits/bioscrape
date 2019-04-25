@@ -80,10 +80,12 @@ TODO: Implement analysis_ident for parameter identifiability analysis
 
 spid.prior = {'kc' : [1e-3, 1e3],'k1' : [1e-2, 1e5]}
 spid.params_to_estimate = {'kc':6, 'k1':1}
-# model.species = ['c1']
-fit_model, id_params = spid.run_mcmc(spid.params_to_estimate, spid.prior, timepoints, data,
-                                    nwalkers = 8, nsteps = 50, nsamples = 10, measurements = ['c1'], plot_show = False)
-# fit_model is with identified parameters substituted
+
+# Prepare for MCMC and run
+spid.prepare_mcmc(params = spid.params_to_estimate, prior = spid.prior, timepoints = timepoints, 
+                  exp_data = data, nwalkers = 40, nsteps = 100, nsamples = 500, measurements = ['c1'])
+fit_model, id_params = spid.run_mcmc(plot_show = True)
+# fit_model is with identified parameters' "best" value substituted
 
 
 #########################################  Part - IV  ######################################### 
@@ -112,9 +114,10 @@ fit_model.export_sbml('sbml_fit.xml')
 
 # TODO list:
 # 1. Give option to create custom log-likelihood function and use with run_mcmc. - Done.
-# 2. Fix the multiple output case in the built-in log-likelihood function. 
+# 2. Fix the multiple output case in the built-in log-likelihood function. - Done. Works for single output. Do we need multiple outputs?
 # 3. Include setup_inference for easier installation. 
 # 4. Setup StochasticInference module along with bioscrape installation or provide a separate installtion command like we have with lineages
-# 5. Fix all other TODO at other places.
+# 5. Fix all other TODO at other places. - Finished most.
 # 6. Add bioscrape Model compatibility as the central model maybe and then just have one place where you import sbml (currently it's a bit messed up)
 # 7. Finish integration with bioscrape.inference somehow.
+# 8. Other kinds of bioscrape compatibilities and functionalities (that is, do things in the bioscrape-way)
