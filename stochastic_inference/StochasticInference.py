@@ -98,7 +98,6 @@ class Data:
 class StochasticInference(object):
     def __init__(self):
         self.m = None
-        self.sbml = None
         self.params_to_estimate = {}
         self.prior = None
         self.nwalkers = 100
@@ -142,13 +141,14 @@ class StochasticInference(object):
         params_exp = np.exp(log_params)
         for key, p in zip(self.parameters.keys(),params_exp):
             param_dict[key] = p
+        self.m.set_params(param_dict)
         prior = self.get_prior()
         # Check prior
         if self.log_prior(param_dict, prior) == False:
             return -np.inf
         
         # Simulate for each sample in nsample and store the result for the desired output species in result array
-        if self.sbml:
+        if self.m:
             try:
                 import libsbml
             except:
