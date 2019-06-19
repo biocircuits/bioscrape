@@ -1766,12 +1766,14 @@ cdef class Model:
         else:
             raise SyntaxError('Invalid Rule Frequency: ' + str(rule_frequency))
 
-    def write_rule_txt(self, rule_type, rule_attributes, rule_frequency):
-        rule_txt = '<rule type="'+rule_type+'" frequency="'+rule_frequency+" "
-        for k in rule_attributes:
-            rule_txt += k+' = "'+rule_attributes[k]+" "
+        self.write_rule_txt(rule_type, rule_attributes, rule_frequency)
 
-        rule_txt += " />/n"
+    def write_rule_txt(self, rule_type, rule_attributes, rule_frequency):
+        rule_txt = '<rule type="'+rule_type+'" frequency="'+rule_frequency+'" '
+        for k in rule_attributes:
+            rule_txt += k+'="'+rule_attributes[k]+'" '
+
+        rule_txt += " />\n"
         self.txt_dict["rules"]+=rule_txt
 
     #Sets the value of a parameter in the model
@@ -1782,6 +1784,10 @@ cdef class Model:
 
         param_index = self.params2index[param_name]
         self.params_values[param_index] = param_value
+
+    def create_parameter(self, param_name, param_value):
+        self._add_param(param_name)
+        self.set_parameter(param_name, param_value)
 
     #Checks that all parameters have values
     def check_parameters(self):
@@ -2051,6 +2057,9 @@ cdef class Model:
         :return: (list) List of the delay objects for each reaction.
         """
         return self.delays
+
+    def get_reactions(self):
+        return self.reaction_list
 
     cdef np.ndarray get_species_values(self):
         """
