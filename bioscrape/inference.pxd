@@ -31,13 +31,13 @@ cdef class UniformDistribution(Distribution):
 ######################################              DATA                              ################################
 #################################################                     ################################################
 cdef class Data():
-    cdef unsigned M #Number of measured species
     cdef list measured_species
     cdef np.ndarray timepoints
     cdef np.ndarray measurements
+    cdef unsigned N #Number of samples
+    cdef unsigned M #Number of measurements
 
-    cdef inline np.ndarray get_measurements(self):
-        return self.measurements
+    cdef np.ndarray get_measurements(self)
 
     cdef inline list get_measured_species(self):
         return self.measured_species
@@ -45,14 +45,20 @@ cdef class Data():
     cdef inline np.ndarray get_timepoints(self):
         return self.timepoints
 
-cdef class BulkData(Data):
-    cdef unsigned N #Number of Samples (Assumed to be 1 currently)
+    cdef inline unsigned get_N(self):
+        return self.N
 
+cdef class BulkData(Data):
+    pass
+    
 cdef class FlowData(Data):
-    cdef unsigned N #Number of Samples
+    pass
 
 cdef class StochasticTrajectories(Data):
-    cdef unsigned N #Number of Samples
+    cdef unsigned multiple_timepoints
+    cdef unsigned nT #Number of timepoints
+
+    cdef np.ndarray get_measurements(self)
 
 
 ##################################################                ####################################################
@@ -66,29 +72,43 @@ cdef class ModelLikelihood(Likelihood):
     cdef Model m
     cdef CSimInterface csim
     cdef RegularSimulator propagator
-
-    cdef double get_log_likelihood(self)
-
-cdef class DeterministicLikelihood(ModelLikelihood):
+    cdef np.ndarray meas_indices
     cdef np.ndarray init_state_indices
     cdef np.ndarray init_state_vals
     cdef np.ndarray init_param_indices
     cdef np.ndarray init_param_vals
+    cdef unsigned Nx0 #number of initial conditions
+    cdef unsigned N #number of samples
+    cdef unsigned M #number of measurements
 
+    cdef double get_log_likelihood(self)
+
+cdef class DeterministicLikelihood(ModelLikelihood):
     cdef BulkData bd
-    cdef np.ndarray meas_indices
-
+    cdef unsigned norm_order
     cdef double get_log_likelihood(self)
 
 
 cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
-
+    cdef StochasticTrajectories sd
+    cdef unsigned initial_state_matching
+    cdef unsigned N_simulations
+    cdef unsigned norm_order
+    cdef np.ndarray timepoints
     cdef double get_log_likelihood(self)
+    
+
+cdef class StochasticTrajectoryMomentLikelihood(StochasticTrajectoriesLikelihood):
+    cdef unsigned Moments
+    cdef double get_log_likelihood(self)
+    
 
 cdef class StochasticStatesLikelihood(ModelLikelihood):
-
+    cdef FlowData fd
+    cdef unsigned N_simulations
+    cdef unsigned Moments
     cdef double get_log_likelihood(self)
-
+    
 ##################################################                ####################################################
 ######################################              INFERENCE                         ################################
 #################################################                     ################################################
