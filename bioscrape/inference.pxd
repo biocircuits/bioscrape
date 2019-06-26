@@ -1,8 +1,8 @@
 cimport numpy as np
 from types import Model
 from types cimport Model
-from simulator cimport CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator
-from simulator import CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator
+from simulator cimport CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
+from simulator import CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
 
 
 ##################################################                ####################################################
@@ -30,8 +30,8 @@ cdef class UniformDistribution(Distribution):
 ##################################################                ####################################################
 ######################################              DATA                              ################################
 #################################################                     ################################################
-
-cdef class BulkData:
+cdef class Data():
+    cdef unsigned M #Number of measured species
     cdef list measured_species
     cdef np.ndarray timepoints
     cdef np.ndarray measurements
@@ -45,6 +45,15 @@ cdef class BulkData:
     cdef inline np.ndarray get_timepoints(self):
         return self.timepoints
 
+cdef class BulkData(Data):
+    cdef unsigned N #Number of Samples (Assumed to be 1 currently)
+
+cdef class FlowData(Data):
+    cdef unsigned N #Number of Samples
+
+cdef class StochasticTrajectories(Data):
+    cdef unsigned N #Number of Samples
+
 
 ##################################################                ####################################################
 ######################################              LIKELIHOOD                        ################################
@@ -53,17 +62,30 @@ cdef class BulkData:
 cdef class Likelihood:
     cdef double get_log_likelihood(self)
 
-cdef class DeterministicLikelihood(Likelihood):
+cdef class ModelLikelihood(Likelihood):
     cdef Model m
+    cdef CSimInterface csim
+    cdef RegularSimulator propagator
+
+    cdef double get_log_likelihood(self)
+
+cdef class DeterministicLikelihood(ModelLikelihood):
     cdef np.ndarray init_state_indices
     cdef np.ndarray init_state_vals
     cdef np.ndarray init_param_indices
     cdef np.ndarray init_param_vals
 
-    cdef CSimInterface csim
-    cdef RegularSimulator propagator
     cdef BulkData bd
     cdef np.ndarray meas_indices
+
+    cdef double get_log_likelihood(self)
+
+
+cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
+
+    cdef double get_log_likelihood(self)
+
+cdef class StochasticStatesLikelihood(ModelLikelihood):
 
     cdef double get_log_likelihood(self)
 

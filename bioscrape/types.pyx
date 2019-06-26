@@ -1338,6 +1338,8 @@ cdef class Model:
         self._next_params_index = 0
         self._dummy_param_counter = 0
 
+        self.has_delay = False #Does the Model contain any delay reactions? Updated in _add_reaction.
+
         self.species2index = {}
         self.params2index = {}
         self.propensities = []
@@ -1483,6 +1485,8 @@ cdef class Model:
 
         if delay_object == None:
            delay_object = NoDelay()
+        else:
+            self.has_delay = True
 
         species_names, param_names = delay_object.get_species_and_parameters(delay_param_dict)
 

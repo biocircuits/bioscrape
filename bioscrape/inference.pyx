@@ -4,6 +4,8 @@ from libc.math cimport log
 
 from types import Model
 from types cimport Model
+from simulator cimport CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
+from simulator import CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
 import sys
 
 import emcee
@@ -71,17 +73,75 @@ cdef class UniformDistribution(Distribution):
 ##################################################                ####################################################
 ######################################              DATA                              ################################
 #################################################                     ################################################
-
-cdef class BulkData:
-    def __init__(self):
-        self.measured_species = []
-        self.timepoints = None
-        self.measurements = None
+#Top level Data Object Class.
+cdef class Data():
+    def __init__(self, np.ndarray timepoints = None, np.ndarray measurements = None, list measured_species = []):
+        self.set_data(timepoints, measurements, measured_species)
 
     def set_data(self,np.ndarray timepoints, np.ndarray measurements, list measured_species):
         self.timepoints = timepoints
         self.measurements = measurements
         self.measured_species = measured_species
+        self.M = len(measured_species)
+
+#Data consists of a single timecourse at T points gathered across M measurements at timempoints timepoints. 
+#Measurements are assumed to correspond to species names in measured_species.
+#Data Dimensions:
+# timepoints: T
+# Measurements: T x M
+# Measured Species: M
+cdef class BulkData(Data):
+    def create_from_dataframe(self, df):
+        self.timepoints = df['time']
+        self.measured_species = [c for c in df.columns if c not in ['time', 'Time']]
+        self.measurements = df.as_matrix(columns=self.measured_species)
+        self.M = len(self.measured_species)
+
+#Data consists of a set of N flow samples which each contain measurements for M measured_species
+#Data Dimensions:
+# timepoints: None
+# Measurements: N x M
+# Measured Species: M
+cdef class FlowData(Data):
+    def set_data(self,np.ndarray timepoints, np.ndarray measurements, list measured_species):
+        if timepoints is not None:
+            raise ValueError("Flow Data is assumed to be collected at a single timepoint")
+
+        self.measured_species = measured_species
+        self.M = len(self.measured_species)
+
+        if measurements.shape[1] != self.M:
+            raise ValueError("Second dimension of measurments must be the same length as measured_species")
+        else:
+            self.measurements = measurements
+            self.N = measurements.shape[0]
+        
+
+#Data consists of a set of N stochastic trajectories at T timepoints which each contain measurements of M measured_species.
+#Data Dimensions:
+# timepoints: N x T
+# Measurements: N x T x M
+# Measured Species: M
+cdef class StochasticTrajectories(Data):
+    def set_data(self,np.ndarray timepoints, np.ndarray measurements, list measured_species):
+        self.measured_species = measured_species
+        self.M = len(self.measured_species)
+
+        if measurements.shape[2] != self.M:
+            raise ValueError("Second dimension of measurments must be the same length as measured_species")
+        else:
+            self.measurements = measurements
+            nT = measurements[1]
+            self.N = measurements.shape[0]
+
+        if timepoints.shape[0] == nT:
+            self.timepoints = timepoints
+            self.multiple_timepoints = True
+        elif timepoints.shape[0] == self.N and timepoints.shape[1] == nT:
+            self.timepoints = timepoints
+            self.multiple_timepoints = True
+        else:
+            raise ValueError("timepoints must be a single vector of length T or N (# of samples) vectors each of length T")
 
 
 
@@ -93,26 +153,38 @@ cdef class Likelihood:
     cdef double get_log_likelihood(self):
         raise NotImplementedError("Calling get_log_likelihood() for Likelihood")
 
-cdef class DeterministicLikelihood(Likelihood):
-    def __init__(self):
-        self.m = None
-        self.init_state_vals = np.zeros(0)
-        self.init_param_vals = np.zeros(0)
-        self.init_param_indices = np.zeros(0,dtype=int)
-        self.init_state_indices = np.zeros(0,dtype=int)
-        self.csim = None
-        self.propagator = None
+cdef class ModelLikelihood(Likelihood):
+    def __init__(self, model = None, init_state = None, init_params_vals = None, init_param_indices = None, init_state_indices = None, interface = None, simulator = None):
 
+        if init_state is None:
+            self.init_state_vals = np.zeros(0)
+        if init_params_vals is None:
+            self.init_params = np.zeros(0)
+        if init_param_indices is None:
+            self.init_param_indices = np.zeros(0,dtype=int)
+        if init_state_indices is None:
+            self.init_state_indices = np.zeros(0,dtype=int)
 
-    def set_model(self, Model m, CSimInterface csim = None, RegularSimulator prop = None):
+        self.set_model(model, simulator, interface)
+
+    def set_model(self, Model m, RegularSimulator prop, CSimInterface csim = None):
+        if csim is None:
+            csim = ModelCSimInterface(m)
         self.m = m
-        self.csim = csim
-        self.propagator = prop
+        self.prop = prop
+        
 
+cdef class DeterministicLikelihood(ModelLikelihood):
+    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None):
+        self.m = m
+        
         if csim is None:
             csim = ModelCSimInterface(m)
         if prop is None:
             prop = DeterministicSimulator()
+
+        self.csim = csim
+        self.propagator = prop
 
 
     def set_data(self, BulkData bd):
@@ -167,6 +239,36 @@ cdef class DeterministicLikelihood(Likelihood):
             error += np.linalg.norm(  self.bd.get_measurements()[:,i] - ans[:,self.meas_indices[i]] )
 
         return -error
+
+cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
+    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None):
+        self.m = m
+
+        if csim is None:
+            csim = ModelCSimInterface(m)
+        if prop is None:
+            if m.has_delay:
+                raise NotImplementedError("Delay Simulation not yet implemented for inference.")
+            else:
+                prop = SSASimulator()
+
+        self.csim = csim
+        self.propagator = prop
+
+cdef class StochasticStatesLikelihood(ModelLikelihood):
+    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None):
+        self.m = m
+
+        if csim is None:
+            csim = ModelCSimInterface(m)
+        if prop is None:
+            if m.has_delay:
+                raise NotImplementedError("Delay Simulation not yet implemented for inference.")
+            else:
+                prop = SSASimulator()
+
+        self.csim = csim
+        self.propagator = prop
 
 ##################################################                ####################################################
 ######################################              INFERENCE                         ################################

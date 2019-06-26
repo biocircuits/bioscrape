@@ -579,6 +579,7 @@ cdef class Model:
     cdef unsigned _next_species_index
     cdef unsigned _next_params_index
     cdef unsigned _dummy_param_counter
+    cdef unsigned has_delay
 
     cdef vector[void*] c_propensities
     cdef list propensities
