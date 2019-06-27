@@ -88,6 +88,15 @@ cdef class Data():
     cdef np.ndarray get_measurements(self):
         return self.measurements
 
+    def py_get_measurements(self):
+        return self.get_measurements()
+
+    def py_get_timepoints(self):
+        return self.get_timepoints()
+
+    def py_get_measured_species(self):
+        return self.get_measured_species
+
 #Data consists of a single timecourse at T points gathered across M measurements at timempoints timepoints. 
 #Measurements are assumed to correspond to species names in measured_species.
 #Data Dimensions:
@@ -97,15 +106,22 @@ cdef class Data():
 cdef class BulkData(Data):
     def set_data(self,np.ndarray timepoints, np.ndarray measurements, list measured_species, unsigned N):
         if N > 1:
-            raise NotImplementedError("Multisample BulkData are not yet implemented")
-        super().set_data(timepoints, measurements, measured_species, N)
+            if timepoints.ndim == 1:
+                self.multiple_timepoints = False
+                self.nT = timepoints.shape[0]
+            elif timepoints.ndim == 2 and (timepoints.shape[0] == measurements.shape[0] == N):
+                self.multiple_timepoints = True
+                self.nT = timepoints.shape[1]
+            else:
+                raise ValueError("For N > 1 samples timepoints must be N x T, measurements N x T x M. Dimensiosn do not match.")
+        self.timepoints = timepoints
+        self.N = N
+        self.M = len(measured_species)
+        self.measured_species = measured_species
+        self.measurements = np.reshape(measurements, (self.N, self.nT, self.M))
 
-    def create_from_dataframe(self, df):
-        self.timepoints = df['time']
-        self.measured_species = [c for c in df.columns if c not in ['time', 'Time']]
-        self.measurements = df.as_matrix(columns=self.measured_species)
-        self.M = len(self.measured_species)
-        self.N = 1
+    def has_multiple_timepoints(self):
+        return self.multiple_timepoints
 
 #Data consists of a set of N flow samples which each contain measurements for M measured_species
 #Data Dimensions:
@@ -142,9 +158,9 @@ cdef class StochasticTrajectories(Data):
         self.M = len(self.measured_species)
 
         if (self.M == 1 and measurements.ndim == 2) or (measurements.shape[2] == self.M):
-            self.measurements = measurements
             self.nT = measurements.shape[1]
             self.N = measurements.shape[0]
+            self.measurements = np.reshape(measurements, (self.N, self.nT, self.M))
         else:
             raise ValueError("Second dimension of measurments must be the same length as measured_species")
 
@@ -173,7 +189,7 @@ cdef class Likelihood:
         return self.get_log_likelihood()
 
 cdef class ModelLikelihood(Likelihood):
-    def __init__(self, model = None, init_state = {}, init_params = {},  interface = None, simulator = None, **keywords):
+    def __init__(self, model = None, init_state = {}, init_params = {},  interface = None, simulator = None, data = None, **keywords):
         self.set_model(model, simulator, interface)
         self.set_likelihood_options(**keywords)
         if isinstance(init_state, dict):
@@ -185,8 +201,12 @@ cdef class ModelLikelihood(Likelihood):
             self.set_init_species(sds = init_state)
 
         else:
-            #print("init_state", init_state, type(init_state), "isinstance(init_state, dict)", isinstance(init_state, dict), "isinstance(init_state, list)", isinstance(init_state, list))
             raise ValueError("Init_state must either be a dictionary or a list of dictionaries.")
+        
+        if data is not None:
+            self.set_data(data)
+        else:
+            print("Warning: No Data passed into likelihood constructor. Must call set_data seperately.")
 
     def set_model(self, Model m, RegularSimulator prop, CSimInterface csim = None):
         #print("m", m)
@@ -243,8 +263,11 @@ cdef class ModelLikelihood(Likelihood):
             self.init_param_vals[index] = val
             index +=  1
 
-    def set_likelihood_options(self):
-        pass
+    def set_likelihood_options(self, **keywords):
+        raise NotImplementedError("set_likelihood_options must be implemented in subclasses of ModelLikelihood")
+
+    def set_data(self, **keywords):
+        raise NotImplementedError("set_data must be implemented in subclasses of ModelLikelihood")
 
 cdef class DeterministicLikelihood(ModelLikelihood):
     def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None):
@@ -254,48 +277,76 @@ cdef class DeterministicLikelihood(ModelLikelihood):
         if prop is None:
             prop = DeterministicSimulator()
         self.csim = csim
+        self.csim.py_prep_deterministic_simulation()
         self.propagator = prop
 
     def set_data(self, BulkData bd):
+        #Set bulk data
         self.bd = bd
-        the_list = bd.get_measured_species()
-        self.meas_indices = np.zeros(len(the_list), dtype=int)
-        for i in range(len(the_list)):
-            self.meas_indices[i] = self.m.get_species_index(the_list[i])
-        self.N = self.bd.get_N()
+        self.N = self.bd.get_N() #Number of samples
+
+        #Get species indices in Model
+        species_list = bd.get_measured_species()
+        self.M = len(species_list) #Number of measured species
+        self.meas_indices = np.zeros(len(species_list), dtype=int)
+        for i in range(self.M):
+            self.meas_indices[i] = self.m.get_species_index(species_list[i])
+        
+
         if not ((self.N == 1 or self.Nx0 == 1) or (self.Nx0 == self.N)):
             print("self.N", self.N, "self.Nx0", self.Nx0)
             raise ValueError("Either the number of samples and the number of initial conditions match or one of them must be 1")
+
+    def py_get_data(self):
+        return self.bd
 
     def set_likelihood_options(self, norm_order = 1):
         self.norm_order = norm_order
 
     cdef double get_log_likelihood(self):
+        
         # Write in the specific parameters and species values.
         cdef np.ndarray species_vals = self.m.get_species_values()
         cdef np.ndarray param_vals = self.m.get_params_values()
         cdef np.ndarray ans
-
+        cdef np.ndarray timepoints
         cdef unsigned i
-        for i in range(self.init_state_indices.shape[0]):
-            species_vals[ self.init_state_indices[i] ] = self.init_state_vals[i]
-        for i in range(self.init_param_indices.shape[0]):
-            param_vals[ self.init_param_indices[i] ] = self.init_param_vals[i]
-
-        # Do a simulation of the model with time points specified by the data.
-        ans = self.propagator.simulate(self.csim, self.bd.get_timepoints()).get_result()
-
-        # Compare the data using l_1 norm and return the likelihood.
         cdef double error = 0.0
-        for i in range(self.meas_indices.shape[0]):
-            error += np.linalg.norm(  self.bd.get_measurements()[:,i] - ans[:,self.meas_indices[i]], ord = self.norm_order)
+        cdef np.ndarray measurements = self.bd.get_measurements()
 
+        for n in range(self.N):
+            #Set Timepoints
+            if self.bd.has_multiple_timepoints():
+                timepoints = self.bd.get_timepoints()[n, :]
+            else:
+                timepoints = self.bd.get_timepoints()
+
+            
+
+            #Set initial parameters
+            if self.init_param_indices is not None:
+                for i in range(self.init_param_indices.shape[0]):
+                    param_vals[ self.init_param_indices[i] ] = self.init_param_vals[i]
+
+            if self.Nx0 == 1:#Run all the simulations from the same initial state
+                for i in range(self.M):
+                    species_vals[ self.init_state_indices[i] ] = self.init_state_vals[i]
+            elif self.Nx0 == self.N: #Different initial conditions for different simulations
+                for i in range(self.M):
+                    species_vals[ self.init_state_indices[i, n] ] = self.init_state_vals[i, n]
+            
+            # Do a simulation of the model with time points specified by the data.
+            ans = self.propagator.simulate(self.csim, timepoints).get_result()
+
+            # Compare the data using norm and return the likelihood.
+            for i in range(self.M):
+                error += np.linalg.norm(self.bd.get_measurements()[n, :,i] - ans[:,self.meas_indices[i]], ord = self.norm_order)
+       
         return -error
 
 cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
     def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None):
         self.m = m
-        print("m", m)
         if csim is None:
             csim = ModelCSimInterface(m)
         if prop is None:
@@ -308,20 +359,33 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
         self.propagator = prop
 
     def set_data(self, StochasticTrajectories sd):
-        self.sd = sd
+
+        self.sd = sd #Holds Data Object
+        self.N = sd.get_N() #Number of samples
+
+        #Get Species Model Indices
         species_list = sd.get_measured_species()
+        self.M = len(species_list) #Number of
         self.meas_indices = np.zeros(len(species_list), dtype=int)
+
+        self.M = len(species_list)
         for i in range(len(species_list)):
             self.meas_indices[i] = self.m.get_species_index(species_list[i])
-        self.N = sd.get_N()
-        self.M = len(species_list)
+
+        #The number of intitial conditions in the likelihood model must either:
+        # 1: Same initial condition used for all samples
+        # N: Unique initial condition used for each sample
         if not ((self.N == 1 or self.Nx0 == 1) or (self.Nx0 == self.N)):
             raise ValueError("Either the number of samples and the number of initial conditions match or one of them must be 1")
+    def py_get_data(self):
+        return self.sd
 
+    def set_likelihood_options(self, N_simulations = None, norm_order = None):
+        if norm_order is not None:
+            self.norm_order = norm_order
 
-    def set_likelihood_options(self, N_simulations = 1, norm_order = 1):
-        self.norm_order = norm_order
-        self.N_simulations = 1
+        if N_simulations is not None:
+            self.N_simulations = N_simulations
 
     cdef double get_log_likelihood(self):
         # Write in the specific parameters and species values.
@@ -334,14 +398,11 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
         cdef unsigned n
         cdef double error = 0.0
 
-        
-
-
         # Do N*N_simulations simulations of the model with time points specified by the data.
         for n in range(self.N):
             #Set Timepoints
             if self.sd.has_multiple_timepoints():
-                timepoints = self.sd.get_timepoints()[s, :]
+                timepoints = self.sd.get_timepoints()[n, :]
             else:
                 timepoints = self.sd.get_timepoints()
 
@@ -360,14 +421,11 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
                         species_vals[ self.init_state_indices[i, n] ] = self.init_state_vals[i, n]
 
                 ans = self.propagator.simulate(self.csim, timepoints).get_result()
-                
+
                 for i in range(self.M):
-                    if self.N == 1:
-                        error += np.linalg.norm(self.sd.get_measurements()[:,i] - ans[:,self.meas_indices[i]], ord = self.norm_order)
-                    else:
-                        error += np.linalg.norm( self.sd.get_measurements()[n, :,i] - ans[:,self.meas_indices[i]], ord = self.norm_order)
+                    error += np.linalg.norm( self.sd.get_measurements()[n, :,i] - ans[:,self.meas_indices[i]], ord = self.norm_order)
        
-        return -1.0*error/(1.0*self.N*self.N_simulations)
+        return -1.0*error/(1.0*self.N_simulations)
 
 cdef class StochasticTrajectoryMomentLikelihood(StochasticTrajectoriesLikelihood):
     def set_likelihood_options(self, N_simulations = 1, initial_state_matching = False, Moments = 2):

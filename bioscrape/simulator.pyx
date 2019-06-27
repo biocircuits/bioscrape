@@ -2028,7 +2028,6 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
     elif Interface != None and safe:
         warnings.warn("Cannot gaurantee that the interface passed in is safe. Simulating anyway.")
 
-
     #Create Volume (if necessary)
     if isinstance(volume, Volume):
         pass

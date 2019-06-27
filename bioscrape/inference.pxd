@@ -49,7 +49,9 @@ cdef class Data():
         return self.N
 
 cdef class BulkData(Data):
-    pass
+    cdef unsigned multiple_timepoints
+    cdef unsigned nT #Number of timepoints
+
     
 cdef class FlowData(Data):
     pass
