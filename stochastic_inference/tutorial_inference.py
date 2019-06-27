@@ -6,12 +6,10 @@ spid = StochasticInference()
 spid.import_sbml('sbml_example.xml')
 # Supports SBML rate rules (TODO: Implement this), initial assignments, 
 # and other SBML level 3 core features (packages not supported)
-# (Optional) model = import_bioscrape('bs.xml') TODO: Not implemented yet
+# (Optional) 
+model = spid.import_bioscrape('bs.xml')
 # (Optional) model = import_ode(ode_function) TODO: Not implemented yet
-
-# Print out parameters (dict)
-# print(spid.get_parameters())
-
+ 
 #########################################  Part - I  ######################################### 
 
 # Handling the data
@@ -28,7 +26,7 @@ import numpy as np
 import matplotlib.pyplot as plt  
 
 t_exp = data.get_keys()
-timepoints = np.linspace(t_exp[0],t_exp[-1],len(t_exp))
+timepoints = np.linspace(t_exp[0],t_exp[ -1],len(t_exp))
 bs_data, m = spid.simulate(timepoints, type = 'deterministic')
 simtime = timepoints
 simdata = bs_data[:,m.get_species_index('c1')]
