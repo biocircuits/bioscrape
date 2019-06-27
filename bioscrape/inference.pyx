@@ -303,6 +303,9 @@ cdef class DeterministicLikelihood(ModelLikelihood):
     def set_likelihood_options(self, norm_order = 1):
         self.norm_order = norm_order
 
+    def py_get_norm_order(self):
+        return self.norm_order
+
     cdef double get_log_likelihood(self):
         
         # Write in the specific parameters and species values.
@@ -383,9 +386,18 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
     def set_likelihood_options(self, N_simulations = None, norm_order = None):
         if norm_order is not None:
             self.norm_order = norm_order
+        if norm_order in [None, 0]:
+            self.norm_order = 1
 
         if N_simulations is not None:
             self.N_simulations = N_simulations
+        if self.N_simulations in [None, 0]:
+            self.N_simulations = 1
+
+    def py_get_N_simulations(self):
+        return self.N_simulations
+    def py_get_norm_order(self):
+        return self.norm_order
 
     cdef double get_log_likelihood(self):
         # Write in the specific parameters and species values.
@@ -396,6 +408,7 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
 
         cdef unsigned i
         cdef unsigned n
+        cdef unsigned s
         cdef double error = 0.0
 
         # Do N*N_simulations simulations of the model with time points specified by the data.
@@ -406,25 +419,32 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
             else:
                 timepoints = self.sd.get_timepoints()
 
+
+
             for s in range(self.N_simulations):
                 #Set initial parameters (inside loop in case they change in the simulation):
                 if self.init_param_indices is not None:
                     for i in range(self.init_param_indices.shape[0]):
-                        param_vals[ self.init_param_indices[i] ] = self.init_param_vals[i]
+                        param_vals[ self.init_param_indices[i] ] = self.init_param_vals[i]                
 
                 #Set Initial Conditions (Inside loop in case things change in the simulation)
                 if self.Nx0 == 1:#Run all the simulations from the same initial state
                     for i in range(self.M):
-                        species_vals[ self.init_state_indices[i] ] = self.init_state_vals[i]
+                        species_vals[self.init_state_indices[i]] = self.init_state_vals[i]
                 elif self.Nx0 == self.N: #Different initial conditions for different simulations
                     for i in range(self.M):
                         species_vals[ self.init_state_indices[i, n] ] = self.init_state_vals[i, n]
 
+                
+
                 ans = self.propagator.simulate(self.csim, timepoints).get_result()
+
 
                 for i in range(self.M):
                     error += np.linalg.norm( self.sd.get_measurements()[n, :,i] - ans[:,self.meas_indices[i]], ord = self.norm_order)
-       
+                
+
+
         return -1.0*error/(1.0*self.N_simulations)
 
 cdef class StochasticTrajectoryMomentLikelihood(StochasticTrajectoriesLikelihood):
