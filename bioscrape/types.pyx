@@ -1338,6 +1338,8 @@ cdef class Model:
         self._next_params_index = 0
         self._dummy_param_counter = 0
 
+        self.has_delay = False #Does the Model contain any delay reactions? Updated in _add_reaction.
+
         self.species2index = {}
         self.params2index = {}
         self.propensities = []
@@ -1444,7 +1446,7 @@ cdef class Model:
         :return: None
         """
         self.initialized = False
-        if species not in self.species2index:
+        if species not in self.species2index and species is not None:
             self.species2index[species] = self._next_species_index
             self._next_species_index += 1
             self.species_values = np.concatenate((self.species_values, np.array([-1])))
@@ -1483,6 +1485,8 @@ cdef class Model:
 
         if delay_object == None:
            delay_object = NoDelay()
+        elif not type(delay_object) == type(NoDelay()):
+            self.has_delay = True
 
         species_names, param_names = delay_object.get_species_and_parameters(delay_param_dict)
 
@@ -1617,7 +1621,8 @@ cdef class Model:
         if 'species' not in propensity_param_dict and propensity_type == "massaction":
                 reactant_string = ""
                 for s in reactants:
-                    reactant_string += s+"*"
+                    if s is not None:
+                        reactant_string += s+"*"
                 propensity_param_dict['species'] = reactant_string[:len(reactant_string)-1]
 
         prop_object = self.create_propensity(propensity_type, propensity_param_dict, print_out = input_printout)
@@ -1673,12 +1678,14 @@ cdef class Model:
         #Write bioscrape XML and save it to the xml dictionary
         rxn_txt = '<reaction text= "'
         for r in reactants:
-            rxn_txt += r +" + "
+            if r is not None:
+                rxn_txt += r +" + "
         if len(reactants)>0:
             rxn_txt = rxn_txt[:-2]
         rxn_txt += "-- "
         for p in products:
-            rxn_txt += p+" + "
+            if p is not None:
+                rxn_txt += p+" + "
         if len(products)>0:
             rxn_txt = rxn_txt[:-2]
         rxn_txt +='"'
@@ -1686,13 +1693,15 @@ cdef class Model:
             rxn_txt += ' after= "'
             if len(delay_reactants) > 0:
                 for r in delay_reactants:
-                    rxn_txt += r +" + "
+                    if r is not None:
+                        rxn_txt += r +" + "
                 if len(delay_reactants) > 0:
                     rxn_txt = rxn_txt[:-2]
             rxn_txt += "-- "
             if len(delay_products)> 0:
                 for p in delay_products:
-                    rxn_txt += p+" + "
+                    if p is not None:
+                        rxn_txt += p+" + "
                 if len(delay_products)>0:
                     rxn_txt = rxn_txt[:-2]
                 rxn_txt +='"'
@@ -2001,6 +2010,14 @@ cdef class Model:
         """
 
         return self.species2index.keys()
+
+    def get_species_dictionary(self):
+        """
+        Get a dictionary {"species":value}
+        """
+        A = self.get_species_array()
+
+        return {(s, A[self.species2index[s]]) for s in self.species2index}
 
     def get_number_of_species(self):
         return len(self.species2index.keys())
