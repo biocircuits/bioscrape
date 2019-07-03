@@ -5,7 +5,7 @@ import emcee
 import matplotlib.pyplot as plt
 from bioscrape.types import Model, read_model_from_sbml
 from bioscrape.simulator import ModelCSimInterface, DeterministicSimulator, SSASimulator
-import PIDInterface
+from bioscrape.pid_interface import PIDInterface
    
 class StochasticInference(object):
     def __init__(self):
@@ -16,92 +16,90 @@ class StochasticInference(object):
         self.nsteps = 1000
         self.nsamples = 500
         self.dimension = 0
-        self.cost = 'L2norm'
-        self.penalty = 1
         self.exp_data = None
         self.timepoints = []
         self.measurements = ['']
         self.cost_function = None
         return 
 
-    def set_prior(self, prior):
-        self.prior = prior
-        return self.prior
+    # def set_prior(self, prior):
+    #     self.prior = prior
+    #     return self.prior
 
     def get_parameters(self):
         return self.params_to_estimate
 
-    def get_prior(self):
-        return self.prior
+    # def get_prior(self):
+    #     return self.prior
    
-    def log_prior(self, param_dict, prior):
-        for key,value in param_dict.items():
-            range = prior[key]
-            if value > max(range) or value < min(range):
-                return False
-        return True
+    # def log_prior(self, param_dict, prior):
+    #     for key,value in param_dict.items():
+    #         range = prior[key]
+    #         if value > max(range) or value < min(range):
+    #             return False
+    #     return True
         
-    def log_likelihood(self, log_params):
-        measurements = self.measurements
-        timepoints = self.timepoints
-        nsamples = self.nsamples
-        exp_data = self.exp_data
-        cost = self.cost
-        penalty = self.penalty
-        param_dict = {}
-        params_exp = np.exp(log_params)
-        for key, p in zip(self.parameters.keys(),params_exp):
-            param_dict[key] = p
-        self.m.set_params(param_dict)
-        prior = self.get_prior()
-        # Check prior
-        if self.log_prior(param_dict, prior) == False:
-            return -np.inf
+#     def log_likelihood(self, log_params):
+#         measurements = self.measurements
+#         timepoints = self.timepoints
+#         nsamples = self.nsamples
+#         exp_data = self.exp_data
+#         cost = self.cost
+#         penalty = self.penalty
+#         param_dict = {}
+#         params_exp = np.exp(log_params)
+#         for key, p in zip(self.parameters.keys(),params_exp):
+#             param_dict[key] = p
+#         self.m.set_params(param_dict)
+#         prior = self.get_prior()
+#         # Check prior
+#         if self.log_prior(param_dict, prior) == False:
+#             return -np.inf
         
-        # Simulate for each sample in nsample and store the result for the desired output species in result array
-        if self.m:
-            m = self.m
-            outputs = []
-            for species in measurements:
-                outputs.append(m.get_species_index(species))
-#             print('outputs are')
-#             print(outputs)
-            results = np.zeros((len(timepoints), len(outputs), nsamples))
-#             print('the shape of results is')
-#             print(np.shape(results))
-            for sample in range(nsamples):
-                sim, m = self.simulate(timepoints, type = 'stochastic')
-                for i in range(len(outputs)):
-                    out = outputs[i]
-                    results[:,i,sample] = sim[:,out]
-#             print('the results have now been filled in after simulation')
-#             print(results)
-        else:
-            raise NotImplementedError('SBML models only (for now)!')
+#         # Simulate for each sample in nsample and store the result for the desired output species in result array
+#         if self.m:
+#             m = self.m
+#             outputs = []
+#             for species in measurements:
+#                 outputs.append(m.get_species_index(species))
+# #             print('outputs are')
+# #             print(outputs)
+#             results = np.zeros((len(timepoints), len(outputs), nsamples))
+# #             print('the shape of results is')
+# #             print(np.shape(results))
+#             for sample in range(nsamples):
+#                 sim, m = self.simulate(timepoints, type = 'stochastic')
+#                 for i in range(len(outputs)):
+#                     out = outputs[i]
+#                     results[:,i,sample] = sim[:,out]
+# #             print('the results have now been filled in after simulation')
+# #             print(results)
+#         else:
+#             raise NotImplementedError('SBML models only (for now)!')
 
-        # Error calculation here
-#         print('the experimental data has shape')
-#         print(np.shape(exp_data.get_values()))
-#         print('the actual experimental data values are ')
-#         print(exp_data.get_values())
-        total_error = 0
-        for i in range(len(outputs)):
-#             print('for output- ')
-#             print(outputs[i])
-#             print('we have nsamples ')
-            for j in range(nsamples):
-                d1 = results[:,i,j]
-#                 print('the shape of result : i, j is')
-#                 print(np.shape(d1))
-                diff = np.abs(d1 - exp_data.get_values()[i]) 
-                if cost == 'inf':
-                    infinity_error = np.max(diff)
-                    total_error += infinity_error**2
-                elif cost == 'L2norm':
-                    L2_norm_error = diff**2
-                    L2_norm_error = np.linalg.norm(diff)
-                    total_error += L2_norm_error
-        return -total_error*penalty
+#         # Error calculation here
+# #         print('the experimental data has shape')
+# #         print(np.shape(exp_data.get_values()))
+# #         print('the actual experimental data values are ')
+# #         print(exp_data.get_values())
+#         total_error = 0
+#         for i in range(len(outputs)):
+# #             print('for output- ')
+# #             print(outputs[i])
+# #             print('we have nsamples ')
+#             for j in range(nsamples):
+#                 d1 = results[:,i,j]
+# #                 print('the shape of result : i, j is')
+# #                 print(np.shape(d1))
+#                 diff = np.abs(d1 - exp_data.get_values()[i]) 
+#                 if cost == 'inf':
+#                     infinity_error = np.max(diff)
+#                     total_error += infinity_error**2
+#                 elif cost == 'L2norm':
+#                     L2_norm_error = diff**2
+#                     L2_norm_error = np.linalg.norm(diff)
+#                     total_error += L2_norm_error
+#         return -total_error*penalty
     
     def prepare_mcmc(self, **kwargs):
         
@@ -136,9 +134,17 @@ class StochasticInference(object):
             self.cost = cost
         if measurements:
             self.measurements = measurements
-        
-        pid_interface = StochasticPIDInterface(PIDInterface(self.params_to_estimate, self.m, self.prior))
-        self.cost_function = pid_interface.get_cost_func()
+        Data = self.exp_data
+        timepoints = self.timepoints
+        measurements = self.measurements
+        # Create a wrapper for this to make this available to the user.
+        pid_interface = PIDInterface(self.params_to_estimate, self.m, self.prior)
+        # Optional arguments
+        # pid_interface.MultipleTimepoints
+        # pid_interface.InitialConditions
+        # pid_interface.type
+        self.cost_function = lambda self, log_params: pid_interface.get_likelihood_function(
+        log_params, Data, timepoints, measurements)
 
 
     def run_mcmc(self, **kwargs):
