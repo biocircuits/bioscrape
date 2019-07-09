@@ -15,7 +15,8 @@ class PIDInterface(object):
         self.type = 'stochastic'
         self.N_simulations = 3
         self.norm_order = 2
-        return 
+        return
+
     def get_likelihood_function(self, log_params, Data, timepoints, measurements):
         M = self.M
         N = np.shape(Data)[0]
@@ -66,17 +67,17 @@ class PIDInterface(object):
             else:
                 raise ValueError('Invalid type argument in get_likelihood_function call')
 
-        # Priors? (TODO)
-        priors = self.priors
-        # Check prior
-        if self.log_prior(param_dict, priors) == False:
-            return -np.inf
 
-        # Set params here 
         params_dict = {}
         params_exp = np.exp(log_params)
         for key, p in zip(M.params_dict.keys(),params_exp):
             params_dict[key] = p
+        # Priors (uniform priors only implemented)
+        priors = self.priors
+        # Check prior
+        if self.check_priors(params_dict, priors) == False:
+            return -np.inf
+        # Set params here and return the likelihood object.
         if LL_stoch:
             LL_stoch.set_init_params(params_dict)
             return -LL_stoch.py_log_likelihood()
@@ -84,7 +85,7 @@ class PIDInterface(object):
             LL_det.set_init_params(params_dict)
             return -LL_det.py_log_likelihood()
 
-    def log_prior(self, param_dict, prior):
+    def check_priors(self, param_dict, prior):
         for key,value in param_dict.items():
             range = prior[key]
             if value > max(range) or value < min(range):

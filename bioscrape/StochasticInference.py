@@ -116,11 +116,11 @@ class StochasticInference(object):
 
         if timepoints.size:
             self.timepoints = timepoints
-        if exp_data:
+        if exp_data.size:
             self.exp_data = exp_data
-        if params:
+        if len(params):
             self.params_to_estimate = params
-        if prior:
+        if len(prior):
             self.prior = prior
         if nwalkers:
             self.nwalkers = nwalkers
@@ -132,7 +132,7 @@ class StochasticInference(object):
             self.penalty = penalty
         if cost:
             self.cost = cost
-        if measurements:
+        if len(measurements):
             self.measurements = measurements
         Data = self.exp_data
         timepoints = self.timepoints

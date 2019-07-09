@@ -1,15 +1,15 @@
-from StochasticInference import *
+from bioscrape.inference import StochasticInference
 
 spid = StochasticInference()
 
-# Import a model that you want to use for inference
-spid.import_sbml('sbml_example.xml')
-# Supports SBML rate rules (TODO: Implement this), initial assignments, 
-# and other SBML level 3 core features (packages not supported)
-# (Optional) 
-model = spid.import_bioscrape('bs.xml')
-# (Optional) model = import_ode(ode_function) TODO: Not implemented yet
- 
+# # Import a model that you want to use for inference
+# spid.import_sbml('sbml_example.xml')
+# # Supports SBML rate rules (TODO: Implement this), initial assignments, 
+# # and other SBML level 3 core features (packages not supported)
+# # (Optional) 
+# model = spid.import_bioscrape('bs.xml')
+# # (Optional) model = import_ode(ode_function) TODO: Not implemented yet
+M = Model('test.xml') 
 #########################################  Part - I  ######################################### 
 
 # Handling the data
