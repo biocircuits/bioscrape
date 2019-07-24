@@ -119,3 +119,4 @@ fit_model.export_sbml('sbml_fit.xml')
 # 6. Add bioscrape Model compatibility as the central model maybe and then just have one place where you import sbml (currently it's a bit messed up)
 # 7. Finish integration with bioscrape.inference somehow.
 # 8. Other kinds of bioscrape compatibilities and functionalities (that is, do things in the bioscrape-way)
+

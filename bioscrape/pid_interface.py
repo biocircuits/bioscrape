@@ -5,12 +5,12 @@ from bioscrape.inference import StochasticTrajectoriesLikelihood as STLL
 from bioscrape.inference import StochasticTrajectories
 import numpy as np
 class PIDInterface(object):
-    def __init__(self, params_to_estimate, M, priors):
+    def __init__(self, params_to_estimate, M, priors, initial_conditions):
         self.params = params_to_estimate
         self.M = M
         self.priors = priors
+        self.InitialConditions = initial_conditions
         self.MultipleTimepoints = False
-        self.InitialConditions = M.get_initial_conditions() # TODO (implement this)
         self.MultipleInitialConditions = False
         self.type = 'stochastic'
         self.N_simulations = 3
@@ -18,6 +18,7 @@ class PIDInterface(object):
         return
 
     def get_likelihood_function(self, log_params, Data, timepoints, measurements):
+        # print('even here')
         M = self.M
         N = np.shape(Data)[0]
         #Ceate Likelihood objects:
@@ -27,14 +28,16 @@ class PIDInterface(object):
         if self.MultipleTimepoints:
             # In this case the timepoints should be a list of timepoints vectors for each iteration
             if self.type == 'stochastic':
-                DataStoch = StochasticTrajectories(np.array(timepoints), Data,
-                measurements, N)
+                DataStoch = StochasticTrajectories(np.array(timepoints), Data, measurements, N)
             elif self.type == 'deterministic':
                 DataDet = BulkData(np.array(timepoints), Data, measurements, N)
             else:
                 raise ValueError('Invalid type argument in get_likelihood_function call')
         else:
             if self.type == 'stochastic':
+                # print(Data)
+                # print(measurements)
+                # print(N)
                 DataStoch = StochasticTrajectories(timepoints, Data, measurements, N)
             elif self.type == 'deterministic':
                 DataDet = BulkData(timepoints, Data, measurements, N)
@@ -70,7 +73,7 @@ class PIDInterface(object):
 
         params_dict = {}
         params_exp = np.exp(log_params)
-        for key, p in zip(M.params_dict.keys(),params_exp):
+        for key, p in zip(M.get_params2index().keys(),params_exp):
             params_dict[key] = p
         # Priors (uniform priors only implemented)
         priors = self.priors

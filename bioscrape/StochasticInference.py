@@ -9,7 +9,7 @@ from bioscrape.pid_interface import PIDInterface
    
 class StochasticInference(object):
     def __init__(self):
-        self.m = None
+        self.M = None
         self.params_to_estimate = []
         self.prior = None
         self.nwalkers = 100
@@ -19,7 +19,7 @@ class StochasticInference(object):
         self.exp_data = None
         self.timepoints = []
         self.measurements = ['']
-        self.cost_function = None
+        self.initial_conditions = None
         return 
 
     # def set_prior(self, prior):
@@ -58,17 +58,17 @@ class StochasticInference(object):
         
 #         # Simulate for each sample in nsample and store the result for the desired output species in result array
 #         if self.m:
-#             m = self.m
+#             M = self.M
 #             outputs = []
 #             for species in measurements:
-#                 outputs.append(m.get_species_index(species))
+#                 outputs.append(M.get_species_index(species))
 # #             print('outputs are')
 # #             print(outputs)
 #             results = np.zeros((len(timepoints), len(outputs), nsamples))
 # #             print('the shape of results is')
 # #             print(np.shape(results))
 #             for sample in range(nsamples):
-#                 sim, m = self.simulate(timepoints, type = 'stochastic')
+#                 sim, M = self.simulate(timepoints, type = 'stochastic')
 #                 for i in range(len(outputs)):
 #                     out = outputs[i]
 #                     results[:,i,sample] = sim[:,out]
@@ -113,6 +113,7 @@ class StochasticInference(object):
         penalty = kwargs.get('penalty')
         cost = kwargs.get('cost')
         measurements = kwargs.get('measurements')
+        initial_conditions = kwargs.get('initial_conditions')
 
         if timepoints.size:
             self.timepoints = timepoints
@@ -134,18 +135,26 @@ class StochasticInference(object):
             self.cost = cost
         if len(measurements):
             self.measurements = measurements
-        Data = self.exp_data
+        if type(initial_conditions) is dict and len(list(initial_conditions.keys())):
+            self.MultipleInitialConditions = False 
+            self.initial_conditions = initial_conditions
+        elif type(initial_conditions) is list and len(initial_conditions):
+            self.MultipleInitialConditions = True
+            self.initial_conditions = initial_conditions
+        # Create a wrapper for this to make this available to the user.
+        # print(self.measurements)
+
+    def cost_function(self, log_params):
+        pid_interface = PIDInterface(self.params_to_estimate, self.M, self.prior, self.initial_conditions)
+        pid_interface.MultipleInitialConditions = self.MultipleInitialConditions
+        # print(pid_interface.MultipleTimepoints)
+        # print(pid_interface.MultipleInitialConditions)
+        # print(pid_interface.InitialConditions)
+        # print(pid_interface.type)
+        exp_data = self.exp_data
         timepoints = self.timepoints
         measurements = self.measurements
-        # Create a wrapper for this to make this available to the user.
-        pid_interface = PIDInterface(self.params_to_estimate, self.m, self.prior)
-        # Optional arguments
-        # pid_interface.MultipleTimepoints
-        # pid_interface.InitialConditions
-        # pid_interface.type
-        self.cost_function = lambda self, log_params: pid_interface.get_likelihood_function(
-        log_params, Data, timepoints, measurements)
-
+        return pid_interface.get_likelihood_function(log_params, exp_data, timepoints, measurements)
 
     def run_mcmc(self, **kwargs):
         plot_show = kwargs.get('plot_show')
@@ -229,10 +238,10 @@ class StochasticInference(object):
         plot_show = kwargs.get('plot_show')
         if not plot_show:
             plot_show = False
-        if self.m:
+        if self.M:
             # If bioscrape model
-            m = self.m
-            s = ModelCSimInterface(m)
+            M = self.M
+            s = ModelCSimInterface(M)
             if type == 'deterministic':
                 s.py_prep_deterministic_simulation()
                 s.py_set_initial_time(timepoints[0])
@@ -241,11 +250,11 @@ class StochasticInference(object):
                 result = result.py_get_result()
                 if plot_show:
                     for species in species_to_plot:
-                        ind = m.get_species_index(species)
+                        ind = M.get_species_index(species)
                         plt.plot(timepoints,result[:,ind])
                     plt.title(str(species_to_plot) + ' vs time')
                     plt.show()
-                return result, m
+                return result, M
             elif type == 'stochastic':
                 warnings.warn('For stochastic simulation of SBML models using bioscrape, it is highly recommended to NOT use reversible reactions as the SSA algorithm might not work for such cases.')
                 sim = SSASimulator()
@@ -254,11 +263,11 @@ class StochasticInference(object):
                 result = result.py_get_result()
                 if plot_show:
                     for species in species_to_plot:
-                        ind = m.get_species_index(species)
+                        ind = M.get_species_index(species)
                         plt.plot(timepoints,result[:,ind])
                     plt.title(str(species_to_plot) + ' vs time')
                     plt.show()
-                return result, m
+                return result, M
             else:
                 raise ValueError('Optional argument "type" must be either deterministic or stochastic')
         else:
@@ -269,9 +278,9 @@ class StochasticInference(object):
         return 
 
     def import_sbml(self, filename):
-        m = bioscrape.types.read_model_from_sbml(filename)
-        self.m = m
-        return self.m
+        M = bioscrape.types.read_model_from_sbml(filename)
+        self.M = M
+        return self.M
 
 class Data:
     def __init__(self, name, type, data = {}):

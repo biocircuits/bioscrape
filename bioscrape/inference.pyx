@@ -153,7 +153,7 @@ cdef class StochasticTrajectories(Data):
     cdef  np.ndarray get_measurements(self):
         return np.reshape(self.measurements, (self.N, self.nT, self.M))
 
-    def set_data(self,np.ndarray timepoints, np.ndarray measurements, list measured_species, unsigned N):
+    def set_data(self, np.ndarray timepoints, np.ndarray measurements, list measured_species, unsigned N):
         self.measured_species = measured_species
         self.M = len(self.measured_species)
 
