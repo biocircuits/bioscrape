@@ -5,9 +5,12 @@ import emcee
 import matplotlib.pyplot as plt
 from bioscrape.types import Model, read_model_from_sbml
 from bioscrape.simulator import ModelCSimInterface, DeterministicSimulator, SSASimulator
-from bioscrape.pid_interface import PIDInterface
-   
-class StochasticInference(object):
+from bioscrape.pid_interfaces import StochasticInference, DeterministicInference
+
+def initialize_mcmc():
+    obj = MCMC()
+    return obj
+class MCMC(object):
     def __init__(self):
         self.M = None
         self.params_to_estimate = []
@@ -17,90 +20,22 @@ class StochasticInference(object):
         self.nsamples = 500
         self.dimension = 0
         self.exp_data = None
+        self.type = 'stochastic'
         self.timepoints = []
         self.measurements = ['']
         self.initial_conditions = None
         return 
 
-    # def set_prior(self, prior):
-    #     self.prior = prior
-    #     return self.prior
-
     def get_parameters(self):
         return self.params_to_estimate
 
-    # def get_prior(self):
-    #     return self.prior
-   
-    # def log_prior(self, param_dict, prior):
-    #     for key,value in param_dict.items():
-    #         range = prior[key]
-    #         if value > max(range) or value < min(range):
-    #             return False
-    #     return True
-        
-#     def log_likelihood(self, log_params):
-#         measurements = self.measurements
-#         timepoints = self.timepoints
-#         nsamples = self.nsamples
-#         exp_data = self.exp_data
-#         cost = self.cost
-#         penalty = self.penalty
-#         param_dict = {}
-#         params_exp = np.exp(log_params)
-#         for key, p in zip(self.parameters.keys(),params_exp):
-#             param_dict[key] = p
-#         self.m.set_params(param_dict)
-#         prior = self.get_prior()
-#         # Check prior
-#         if self.log_prior(param_dict, prior) == False:
-#             return -np.inf
-        
-#         # Simulate for each sample in nsample and store the result for the desired output species in result array
-#         if self.m:
-#             M = self.M
-#             outputs = []
-#             for species in measurements:
-#                 outputs.append(M.get_species_index(species))
-# #             print('outputs are')
-# #             print(outputs)
-#             results = np.zeros((len(timepoints), len(outputs), nsamples))
-# #             print('the shape of results is')
-# #             print(np.shape(results))
-#             for sample in range(nsamples):
-#                 sim, M = self.simulate(timepoints, type = 'stochastic')
-#                 for i in range(len(outputs)):
-#                     out = outputs[i]
-#                     results[:,i,sample] = sim[:,out]
-# #             print('the results have now been filled in after simulation')
-# #             print(results)
-#         else:
-#             raise NotImplementedError('SBML models only (for now)!')
+    def run_mcmc(self, **kwargs):
+        self.prepare_mcmc(params = self.params_to_estimate, prior = self.prior, 
+                        timepoints = self.timepoints, exp_data = self.exp_data, nwalkers = self.nwalkers, 
+                        nsteps = self.nsteps, nsamples = self.nsamples, measurements = self.measurements, 
+                        initial_conditions = self.initial_conditions, **kwargs)
+        self.run_emcee(**kwargs)
 
-#         # Error calculation here
-# #         print('the experimental data has shape')
-# #         print(np.shape(exp_data.get_values()))
-# #         print('the actual experimental data values are ')
-# #         print(exp_data.get_values())
-#         total_error = 0
-#         for i in range(len(outputs)):
-# #             print('for output- ')
-# #             print(outputs[i])
-# #             print('we have nsamples ')
-#             for j in range(nsamples):
-#                 d1 = results[:,i,j]
-# #                 print('the shape of result : i, j is')
-# #                 print(np.shape(d1))
-#                 diff = np.abs(d1 - exp_data.get_values()[i]) 
-#                 if cost == 'inf':
-#                     infinity_error = np.max(diff)
-#                     total_error += infinity_error**2
-#                 elif cost == 'L2norm':
-#                     L2_norm_error = diff**2
-#                     L2_norm_error = np.linalg.norm(diff)
-#                     total_error += L2_norm_error
-#         return -total_error*penalty
-    
     def prepare_mcmc(self, **kwargs):
         
         timepoints = kwargs.get('timepoints')
@@ -115,7 +50,7 @@ class StochasticInference(object):
         measurements = kwargs.get('measurements')
         initial_conditions = kwargs.get('initial_conditions')
 
-        if timepoints.size:
+        if timepoints:
             self.timepoints = timepoints
         if exp_data.size:
             self.exp_data = exp_data
@@ -145,8 +80,11 @@ class StochasticInference(object):
         # print(self.measurements)
 
     def cost_function(self, log_params):
-        pid_interface = PIDInterface(self.params_to_estimate, self.M, self.prior, self.initial_conditions)
-        pid_interface.MultipleInitialConditions = self.MultipleInitialConditions
+        if self.type == 'stochastic':
+            pid_interface = StochasticInference(self.params_to_estimate, self.M, self.prior)
+        elif self.type == 'deterministic':
+            pid_interface = DeterministicInference(self.params_to_estimate, self.M, self.prior)
+        # TODO : self.Multiple .. ? needed?
         # print(pid_interface.MultipleTimepoints)
         # print(pid_interface.MultipleInitialConditions)
         # print(pid_interface.InitialConditions)
@@ -154,9 +92,10 @@ class StochasticInference(object):
         exp_data = self.exp_data
         timepoints = self.timepoints
         measurements = self.measurements
-        return pid_interface.get_likelihood_function(log_params, exp_data, timepoints, measurements)
+        initial_conditions = self.initial_conditions
+        return pid_interface.get_likelihood_function(log_params, exp_data, timepoints, measurements, initial_conditions)
 
-    def run_mcmc(self, **kwargs):
+    def run_emcee(self, **kwargs):
         plot_show = kwargs.get('plot_show')
         if not plot_show:
             plot_show = False
