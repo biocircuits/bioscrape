@@ -2286,6 +2286,7 @@ cdef class Model:
         return document
 
     #Processes an SBML file so that it no longer contains multiplicity in local variable names
+    # TODO : Need to fix this, doesn't work right now.
     def process_sbml(self, sbml_file):
         try:
             import libsbml

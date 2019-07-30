@@ -34,7 +34,8 @@ class MCMC(object):
                         timepoints = self.timepoints, exp_data = self.exp_data, nwalkers = self.nwalkers, 
                         nsteps = self.nsteps, nsamples = self.nsamples, measurements = self.measurements, 
                         initial_conditions = self.initial_conditions, **kwargs)
-        self.run_emcee(**kwargs)
+        fitted_model, params = self.run_emcee(**kwargs)
+        return fitted_model, params
 
     def prepare_mcmc(self, **kwargs):
         
@@ -84,11 +85,6 @@ class MCMC(object):
             pid_interface = StochasticInference(self.params_to_estimate, self.M, self.prior)
         elif self.type == 'deterministic':
             pid_interface = DeterministicInference(self.params_to_estimate, self.M, self.prior)
-        # TODO : self.Multiple .. ? needed?
-        # print(pid_interface.MultipleTimepoints)
-        # print(pid_interface.MultipleInitialConditions)
-        # print(pid_interface.InitialConditions)
-        # print(pid_interface.type)
         exp_data = self.exp_data
         timepoints = self.timepoints
         measurements = self.measurements
@@ -116,10 +112,14 @@ class MCMC(object):
             print('Sample log-like: {0}'.format(self.cost_function(np.array(ploglist))))
 
         sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function)
-        # for i, junk in enumerate(sampler.sample(p0, iterations=nsteps)):
-        #     print('Step %d' % i)
-        # TODO: Add progress percentage update display code here 
-        sampler.run_mcmc(p0, self.nsteps)    
+        if p0 is None:
+            p0 = np.random.randn(ndim*self.nwalkers).reshape((self.nwalkers,self.dimension)) / 20.0
+
+        for iteration, (pos,lnp,state) in enumerate(sampler.sample(p0,iterations=self.nsteps)):
+            print('%.1f percent complete' % (100*float(iteration)/self.nsteps))
+
+
+        # sampler.run_mcmc(p0, self.nsteps, progress = True)    
         # Write results
         import csv
         with open('mcmc_results.csv','w', newline = "") as f:
@@ -165,7 +165,11 @@ class MCMC(object):
 
         fitted_model.parameters = params
         # Simulate again 
-        fitted_model.simulate(self.timepoints, type = 'stochastic', species_to_plot = self.measurements, plot_show = plot_show)
+        if type(self.timepoints) is list:
+            new_timepoints = np.array([i for i in self.timepoints[0]])
+        else:
+            new_timepoints = self.timepoints
+        fitted_model.simulate(new_timepoints, type = 'stochastic', species_to_plot = self.measurements, plot_show = plot_show)
         return fitted_model, params
     
     def simulate(self, timepoints, **kwargs):
@@ -217,11 +221,11 @@ class MCMC(object):
         return 
 
     def import_sbml(self, filename):
-        M = bioscrape.types.read_model_from_sbml(filename)
+        M = read_model_from_sbml(filename)
         self.M = M
         return self.M
 
-class Data:
+class ExpData:
     def __init__(self, name, type, data = {}):
         '''
         name : string representing the name of the data set 
@@ -280,7 +284,7 @@ def import_timeseries(filename, time_column, value_column, properties = {}, plot
                     temp_str_v = cell_v.replace('.','',1).replace('e','',1).replace('-','',1)
                     if temp_str_t.isdigit() and temp_str_v.isdigit():
                         data_dict[float(cell_t)] = float(cell_v)
-        data_obj = Data(filename, 'timeseries', data_dict)
+        data_obj = ExpData(filename, 'timeseries', data_dict)
         time = list(data_obj.get_keys())
         values = list(data_obj.get_values())
         if plot_show:

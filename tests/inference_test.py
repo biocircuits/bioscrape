@@ -66,8 +66,11 @@ pid.params_to_estimate = {'k1':10, 'd1':0.2}
 pid.type = 'stochastic'
 pid.timepoints = timepoint_list
 pid.initial_conditions = X0_list
-pid.run_mcmc()
+pid.nsamples = 5
+pid.nsteps = 2
+pid.nwalkers = 8
+pid.run_mcmc(plot_show = True)
 
 
-# now pid interfaces can be created customizable
-#  add priors option. 
+# Add priors option. 
+# Clean or update accordingly the old code.
