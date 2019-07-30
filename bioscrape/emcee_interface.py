@@ -35,7 +35,7 @@ class MCMC(object):
                         nsteps = self.nsteps, nsamples = self.nsamples, measurements = self.measurements, 
                         initial_conditions = self.initial_conditions, **kwargs)
         fitted_model, params = self.run_emcee(**kwargs)
-        return fitted_model, params
+        return fitted_model.M, params
 
     def prepare_mcmc(self, **kwargs):
         
@@ -162,8 +162,7 @@ class MCMC(object):
             p_name = params_names[i]
             p_sampled_value = best_p[i]
             params[p_name] = p_sampled_value
-
-        fitted_model.parameters = params
+        fitted_model.M.set_params(params)
         # Simulate again 
         if type(self.timepoints) is list:
             new_timepoints = np.array([i for i in self.timepoints[0]])
