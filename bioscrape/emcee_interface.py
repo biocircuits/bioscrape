@@ -140,6 +140,7 @@ class MCMC(object):
                     new_list.append(x)
             if plot_show:
                 n, bins, patches = plt.hist(new_list, density = True, histtype = "bar")
+                plt.title('Parameter inference distribution for parameter #{0}'.format(i))
             else:
                 fig = plt.figure()
                 n, bins, patches = plt.hist(new_list, density = True, histtype = "bar")
@@ -168,7 +169,7 @@ class MCMC(object):
             new_timepoints = np.array([i for i in self.timepoints[0]])
         else:
             new_timepoints = self.timepoints
-        fitted_model.simulate(new_timepoints, type = 'stochastic', species_to_plot = self.measurements, plot_show = plot_show)
+        fitted_model.simulate(new_timepoints, type = self.type, species_to_plot = self.measurements, plot_show = plot_show)
         return fitted_model, params
     
     def simulate(self, timepoints, **kwargs):
