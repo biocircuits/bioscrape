@@ -1,9 +1,34 @@
 
 from bioscrape.inference import DeterministicLikelihood as DLL
-from bioscrape.inference import BulkData
 from bioscrape.inference import StochasticTrajectoriesLikelihood as STLL
 from bioscrape.inference import StochasticTrajectories
+from bioscrape.inference import BulkData
 import numpy as np
+
+def check_priors(param_dict, prior):
+    import scipy.stats
+    for key,value in param_dict.items():
+        type = prior[key][0]
+        if type == 'uniform':
+            if len(prior[key]) != 3:
+                raise ValueError('For uniform distribution, the dictionary entry must be : [type, lower_bound, upper_bound]')
+            lb = prior[key][1]
+            ub = prior[key][2]
+            if value > ub or value < lb:
+                return False
+        elif type == 'gaussian':
+            if len(prior[key]) != 4:
+                raise ValueError('For Gaussian distribution, the dictionary entry must be : [type, mean, std_dev, threshold]')
+            mu = prior[key][1]
+            sig = prior[key][2]
+            prob_threshold = prior[key][3]
+            distrib = scipy.stats.norm(mu, sig)
+            # Check if value lies is a valid sample of (mu, sigma) Gaussian distribution
+            if distrib.pdf(value) < prob_threshold:
+                return False
+
+    return True
+
 
 
 # Add a new class similar to this to create new interfaces.
@@ -62,20 +87,14 @@ class StochasticInference(object):
         # Priors (uniform priors only implemented)
         priors = self.priors
         # Check prior
-        if self.check_priors(params_dict, priors) == False:
+        if check_priors(params_dict, priors) == False:
             return -np.inf
         # Set params here and return the likelihood object.
         if LL_stoch:
             LL_stoch.set_init_params(params_dict)
             return -LL_stoch.py_log_likelihood()
 
-    def check_priors(self, param_dict, prior):
-        for key,value in param_dict.items():
-            range = prior[key]
-            if value > max(range) or value < min(range):
-                return False
-        return True
-        
+       
 
 # Add a new class similar to this to create new interfaces.
 class DeterministicInference(object):
@@ -135,17 +154,14 @@ class DeterministicInference(object):
         # Priors (uniform priors only implemented)
         priors = self.priors
         # Check prior
-        if self.check_priors(params_dict, priors) == False:
+        if check_priors(params_dict, priors) == False:
             return -np.inf
         # Set params here and return the likelihood object.
         if LL_det:
             LL_det.set_init_params(params_dict)
             return -LL_det.py_log_likelihood()
-
-    def check_priors(self, param_dict, prior):
-        for key,value in param_dict.items():
-            range = prior[key]
-            if value > max(range) or value < min(range):
-                return False
-        return True
         
+
+
+
+

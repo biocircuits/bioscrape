@@ -481,20 +481,21 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
 ######################################              PRIORS        ######################################
 #################################################                     ################################################
 
-cdef class Prior(Likelihood):
-    cdef double get_log_likelihood(self):
-        cdef np.ndarray param_vals = self.m.get_params_values()
-        for value in param_vals:
-            if value > max(range) or value < min(range):
-                return 0
-            else:
-                return 1
+# cdef class Prior(Distribution):
+#     cdef double get_log_likelihood(self):
+#         cdef np.ndarray param_vals = self.m.get_params_values()
+#         for value in param_vals:
+#             if value > max(range) or value < min(range):
+#                 return 0
+#             else:
+#                 return 1
 
  
 ##################################################                ####################################################
 ######################################              INFERENCE                         ################################
 #################################################                     ################################################
 
+# Obsolete code 
 
 # cdef class DeterministicInference:
 #     def __init__(self):
