@@ -61,7 +61,7 @@ from bioscrape.emcee_interface import *
 pid = initialize_mcmc()
 pid.exp_data = np.array(data)
 pid.M = M
-pid.prior = {'k1' : ['uniform', 1e-3, 1e3],'d1' : ['gaussian', 1e-2, 1e5]}
+pid.prior = {'k1' : ['uniform', 1e-3, 1e3],'d1' : ['gaussian', 1e-2, 1e5, 0.1]}
 pid.params_to_estimate = {'k1':10, 'd1':0.2}
 pid.type = 'stochastic'
 pid.timepoints = timepoint_list
