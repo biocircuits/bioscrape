@@ -119,7 +119,7 @@ cdef class Prior(Likelihood):
     cdef CSimInterface csim
     cdef list parameters
     cdef Distribution dist
-    cdef double check_priors(self)
+    cdef double get_log_likelihood(self)
    
 ##################################################                ####################################################
 ######################################              INFERENCE                         ################################

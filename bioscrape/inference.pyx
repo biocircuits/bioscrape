@@ -482,7 +482,7 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
 #################################################                     ################################################
 
 cdef class Prior(Likelihood):
-    cdef double check_priors(self):
+    cdef double get_log_likelihood(self):
         cdef np.ndarray param_vals = self.m.get_params_values()
         for value in param_vals:
             if value > max(range) or value < min(range):
@@ -496,92 +496,92 @@ cdef class Prior(Likelihood):
 #################################################                     ################################################
 
 
-cdef class DeterministicInference:
-    def __init__(self):
-        self.m = None
-        self.params_to_estimate = np.zeros(0,dtype=int)
-        self.global_init_params = np.zeros(0,)
-        self.global_init_state  = np.zeros(0,)
-        self.prior = None
-        self.num_walkers = 500
-        self.num_iterations = 100
-        self.likelihoods = []
-        self.dimension = 0
-        self.sigma = 10
+# cdef class DeterministicInference:
+#     def __init__(self):
+#         self.m = None
+#         self.params_to_estimate = np.zeros(0,dtype=int)
+#         self.global_init_params = np.zeros(0,)
+#         self.global_init_state  = np.zeros(0,)
+#         self.prior = None
+#         self.num_walkers = 500
+#         self.num_iterations = 100
+#         self.likelihoods = []
+#         self.dimension = 0
+#         self.sigma = 10
 
-    def set_model(self, Model m):
-        self.m = m
-        self.global_init_params = m.get_params_values().copy()
-        self.global_init_state = m.get_species_values().copy()
+#     def set_model(self, Model m):
+#         self.m = m
+#         self.global_init_params = m.get_params_values().copy()
+#         self.global_init_state = m.get_species_values().copy()
 
-    def set_sigma(self, double s):
-        self.sigma = s
+#     def set_sigma(self, double s):
+#         self.sigma = s
 
-    def set_mcmc_params(self, unsigned walkers, unsigned iterations):
-        self.num_walkers = walkers
-        self.num_iterations = iterations
+#     def set_mcmc_params(self, unsigned walkers, unsigned iterations):
+#         self.num_walkers = walkers
+#         self.num_iterations = iterations
 
-    def set_prior(self, Distribution prior):
-        self.prior = prior
+#     def set_prior(self, Distribution prior):
+#         self.prior = prior
 
-    def set_params_to_estimate(self, list params):
-        self.params_to_estimate = np.zeros(len(params),dtype=int)
-        cdef unsigned i
-        for i in range(len(params)):
-            self.params_to_estimate[i] =  self.m.get_param_index(params[i])
+#     def set_params_to_estimate(self, list params):
+#         self.params_to_estimate = np.zeros(len(params),dtype=int)
+#         cdef unsigned i
+#         for i in range(len(params)):
+#             self.params_to_estimate[i] =  self.m.get_param_index(params[i])
 
-        self.dimension = len(params)
+#         self.dimension = len(params)
 
-    def add_to_likelihood(self,list likelihoods):
-        self.likelihoods.extend(likelihoods)
+#     def add_to_likelihood(self,list likelihoods):
+#         self.likelihoods.extend(likelihoods)
 
-    def likelihood_function(self, np.ndarray params):
-        cdef unsigned i
-        cdef unsigned j
-        cdef double answer = self.prior.unprob(params)
+#     def likelihood_function(self, np.ndarray params):
+#         cdef unsigned i
+#         cdef unsigned j
+#         cdef double answer = self.prior.unprob(params)
 
-        if answer == 0.0:
-            return -np.inf
+#         if answer == 0.0:
+#             return -np.inf
 
-        answer = log(answer)
+#         answer = log(answer)
 
-        cdef np.ndarray actual_species = self.m.get_species_values()
-        cdef np.ndarray actual_params = self.m.get_params_values()
+#         cdef np.ndarray actual_species = self.m.get_species_values()
+#         cdef np.ndarray actual_params = self.m.get_params_values()
 
-        for i in range(len(self.likelihoods)):
-            # Copy in the global initial conditions.
-            np.copyto(actual_species, self.global_init_state)
-            np.copyto(actual_params, self.global_init_params)
+#         for i in range(len(self.likelihoods)):
+#             # Copy in the global initial conditions.
+#             np.copyto(actual_species, self.global_init_state)
+#             np.copyto(actual_params, self.global_init_params)
 
-            # Then copy in the specified parameters
-            for j in range(self.params_to_estimate.shape[0]):
-                actual_params[ self.params_to_estimate[j] ]  = params[j]
+#             # Then copy in the specified parameters
+#             for j in range(self.params_to_estimate.shape[0]):
+#                 actual_params[ self.params_to_estimate[j] ]  = params[j]
 
-            # The run the likelihood
-            answer += (<Likelihood> self.likelihoods[i]).get_log_likelihood()
+#             # The run the likelihood
+#             answer += (<Likelihood> self.likelihoods[i]).get_log_likelihood()
 
-        return answer / self.sigma**2
+#         return answer / self.sigma**2
 
-    def py_likelihood_function(self, np.ndarray params):
-        return self.likelihood_function(params)
+#     def py_likelihood_function(self, np.ndarray params):
+#         return self.likelihood_function(params)
 
-    def run_mcmc(self, p0 = None):
-        def lnprob(np.ndarray theta):
-            loglhood = self.likelihood_function(np.exp(theta))
-            if np.isnan(loglhood):
-                sys.stderr.write('Parameters returned NaN likelihood: ' + str(np.exp(theta)) + '\n')
-                sys.stderr.flush()
-                return -np.Inf
-            return loglhood
+#     def run_mcmc(self, p0 = None):
+#         def lnprob(np.ndarray theta):
+#             loglhood = self.likelihood_function(np.exp(theta))
+#             if np.isnan(loglhood):
+#                 sys.stderr.write('Parameters returned NaN likelihood: ' + str(np.exp(theta)) + '\n')
+#                 sys.stderr.flush()
+#                 return -np.Inf
+#             return loglhood
 
-        sampler = emcee.EnsembleSampler(self.num_walkers, self.dimension, lnprob)
-        if p0 is None:
-            p0 = np.random.randn(self.dimension*self.num_walkers).reshape((self.num_walkers,self.dimension)) / 20.0
+#         sampler = emcee.EnsembleSampler(self.num_walkers, self.dimension, lnprob)
+#         if p0 is None:
+#             p0 = np.random.randn(self.dimension*self.num_walkers).reshape((self.num_walkers,self.dimension)) / 20.0
 
-        for iteration, (pos,lnp,state) in enumerate(sampler.sample(p0,iterations=self.num_iterations)):
-            print('%.1f percent complete' % (100*float(iteration)/self.num_iterations))
+#         for iteration, (pos,lnp,state) in enumerate(sampler.sample(p0,iterations=self.num_iterations)):
+#             print('%.1f percent complete' % (100*float(iteration)/self.num_iterations))
 
-        return sampler
+#         return sampler
 
 
 
