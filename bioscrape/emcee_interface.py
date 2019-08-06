@@ -238,6 +238,9 @@ class MCMC(object):
         self.M = M
         return self.M
 
+# TODO 
+# self.params_to_estimate should be a list not a dict.
+# Timepoints should be taken from the data automatically.
 try:
     import pandas as pd
 except:
