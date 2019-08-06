@@ -3,6 +3,7 @@ from bioscrape.inference import DeterministicLikelihood as DLL
 from bioscrape.inference import StochasticTrajectoriesLikelihood as STLL
 from bioscrape.inference import StochasticTrajectories
 from bioscrape.inference import BulkData
+
 import numpy as np
 
 def check_priors(param_dict, prior):
