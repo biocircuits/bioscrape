@@ -114,6 +114,9 @@ cdef class BulkData(Data):
                 self.nT = timepoints.shape[1]
             else:
                 raise ValueError("For N > 1 samples timepoints must be N x T, measurements N x T x M. Dimensiosn do not match.")
+        else:
+            self.multiple_timepoints = False
+            self.nT = timepoints.shape[0]
         self.timepoints = timepoints
         self.N = N
         self.M = len(measured_species)
