@@ -16,8 +16,8 @@ class MCMC(object):
         self.params_to_estimate = []
         self.prior = None
         self.nwalkers = 100
-        self.nsteps = 1000
-        self.nsamples = 500
+        self.nsteps = 200
+        self.nsamples = 100
         self.dimension = 0
         self.exp_data = None
         self.type = 'stochastic'
