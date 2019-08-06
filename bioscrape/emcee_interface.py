@@ -101,7 +101,7 @@ class MCMC(object):
     def run_emcee(self, **kwargs):
         plot_show = kwargs.get('plot_show')
         progress = kwargs.get('progress')
-        if not progress:
+        if not 'progress' in kwargs:
             progress = True
         if not plot_show:
             plot_show = False
