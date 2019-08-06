@@ -98,6 +98,9 @@ ENV/
 # Rope project settings
 .ropeproject
 interactive_testing.ipynb
+
+*.svg
+examples/mcmc_results.csv
 # *.py
 examples/models/generic_expressions.xml
 examples/models/integrase_control.xml
@@ -115,6 +118,4 @@ examples/models/transcription_model_without_delay.xml
 examples/models/transcription_with_delay.xml
 examples/models/txtl_toolbox_model.xml
 *.xml
-*.svg
-examples/mcmc_results.csv
 
