@@ -2016,8 +2016,11 @@ cdef class Model:
         Get a dictionary {"species":value}
         """
         A = self.get_species_array()
-
-        return {(s, A[self.species2index[s]]) for s in self.species2index}
+        species_dict = {}
+        for s in self.species2index:
+            species_dict[s] = A[self.species2index[s]] 
+        return species_dict
+        # return {(s, A[self.species2index[s]]) for s in self.species2index}
 
     def get_number_of_species(self):
         return len(self.species2index.keys())
