@@ -115,7 +115,7 @@ class DeterministicInference(object):
         N = np.shape(data)[0]
         if type(initial_conditions) is list and initial_conditions:
             self.MultipleInitialConditions = True 
-        elif type(initial_conditions) is np.ndarray and np.shape(initial_conditions)[0]:
+        elif type(initial_conditions) is dict and len(list(initial_conditions.values())):
             self.MultipleInitialConditions = False
         else:
             raise ValueError('MultipleInitialConditions attribute is not set.')

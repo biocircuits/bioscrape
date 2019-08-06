@@ -51,8 +51,12 @@ class MCMC(object):
         measurements = kwargs.get('measurements')
         initial_conditions = kwargs.get('initial_conditions')
 
-        if timepoints:
-            self.timepoints = timepoints
+        if type(timepoints) is list:
+            if len(timepoints):
+                self.timepoints = timepoints
+        elif type(timepoints) is np.ndarray:
+            if list(timepoints):
+                self.timepoints = timepoints
         if exp_data.size:
             self.exp_data = exp_data
         if len(params):
@@ -74,6 +78,9 @@ class MCMC(object):
         if type(initial_conditions) is dict and len(list(initial_conditions.keys())):
             self.MultipleInitialConditions = False 
             self.initial_conditions = initial_conditions
+        elif initial_conditions == None or self.initial_conditions == None:
+            self.MultipleInitialConditions = False 
+            self.initial_conditions = self.M.get_species_dictionary()
         elif type(initial_conditions) is list and len(initial_conditions):
             self.MultipleInitialConditions = True
             self.initial_conditions = initial_conditions
@@ -93,6 +100,9 @@ class MCMC(object):
 
     def run_emcee(self, **kwargs):
         plot_show = kwargs.get('plot_show')
+        progress = kwargs.get('progress')
+        if not progress:
+            progress = True
         if not plot_show:
             plot_show = False
         try:
@@ -116,7 +126,8 @@ class MCMC(object):
             p0 = np.random.randn(ndim*self.nwalkers).reshape((self.nwalkers,self.dimension)) / 20.0
 
         for iteration, (pos,lnp,state) in enumerate(sampler.sample(p0,iterations=self.nsteps)):
-            print('%.1f percent complete' % (100*float(iteration)/self.nsteps))
+            if progress:
+                print('%.1f percent complete' % (100*float(iteration)/self.nsteps))
 
 
         # sampler.run_mcmc(p0, self.nsteps, progress = True)    
@@ -162,6 +173,8 @@ class MCMC(object):
         for i in range(len(params_names)):
             p_name = params_names[i]
             p_sampled_value = best_p[i]
+            if type(p_sampled_value) is list:
+                p_sampled_value = p_sampled_value[0]
             params[p_name] = p_sampled_value
         fitted_model.M.set_params(params)
         # Simulate again 
@@ -225,31 +238,41 @@ class MCMC(object):
         self.M = M
         return self.M
 
+try:
+    import pandas as pd
+except:
+    print('Pandas package not found.')
 class ExpData:
-    def __init__(self, name, type, data = {}):
+    def __init__(self, name, type, data):
         '''
         name : string representing the name of the data set 
         type : type of data set - whether time series (Use string 'timeseries') or distributional (use 'distrib')
-        data : dictionary with key and value for the data
+        data : Pandas data frame
         '''
         self.name = name
         self.type = type
         self.data = data 
 
+    def get_df(self):
+        ''' 
+        Returns the Pandas data frame object 
+        '''
+        return self.data
+
     def get_keys(self):
         '''
-        Returns the key list of the data dictionary
+        Returns the key list of the Pandas data frame data
         '''
         return list(self.data.keys())
 
-    def get_values(self):
+    def get_values(self, key):
         '''
-        Returns the values list of the data dictionary
+        Returns the values as a list of the Pandas data frame object data with given key 
         '''
-        return list(self.data.values())
+        return list(self.data.get(key))
 
  
-def import_timeseries(filename, time_column, value_column, properties = {}, plot_show = False):
+def import_timeseries(filename, time_column, value_column, properties = {}, plot_show = False, **kwargs):
     '''
     filename : csv file with columns for data values 
     (The column numbers start at 1)
@@ -266,9 +289,13 @@ def import_timeseries(filename, time_column, value_column, properties = {}, plot
     except:
         print('Packages not found. Make sure csv, operator, itertool, and math are installed.')
 
+    delimiter = kwargs.get('delimiter')
+    if not delimiter:
+        delimiter = ','
     with open(filename) as csv_file:
-        csv_reader = csv.reader(csv_file, delimiter=',')
+        csv_reader = csv.reader(csv_file, delimiter= delimiter)
         data_dict = {}
+        data_dict_list = []
         for row in csv_reader:
             if row and row[time_column - 1] and row[value_column - 1]:
                 if properties:
@@ -284,10 +311,13 @@ def import_timeseries(filename, time_column, value_column, properties = {}, plot
                     temp_str_v = cell_v.replace('.','',1).replace('e','',1).replace('-','',1)
                     if temp_str_t.isdigit() and temp_str_v.isdigit():
                         data_dict[float(cell_t)] = float(cell_v)
-        data_obj = ExpData(filename, 'timeseries', data_dict)
-        time = list(data_obj.get_keys())
-        values = list(data_obj.get_values())
+            data_dict_list.append(data_dict)
+        # Create Pandas dataframe out of dictionary
+        data_pd = pd.DataFrame(data_dict_list)
+        data_obj = ExpData(filename, 'timeseries', data_pd)
         if plot_show:
+            time = list(data_obj.get_keys())
+            values = list(data_obj.get_values(data_pd.keys()))
             try:
                 import matplotlib.pyplot as plt
             except:
