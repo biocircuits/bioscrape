@@ -2003,6 +2003,14 @@ cdef class Model:
     def get_parameter_values(self):
         return self.params_values
 
+    def get_parameter_dictionary(self):
+        param_dict = {}
+        keys = self.get_params()
+        values = self.get_parameter_values()
+        for (key, value) in zip(keys, values):
+            param_dict[key] = value
+        return param_dict
+
     def get_species(self):
         """
         Get the set of species names.

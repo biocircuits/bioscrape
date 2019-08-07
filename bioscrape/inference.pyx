@@ -343,7 +343,6 @@ cdef class DeterministicLikelihood(ModelLikelihood):
             
             # Do a simulation of the model with time points specified by the data.
             ans = self.propagator.simulate(self.csim, timepoints).get_result()
-
             # Compare the data using norm and return the likelihood.
             for i in range(self.M):
                 error += np.linalg.norm(self.bd.get_measurements()[n, :,i] - ans[:,self.meas_indices[i]], ord = self.norm_order)

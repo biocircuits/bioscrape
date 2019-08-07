@@ -1,4 +1,8 @@
 import numpy as np
+try:
+    import pandas as pd
+except:
+    print('Pandas package not found.')
 import sys
 import warnings
 import emcee
@@ -14,89 +18,161 @@ class MCMC(object):
     def __init__(self):
         self.M = None
         self.params_to_estimate = []
+        self.init_seed = 0.1 
         self.prior = None
         self.nwalkers = 100
         self.nsteps = 200
-        self.nsamples = 100
         self.dimension = 0
-        self.exp_data = None
+        self.exp_data = None # Pandas DataFrame object
         self.type = 'stochastic'
-        self.timepoints = []
+        self.timepoints = None
+        self.time_column = ''
         self.measurements = ['']
         self.initial_conditions = None
+        self.norm_order = 2
+        self.N_simulations = 3
+        self.LL_data = None
+        self.debug = False
         return 
 
     def get_parameters(self):
         return self.params_to_estimate
 
     def run_mcmc(self, **kwargs):
-        self.prepare_mcmc(params = self.params_to_estimate, prior = self.prior, 
-                        timepoints = self.timepoints, exp_data = self.exp_data, nwalkers = self.nwalkers, 
-                        nsteps = self.nsteps, nsamples = self.nsamples, measurements = self.measurements, 
-                        initial_conditions = self.initial_conditions, **kwargs)
+        # Get initial_conditions from the model if not given explicitly
+        initial_conditions = self.initial_conditions
+        if initial_conditions == None: 
+            self.initial_conditions = self.M.get_species_dictionary()
+        self.prepare_mcmc(**kwargs)
         fitted_model, params = self.run_emcee(**kwargs)
         return fitted_model.M, params
 
     def prepare_mcmc(self, **kwargs):
-        
         timepoints = kwargs.get('timepoints')
         exp_data = kwargs.get('exp_data')
         params = kwargs.get('params')
         prior = kwargs.get('prior')
         nwalkers = kwargs.get('nwalkers')
-        nsamples = kwargs.get('nsamples')
+        init_seed = kwargs.get('init_seed')
         nsteps = kwargs.get('nsteps')
         penalty = kwargs.get('penalty')
         cost = kwargs.get('cost')
         measurements = kwargs.get('measurements')
         initial_conditions = kwargs.get('initial_conditions')
 
+        norm_order = kwargs.get('norm_order')
+        N_simulations = kwargs.get('N_simulations')
+        debug = kwargs.get('debug')
+        if N_simulations:
+            self.N_simulations = N_simulations # Number of simulations per sample to compare to
+        if norm_order:
+            self.norm_order = norm_order # (integer) Which norm to use: 1-Norm, 2-norm, etc.
+        if debug:
+            self.debug = debug
         if type(timepoints) is list:
             if len(timepoints):
                 self.timepoints = timepoints
         elif type(timepoints) is np.ndarray:
             if list(timepoints):
                 self.timepoints = timepoints
-        if exp_data.size:
+        if isinstance(exp_data, (pd.DataFrame, list)):
             self.exp_data = exp_data
-        if len(params):
+        if isinstance(params, list):
             self.params_to_estimate = params
-        if len(prior):
+        if isinstance(prior, dict):
             self.prior = prior
         if nwalkers:
             self.nwalkers = nwalkers
-        if nsamples:
-            self.nsamples = nsamples    
+        if init_seed:
+            self.init_seed = init_seed 
         if nsteps:
             self.nsteps = nsteps
         if penalty:
             self.penalty = penalty
         if cost:
             self.cost = cost
-        if len(measurements):
+        if isinstance(measurements, list):
             self.measurements = measurements
         if type(initial_conditions) is dict and len(list(initial_conditions.keys())):
-            self.MultipleInitialConditions = False 
             self.initial_conditions = initial_conditions
-        elif initial_conditions == None or self.initial_conditions == None:
-            self.MultipleInitialConditions = False 
-            self.initial_conditions = self.M.get_species_dictionary()
         elif type(initial_conditions) is list and len(initial_conditions):
-            self.MultipleInitialConditions = True
             self.initial_conditions = initial_conditions
-        # Create a wrapper for this to make this available to the user.
-        # print(self.measurements)
+        self.LL_data = self.extract_data(self.exp_data)
 
+    def extract_data(self, exp_data):
+        # Get timepoints from given experimental data
+        if isinstance(self.timepoints, (list, np.ndarray)):
+            warnings.warn('Timepoints given by user, not using the data to extract the timepoints automatically.')
+        # Multiple trajectories case 
+        if type(self.exp_data) is list:
+            data_list_final = []
+            timepoints_list = []
+            for df in exp_data:
+                data_list = []
+                if type(df) is not pd.DataFrame:
+                    raise TypeError('All elements of exp_data attribute of an MCMC object must be Pandas DataFrame objects.')
+                # Extract timepoints
+                if self.time_column:
+                    timepoint_i = np.array(df.get(self.time_column)).flatten()
+                    timepoints_list.append(timepoint_i)
+                else:
+                    raise TypeError('time_column attribute of MCMC object must be a string.')
+
+                # Extract measurements    
+                if type(self.measurements) is list and len(self.measurements) == 1:
+                    data_list.append(np.array(df.get(self.measurements[0])))
+                elif type(self.measurements) is list and len(self.measurements) > 1:
+                    for m in self.measurements:
+                        data_list.append(np.array(df.get(m)))
+                T = len(timepoint_i) # Number of timepoints
+                M = len(self.measurements)# Number of measurements
+                data_i = np.array(data_list)
+                data_i = np.reshape(data_i, (M,T))
+                data_list_final.append(data_i)
+            data = np.array(data_list_final)
+            self.timepoints = timepoints_list
+            N = len(exp_data)# Number of trajectories
+            if self.debug:
+                print('N = {0}'.format(N))
+                print('M = {0}'.format(M))
+                print('T = {0}'.format(T))
+                print('The shape of data is {0}'.format(np.shape(data)))
+            assert np.shape(data)[0] == N
+        elif type(exp_data) is pd.DataFrame:
+            # Extract time
+            if self.time_column:
+                self.timepoints = np.array(exp_data.get(self.time_column)).flatten()
+            else:
+                raise TypeError('time_column attribute of MCMC object must be a string.')
+            
+            # Extract measurements
+            if type(self.measurements) is list and len(self.measurements) == 1:
+                data = np.array(exp_data.get(self.measurements[0]))
+            elif type(self.measurements) is list and len(self.measurements) > 1:
+                data_list = []
+                for m in self.measurements:
+                    data_list.append(np.array(df.get(m)))
+                data = np.array(data_list)
+            N = 1 # Number of trajectories
+            T = len(self.timepoints) # Number of timepoints
+            M = len(self.measurements)# Number of measurements
+            if self.debug:
+                # print('timepoints in extract_data : {0}'.format(self.timepoints))
+                print('N = {0}'.format(N))
+                print('M = {0}'.format(M))
+                print('T = {0}'.format(T))
+            data = np.reshape(data, (M,T,N))
+        else:
+            raise TypeError('exp_data attribute of MCMC object must be a list of Pandas DataFrames or a single Pandas DataFrame. ')
+        return data
+ 
     def cost_function(self, log_params):
         if self.type == 'stochastic':
             pid_interface = StochasticInference(self.params_to_estimate, self.M, self.prior)
+            return pid_interface.get_likelihood_function(log_params, self.LL_data, self.timepoints, self.measurements, self.initial_conditions, norm_order = self.norm_order, N_simulations = self.N_simulations, debug = self.debug)
         elif self.type == 'deterministic':
             pid_interface = DeterministicInference(self.params_to_estimate, self.M, self.prior)
-        exp_data = self.exp_data
-        timepoints = self.timepoints
-        measurements = self.measurements
-        initial_conditions = self.initial_conditions
-        return pid_interface.get_likelihood_function(log_params, exp_data, timepoints, measurements, initial_conditions)
+            return pid_interface.get_likelihood_function(log_params, self.LL_data, self.timepoints, self.measurements, self.initial_conditions, norm_order = self.norm_order, debug = self.debug)
 
     def run_emcee(self, **kwargs):
         plot_show = kwargs.get('plot_show')
@@ -114,12 +190,14 @@ class MCMC(object):
         for walker in range(self.nwalkers):
             plist = []
             ploglist = []
-            for key, value in self.params_to_estimate.items():
-                pinit = np.random.normal(value, 0.25*value)
+            for p in self.params_to_estimate:
+                value = self.M.get_parameter_dictionary()[p]
+                pinit = np.random.normal(value, self.init_seed*value)
                 plist.append(pinit)
                 ploglist.append(np.log(pinit))
             p0.append(np.array(plist))   
-            print('Sample log-like: {0}'.format(self.cost_function(np.array(ploglist))))
+            if progress and kwargs.get('debug'):
+                print('Sample log-like: {0}'.format(self.cost_function(np.array(ploglist))))
 
         sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function)
         if p0 is None:
@@ -127,12 +205,8 @@ class MCMC(object):
 
         for iteration, (pos,lnp,state) in enumerate(sampler.sample(p0,iterations=self.nsteps)):
             if progress:
-                # print('%.1f percent complete' % (100*float(iteration)/self.nsteps))
                 l = self.nsteps
                 printProgressBar(float(iteration), l, prefix = 'Progress:', suffix = 'Complete', length = 50)
-
-
-        # sampler.run_mcmc(p0, self.nsteps, progress = True)    
         # Write results
         import csv
         with open('mcmc_results.csv','w', newline = "") as f:
@@ -164,13 +238,13 @@ class MCMC(object):
             best_p.append(bins[best_p_ind])
             # Plot
             if plot_show:
-                plt.savefig('parameter - ' + str(list(self.params_to_estimate.keys())[i]) +' .svg')
+                plt.savefig('parameter - ' + str(self.params_to_estimate[i]) +' .svg')
                 plt.show()
 
         # Write fitted model
         best_p = list(best_p)
         fitted_model = self
-        params_names = list(fitted_model.params_to_estimate.keys())
+        params_names = fitted_model.params_to_estimate
         params = {}
         for i in range(len(params_names)):
             p_name = params_names[i]
@@ -262,13 +336,6 @@ def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, 
         print()
 
 
-# TODO 
-# self.params_to_estimate should be a list not a dict.
-# Timepoints should be taken from the data automatically.
-try:
-    import pandas as pd
-except:
-    print('Pandas package not found.')
 class ExpData:
     def __init__(self, name, type, data):
         '''
