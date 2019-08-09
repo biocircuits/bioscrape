@@ -307,7 +307,6 @@ class MCMC(object):
 
     def export_sbml(self, filename):
         raise NotImplementedError
-        return 
 
     def import_sbml(self, filename):
         M = read_model_from_sbml(filename)
