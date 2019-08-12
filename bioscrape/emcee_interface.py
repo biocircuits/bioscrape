@@ -243,22 +243,18 @@ class MCMC(object):
 
         # Write fitted model
         best_p = list(best_p)
-        fitted_model = self
+        import copy
+        fitted_model = copy.deepcopy(self)
         params_names = fitted_model.params_to_estimate
         params = {}
         for i in range(len(params_names)):
             p_name = params_names[i]
             p_sampled_value = best_p[i]
-            if type(p_sampled_value) is list:
+            if type(p_sampled_value) is list and p_sampled_value:
+                warnings.warn('Multiple parameter values for {0} found with max distribution'.format(params_names[i]))
                 p_sampled_value = p_sampled_value[0]
             params[p_name] = p_sampled_value
         fitted_model.M.set_params(params)
-        # Simulate again 
-        if type(self.timepoints) is list:
-            new_timepoints = np.array([i for i in self.timepoints[0]])
-        else:
-            new_timepoints = self.timepoints
-        fitted_model.simulate(new_timepoints, type = self.type, species_to_plot = self.measurements, plot_show = plot_show)
         return fitted_model, params
     
     def simulate(self, timepoints, **kwargs):
