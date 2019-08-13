@@ -160,12 +160,14 @@ cdef class StochasticTrajectories(Data):
         self.measured_species = measured_species
         self.M = len(self.measured_species)
 
-        if (self.M == 1 and measurements.ndim == 2) or (measurements.shape[2] == self.M):
+        #if (self.M == 1 and measurements.ndim == 2) or (measurements.shape[2] == self.M): 
+        # ( M will always be shape N X T X M (instead of having a different shape of T X M for a single trajectory case ))
+        if measurements.shape[2] == self.M:
             self.nT = measurements.shape[1]
             self.N = measurements.shape[0]
             self.measurements = np.reshape(measurements, (self.N, self.nT, self.M))
         else:
-            raise ValueError("Second dimension of measurments must be the same length as measured_species")
+            raise ValueError("Third dimension of the data array must be the same length as measured_species")
 
 
         if timepoints.shape[0] == self.nT:

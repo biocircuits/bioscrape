@@ -54,6 +54,12 @@ class StochasticInference(object):
 
         N = np.shape(data)[0]
 
+        if debug:
+            print('The timepoints shape is {0}'.format(np.shape(timepoints)))
+            print('The data shape is {0}'.format(np.shape(data)))
+            print('The measurmenets is {0}'.format(measurements))
+            print('The N is {0}'.format(N))
+
         dataStoch = StochasticTrajectories(np.array(timepoints), data, measurements, N)
         #If there are multiple initial conditions in a data-set, should correspond to multiple initial conditions for inference.
         #Note len(initial_conditions) must be equal to the number of trajectories N

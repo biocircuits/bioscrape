@@ -103,6 +103,7 @@ class MCMC(object):
         # Get timepoints from given experimental data
         if isinstance(self.timepoints, (list, np.ndarray)):
             warnings.warn('Timepoints given by user, not using the data to extract the timepoints automatically.')
+        M = len(self.measurements)# Number of measurements
         # Multiple trajectories case 
         if type(self.exp_data) is list:
             data_list_final = []
@@ -124,20 +125,24 @@ class MCMC(object):
                 elif type(self.measurements) is list and len(self.measurements) > 1:
                     for m in self.measurements:
                         data_list.append(np.array(df.get(m)))
-                T = len(timepoint_i) # Number of timepoints
-                M = len(self.measurements)# Number of measurements
+                # Number of timepoints
+                T = len(timepoints_list[0])
+                if T != len(timepoint_i):
+                    warnings.warn('The length of timepoints for all experimental trajectories must be the same, they can have different timepoints but not length of timepoints.')
                 data_i = np.array(data_list)
-                data_i = np.reshape(data_i, (M,T))
+                data_i = np.reshape(data_i, (T, M))
                 data_list_final.append(data_i)
             data = np.array(data_list_final)
             self.timepoints = timepoints_list
             N = len(exp_data)# Number of trajectories
+            T = len(timepoints_list[0])
+            data = np.reshape(data, (N,T,M))
             if self.debug:
                 print('N = {0}'.format(N))
                 print('M = {0}'.format(M))
                 print('T = {0}'.format(T))
                 print('The shape of data is {0}'.format(np.shape(data)))
-            assert np.shape(data)[0] == N
+            assert np.shape(data) == (N,T,M)
         elif type(exp_data) is pd.DataFrame:
             # Extract time
             if self.time_column:
@@ -161,7 +166,7 @@ class MCMC(object):
                 print('N = {0}'.format(N))
                 print('M = {0}'.format(M))
                 print('T = {0}'.format(T))
-            data = np.reshape(data, (M,T,N))
+            data = np.reshape(data, (N,T,M))
         else:
             raise TypeError('exp_data attribute of MCMC object must be a list of Pandas DataFrames or a single Pandas DataFrame. ')
         return data
@@ -244,7 +249,7 @@ class MCMC(object):
         # Write fitted model
         best_p = list(best_p)
         import copy
-        fitted_model = copy.deepcopy(self)
+        fitted_model = copy.copy(self)
         params_names = fitted_model.params_to_estimate
         params = {}
         for i in range(len(params_names)):
