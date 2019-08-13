@@ -240,6 +240,10 @@ class MCMC(object):
             # n, bins, patches = plt.hist(new_list, density = True, bins = 80, histtype = "bar")
             # Find best p
             best_p_ind = np.where(n == np.max(n))
+            if np.shape(best_p_ind)[-1] != 1:
+                warnings.warn('Multiple parameter values for {0} found with max distribution, choosing the first one. The results might be misleadig.'.format(params_names[i]))
+                best_p_ind = np.array(best_p_ind[0].tolist()[0])
+            assert len(best_p_ind) == 1
             best_p.append(bins[best_p_ind])
             # Plot
             if plot_show:
@@ -255,9 +259,6 @@ class MCMC(object):
         for i in range(len(params_names)):
             p_name = params_names[i]
             p_sampled_value = best_p[i]
-            if type(p_sampled_value) is list and p_sampled_value:
-                warnings.warn('Multiple parameter values for {0} found with max distribution'.format(params_names[i]))
-                p_sampled_value = p_sampled_value[0]
             params[p_name] = p_sampled_value
         fitted_model.M.set_params(params)
         return fitted_model, params
@@ -432,9 +433,3 @@ def import_timeseries(filename, time_column, value_column, properties = {}, plot
                 init_time_index = i
     return data_obj
     
-def import_distribution(filename, index_column, value_column, properties = {}, plot_show = False):
-    '''
-    TODO: To be implemented
-    ''' 
-    return
-
