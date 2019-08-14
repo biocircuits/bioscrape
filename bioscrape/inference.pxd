@@ -1,8 +1,8 @@
 cimport numpy as np
 from types import Model
 from types cimport Model
-from simulator cimport CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator
-from simulator import CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator
+from simulator cimport CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
+from simulator import CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
 
 
 ##################################################                ####################################################
@@ -30,14 +30,14 @@ cdef class UniformDistribution(Distribution):
 ##################################################                ####################################################
 ######################################              DATA                              ################################
 #################################################                     ################################################
-
-cdef class BulkData:
+cdef class Data():
     cdef list measured_species
     cdef np.ndarray timepoints
     cdef np.ndarray measurements
+    cdef unsigned N #Number of samples
+    cdef unsigned M #Number of measurements
 
-    cdef inline np.ndarray get_measurements(self):
-        return self.measurements
+    cdef np.ndarray get_measurements(self)
 
     cdef inline list get_measured_species(self):
         return self.measured_species
@@ -45,6 +45,22 @@ cdef class BulkData:
     cdef inline np.ndarray get_timepoints(self):
         return self.timepoints
 
+    cdef inline unsigned get_N(self):
+        return self.N
+
+cdef class BulkData(Data):
+    cdef unsigned multiple_timepoints
+    cdef unsigned nT #Number of timepoints
+
+    
+cdef class FlowData(Data):
+    pass
+
+cdef class StochasticTrajectories(Data):
+    cdef unsigned multiple_timepoints
+    cdef unsigned nT #Number of timepoints
+
+    cdef np.ndarray get_measurements(self)
 
 ##################################################                ####################################################
 ######################################              LIKELIHOOD                        ################################
@@ -53,20 +69,58 @@ cdef class BulkData:
 cdef class Likelihood:
     cdef double get_log_likelihood(self)
 
-cdef class DeterministicLikelihood(Likelihood):
+cdef class ModelLikelihood(Likelihood):
     cdef Model m
+    cdef CSimInterface csim
+    cdef RegularSimulator propagator
+    cdef np.ndarray meas_indices
     cdef np.ndarray init_state_indices
     cdef np.ndarray init_state_vals
     cdef np.ndarray init_param_indices
     cdef np.ndarray init_param_vals
-
-    cdef CSimInterface csim
-    cdef RegularSimulator propagator
-    cdef BulkData bd
-    cdef np.ndarray meas_indices
+    cdef unsigned Nx0 #number of initial conditions
+    cdef unsigned N #number of samples
+    cdef unsigned M #number of measurements
 
     cdef double get_log_likelihood(self)
 
+cdef class DeterministicLikelihood(ModelLikelihood):
+    cdef BulkData bd
+    cdef unsigned norm_order
+    cdef double get_log_likelihood(self)
+
+
+cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
+    cdef StochasticTrajectories sd
+    cdef unsigned initial_state_matching
+    cdef unsigned N_simulations
+    cdef unsigned norm_order
+    cdef np.ndarray timepoints
+    cdef double get_log_likelihood(self)
+    
+
+cdef class StochasticTrajectoryMomentLikelihood(StochasticTrajectoriesLikelihood):
+    cdef unsigned Moments
+    cdef double get_log_likelihood(self)
+    
+
+cdef class StochasticStatesLikelihood(ModelLikelihood):
+    cdef FlowData fd
+    cdef unsigned N_simulations
+    cdef unsigned Moments
+    cdef double get_log_likelihood(self)
+
+##################################################                ####################################################
+######################################              PRIORS        ######################################
+#################################################                     ################################################
+
+cdef class Prior(Likelihood):
+    cdef Model m
+    cdef CSimInterface csim
+    cdef list parameters
+    cdef Distribution dist
+    cdef double get_log_likelihood(self)
+   
 ##################################################                ####################################################
 ######################################              INFERENCE                         ################################
 #################################################                     ################################################
