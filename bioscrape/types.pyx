@@ -2212,7 +2212,7 @@ cdef class Model:
 
         return str(sympy_rate)
 
-    #Renames lists of SIds in an SBML Document
+    # Renames lists of SIds in an SBML Document
     def renameSIds(self, sbml_doc, oldSIds, newSIds, debug = False):
         '''
         Updates the SId from oldSId to newSId for any component of the Subsystem.
@@ -2296,50 +2296,178 @@ cdef class Model:
                 current.renameSIdRefs(oldSId, newSId)
         return document
 
-    #Processes an SBML file so that it no longer contains multiplicity in local variable names
-    # TODO : Need to fix this, doesn't work right now.
-    def process_sbml(self, sbml_file):
+'''    def process_sbml(self, doc):
+        ''' 
+        Processes an SBML file so that it no longer contains multiplicity in local variable names.
+        '''
         try:
             import libsbml
         except:
             raise ImportError("libsbml not found. See sbml.org for installation help!\n" +
                               'If you are using anaconda you can run the following:\n' +
                               'conda install -c SBMLTeam python-libsbml\n\n\n')
-        reader = libsbml.SBMLReader()
-        doc = reader.readSBML(sbml_file)
         if doc.getNumErrors() > 1:
-            raise SyntaxError('SBML File %s cannot be read without errors' % sbml_file)
+            raise SyntaxError('SBML File %s cannot be read without errors. Check sbml.org/validator for more information.' % sbml_file)
 
         model = doc.getModel()
 
         #Search Reactions for Local Parameters
         reaction_list = model.getListOfReactions()
-        oldSIds = []
-        newSIds = []
         for i in range(len(reaction_list)):
             reaction = reaction_list[i]
-            # Warning message if reversible
-            if reaction.getReversible():
-                warnings.warn('Warning: SBML model contains reversible reaction!\n' +
-                              'Please check rate expressions and ensure they are non-negative before doing '+
-                              'stochastic simulations. This warning will always appear if you are using SBML 1 or 2')
-            
-            # get the propensity taken care of now
+            new_doc = doc
+            # get the propensity 
             kl = reaction.getKineticLaw()
             reaction_id = reaction.getId()
             # capture any local parameters
             parameter_list =kl.getListOfParameters() 
+            oldSIds = []
+            newSIds = []
+            # Rename all local parameters with new identifiers that have the reaction ID suffixed.
             for j in range(len(parameter_list)):
                 p = parameter_list[j]
-                pid = p.getIdAttribute()
+                pid = p.getId()
                 oldSIds.append(pid)
-                new_id = pid+"_local_"+reaction_id+"_"+str(j)
+                new_id = pid + reaction_id
                 newSIds.append(new_id)
                 p.setId(new_id)
-                p.setName(new_id)
 
-        new_doc = self.renameSIds(doc, oldSIds, newSIds)
-        return new_doc
+            new_doc = self.renameSIds(new_doc, oldSIds, newSIds)
+        # TODO : Also flatten a Comp package SBML model Level 3 to get rid of any other local scope issues
+        # new_doc = new_doc.flatten_comp_model()
+        return new_doc, new_doc.getModel()
+'''
+    def import_sbml(self, sbml_file):
+        """
+        Convert SBML document to bioscrape Model object. Note that events, compartments, non-standard function definitions,
+        and some kinds of rules will be ignored. 
+        """
+        # Attempt to import libsbml and read the SBML model.
+        try:
+            import libsbml
+        except:
+            raise ImportError("libsbml not found. See sbml.org for installation help!\n" +
+                              'If you are using anaconda you can run the following:\n' +
+                              'conda install -c SBMLTeam python-libsbml\n\n\n')
+
+
+        reader = libsbml.SBMLReader()
+        doc = reader.readSBML(sbml_file)
+        model = doc.getModel()
+
+        # Parse through species and parameters and keep a set of both along with their values.
+        allspecies = {}
+        allparams = {}
+
+        for s in model.getListOfSpecies():
+            sid = s.getId()
+            if sid == "volume" or sid == "t":
+                warnings.warn("You have defined a species called '" + sid +
+                              ". This is being ignored and treated as a keyword.")
+                continue
+            allspecies[sid] = 0.0
+            if np.isfinite(s.getInitialAmount()):
+                allspecies[sid] = s.getInitialAmount()
+            if np.isfinite(s.getInitialConcentration()) and allspecies[sid] == 0:
+                allspecies[sid] = s.getInitialConcentration()
+
+        for p in model.getListOfParameters():
+            pid = p.getId()
+            allparams[pid] = 0.0
+            if np.isfinite(p.getValue()):
+                allparams[pid] = p.getValue()
+
+        # Now go through reactions one at a time to get stoich and rates.
+        for reaction in model.getListOfReactions():
+            # Warning message if reversible
+            if reaction.getReversible():
+                warnings.warn('Warning: SBML model contains reversible reaction!\n' +
+                              'Please check rate expressions and ensure they are non-negative before doing '+
+                              'stochastic simulations.') 
+
+            # Get the reactants and products
+            reactant_list = []
+            product_list = []
+
+            for reactant in reaction.getListOfReactants():
+                reactantspecies = reactant.getSpecies()
+                if reactantspecies in allspecies:
+                    reactant_list.append(reactantspecies)
+                else:
+                    warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.' + 
+                                  ' The species will be added with zero initial amount'.format(reaction.getId()))
+                    allspecies[reactantspecies] = 0.0
+            for product in reaction.getListOfProducts():
+                productspecies = product.getSpecies()
+                if productspecies in allspecies:
+                    product_list.append(productspecies)
+                else:
+                    warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.' + 
+                                  ' The species will be added with zero initial amount'.format(reaction.getId()))
+                    allspecies[productspecies] = 0.0
+
+            out += ('<reaction text="%s--%s" after="--">\n' % ('+'.join(reactant_list),'+'.join(product_list)) )
+            out +=  '    <delay type="none"/>\n'
+
+            # get the propensity taken care of now
+            kl = reaction.getKineticLaw()
+            # capture any local parameters
+            for p in kl.getListOfParameters():
+                pid = p.getId()
+                if pid in allparams:
+                    # If local parameter ID already exists in allparams due to another local/global parameter with same ID
+                    pid = pid + reaction.getId()
+                    # Rename the ID everywhere it's used (such as in the Kinetic Law)
+                    kl.renameSId(p.getId(), pid)
+                allparams[pid] = 0.0
+                if np.isfinite(p.getValue()):
+                    allparams[pid] = p.getValue()
+
+            # get the formula as a string and then add
+            # a leading _ to parameter names
+            kl_formula = libsbml.formulaToL3String(kl.getMath())
+            rate_string = self._add_underscore_to_parameters(kl_formula,allparams)
+
+            # Identify mass-action propensities here TODO
+
+            # Add the propensity tag and finish the reaction.
+            out += ('    <propensity type="general" rate="%s" />\n</reaction>\n\n' % rate_string)
+
+        "reactions = [(['X'], [], 'massaction', {'k':'d1'}), ([], ['X'], 'massaction', {'k':'k1'})]\n",
+        # Go through rules one at a time
+        for rule in model.getListOfRules():
+            if rule.getElementName() != 'assignmentRule' or rule.getElementName() != 'rateRule':
+                warnings.warn('Unsupported rule type: %s' % rule.getElementName())
+                continue
+            rule_formula = libsbml.formulaToL3String(rule.getMath())
+            rulevariable = rule.getVariable()
+            if rulevariable in allspecies:
+                rule_string = rulevariable + '=' + self._add_underscore_to_parameters(rule_formula, allparams)
+            elif rulevariable in allparams:
+                rule_string = '_' + rulevariable + '=' + self._add_underscore_to_parameters(rule_formula, allparams)
+            else:
+                warnings.warn('SBML: Attempting to assign something that is not a parameter or species %s'
+                              % rulevariable)
+                continue
+
+
+            out += '<rule type="assignment" frequency="repeated" equation="%s" />\n' % rule_string
+
+
+        # Check and warn if there are events
+        if len(model.getListOfEvents()) > 0:
+            warnings.warn('SBML model has events. They are being ignored!\n')
+
+        # Check and warn if there are other unrecognized components (function definitions, packages, etc.)
+        if len(model.getListOfCompartments()) or len(model.getListOfUnitDefinitions()):
+            warnings.warn('Compartments, UnitDefintions, and some other SBML model components are not recognized by bioscrape.' + 
+                          'Refer to the bioscrape wiki for more information.')
+
+        # Go through species and parameter initial values.
+        M = Model(species_dict = allspecies, param_dict = allparams, reaction_list = allreactions, rule_list = rules)
+        return M 
+
+
 
     def convert_sbml_to_string(self, sbml_file):
 
