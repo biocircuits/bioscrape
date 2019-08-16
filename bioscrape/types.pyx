@@ -2377,7 +2377,8 @@ cdef class Model:
             if np.isfinite(p.getValue()):
                 allparams[pid] = p.getValue()
 
-        # Now go through reactions one at a time to get stoich and rates.
+        # Now go through reactions one at a time to get stoich and rates, then append to reaction_list.
+        reaction_list = []
         for reaction in model.getListOfReactions():
             # Warning message if reversible
             if reaction.getReversible():
@@ -2388,7 +2389,7 @@ cdef class Model:
             # Get the reactants and products
             reactant_list = []
             product_list = []
-
+            mass_action_formula = ''
             for reactant in reaction.getListOfReactants():
                 reactantspecies = reactant.getSpecies()
                 if reactantspecies in allspecies:
@@ -2397,6 +2398,10 @@ cdef class Model:
                     warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.' + 
                                   ' The species will be added with zero initial amount'.format(reaction.getId()))
                     allspecies[reactantspecies] = 0.0
+                if reactant.getStoichometry() == 1:
+                    mass_action_formula += reactantspecies.getId()
+                else:
+                    mass_action_formula += reactantspecies.getId() + '**' + str(reactant.getStoichometry())
             for product in reaction.getListOfProducts():
                 productspecies = product.getSpecies()
                 if productspecies in allspecies:
@@ -2406,8 +2411,9 @@ cdef class Model:
                                   ' The species will be added with zero initial amount'.format(reaction.getId()))
                     allspecies[productspecies] = 0.0
 
-            out += ('<reaction text="%s--%s" after="--">\n' % ('+'.join(reactant_list),'+'.join(product_list)) )
-            out +=  '    <delay type="none"/>\n'
+            # TODO add to reaction_list
+            #out += ('<reaction text="%s--%s" after="--">\n' % ('+'.join(reactant_list),'+'.join(product_list)) )
+            #out +=  '    <delay type="none"/>\n'
 
             # get the propensity taken care of now
             kl = reaction.getKineticLaw()
@@ -2428,11 +2434,15 @@ cdef class Model:
             kl_formula = libsbml.formulaToL3String(kl.getMath())
             rate_string = self._add_underscore_to_parameters(kl_formula,allparams)
 
-            # Identify mass-action propensities here TODO
-
+            # Identify mass-action propensities here TODO (check if math ast objects are same or not)
+            if kl.getMath() == libsbml.parseFormula(mass_action_formula).getMath():
+                propensity_type = 'mass_action'
+            else:
+                propensity_type = 'general'
+            
             # Add the propensity tag and finish the reaction.
-            out += ('    <propensity type="general" rate="%s" />\n</reaction>\n\n' % rate_string)
-
+            # out += ('    <propensity type="general" rate="%s" />\n</reaction>\n\n' % rate_string)
+            reaction_list.append((reactant_list, product_list, propensity_type, kl_param_dict))
         "reactions = [(['X'], [], 'massaction', {'k':'d1'}), ([], ['X'], 'massaction', {'k':'k1'})]\n",
         # Go through rules one at a time
         for rule in model.getListOfRules():
@@ -2441,6 +2451,7 @@ cdef class Model:
                 continue
             rule_formula = libsbml.formulaToL3String(rule.getMath())
             rulevariable = rule.getVariable()
+            # Also import rate rules TODO
             if rulevariable in allspecies:
                 rule_string = rulevariable + '=' + self._add_underscore_to_parameters(rule_formula, allparams)
             elif rulevariable in allparams:
@@ -2450,21 +2461,17 @@ cdef class Model:
                               % rulevariable)
                 continue
 
-
-            out += '<rule type="assignment" frequency="repeated" equation="%s" />\n' % rule_string
-
-
-        # Check and warn if there are events
-        if len(model.getListOfEvents()) > 0:
-            warnings.warn('SBML model has events. They are being ignored!\n')
+            # Add rules to list/dict to add to Model object TODO
+            #out += '<rule type="assignment" frequency="repeated" equation="%s" />\n' % rule_string
 
         # Check and warn if there are other unrecognized components (function definitions, packages, etc.)
-        if len(model.getListOfCompartments()) or len(model.getListOfUnitDefinitions()):
-            warnings.warn('Compartments, UnitDefintions, and some other SBML model components are not recognized by bioscrape.' + 
+        if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0: 
+            warnings.warn('Compartments, UnitDefintions, Events, and some other SBML model components are not recognized by bioscrape.' + 
                           'Refer to the bioscrape wiki for more information.')
 
         # Go through species and parameter initial values.
-        M = Model(species_dict = allspecies, param_dict = allparams, reaction_list = allreactions, rule_list = rules)
+        #M = Model(species_dict = allspecies, param_dict = allparams, reaction_list = allreactions, rule_list = rules)
+        M = Model(species_dict = allspecies, param_dict = allparams, reaction_list = allreactions)
         return M 
 
 

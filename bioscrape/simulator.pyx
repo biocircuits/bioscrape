@@ -571,7 +571,7 @@ cdef class SSAResult:
     def py_get_result(self):
         return self.get_result()
 
-    #Returns a Pandas Data Frame
+    #Returns a Pandas Data Frame, if it is installed. If not, a Numpy array is returned.
     def py_get_dataframe(self, Model = None):
         try:
             import pandas
@@ -618,6 +618,7 @@ cdef class VolumeSSAResult(SSAResult):
             df["volume"] = self.volume
             return df
         except ModuleNotFoundError:
+            warnings.warn("py_get_dataframe requires the pandas Module to return a Pandas Dataframe object. Numpy array being returned instead. It is highly recommended that you install Pandas")
             return df
 
     cdef VolumeCellState get_final_cell_state(self):
@@ -694,7 +695,7 @@ cdef class CellState:
             return df
 
         except ModuleNotFoundError:
-            warnings.warn("py_get_dataframe requires the pandas Module to return a Pandas Dataframe object. Numpy array being returned instead.")
+            warnings.warn("py_get_dataframe requires the pandas Module to return a Pandas Dataframe object. Numpy array being returned instead. It is highly recommended that you install Pandas")
             return self.state
 
 cdef class DelayCellState(CellState):
@@ -734,6 +735,7 @@ cdef class VolumeCellState(CellState):
             import pandas
             df["volume"] = self.volume
         except ModuleNotFoundError:
+            warnings.warn("py_get_dataframe requires the pandas Module to return a Pandas Dataframe object. Numpy array being returned instead. It is highly recommended that you install Pandas")
             pass
         return df
 
