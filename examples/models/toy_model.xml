@@ -1,0 +1,27 @@
+<model>
+<species name="X" value="14.0" />
+<species name="Y" value="0.0" />
+
+<parameter name="d1" value="0.2" />
+<parameter name="k1" value="10.0" />
+<parameter name="d2" value="0.2" />
+<parameter name="k2" value="10.0" />
+
+<reaction text= "X -- ">
+	<propensity type="massaction" k="d1" species="X" />
+	<delay type="none" />
+</reaction>
+<reaction text= "-- X ">
+	<propensity type="massaction" k="k1" species="" />
+	<delay type="none" />
+</reaction>
+<reaction text= "Y -- ">
+	<propensity type="massaction" k="d2" species="Y" />
+	<delay type="none" />
+</reaction>
+<reaction text= "-- Y ">
+	<propensity type="massaction" k="k2" species="" />
+	<delay type="none" />
+</reaction>
+
+</model>
