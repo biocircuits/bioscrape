@@ -2296,7 +2296,7 @@ cdef class Model:
                 current.renameSIdRefs(oldSId, newSId)
         return document
 
-'''    def process_sbml(self, doc):
+    def process_sbml(self, doc):
         ''' 
         Processes an SBML file so that it no longer contains multiplicity in local variable names.
         '''
@@ -2307,7 +2307,7 @@ cdef class Model:
                               'If you are using anaconda you can run the following:\n' +
                               'conda install -c SBMLTeam python-libsbml\n\n\n')
         if doc.getNumErrors() > 1:
-            raise SyntaxError('SBML File %s cannot be read without errors. Check sbml.org/validator for more information.' % sbml_file)
+            raise SyntaxError("SBML File cannot be read without errors. Check sbml.org/validator for more information.")
 
         model = doc.getModel()
 
@@ -2336,7 +2336,7 @@ cdef class Model:
         # TODO : Also flatten a Comp package SBML model Level 3 to get rid of any other local scope issues
         # new_doc = new_doc.flatten_comp_model()
         return new_doc, new_doc.getModel()
-'''
+
     def import_sbml(self, sbml_file):
         """
         Convert SBML document to bioscrape Model object. Note that events, compartments, non-standard function definitions,
@@ -2358,7 +2358,7 @@ cdef class Model:
         # Parse through species and parameters and keep a set of both along with their values.
         allspecies = {}
         allparams = {}
-
+        allreactions = []
         for s in model.getListOfSpecies():
             sid = s.getId()
             if sid == "volume" or sid == "t":
@@ -2439,11 +2439,13 @@ cdef class Model:
                 propensity_type = 'mass_action'
             else:
                 propensity_type = 'general'
-            
+            param_value_dict = {}
             # Add the propensity tag and finish the reaction.
             # out += ('    <propensity type="general" rate="%s" />\n</reaction>\n\n' % rate_string)
-            reaction_list.append((reactant_list, product_list, propensity_type, kl_param_dict))
-        "reactions = [(['X'], [], 'massaction', {'k':'d1'}), ([], ['X'], 'massaction', {'k':'k1'})]\n",
+            #reaction_list.append((reactant_list, product_list, propensity_type, kl_param_dict))
+            # "reactions = [(['X'], [], 'massaction', {'k':'d1'}), ([], ['X'], 'massaction', {'k':'k1'})]\n",
+            rxn = (reactant_list, product_list, propensity_type, param_value_dict)
+            allreactions.append(rxn)
         # Go through rules one at a time
         for rule in model.getListOfRules():
             if rule.getElementName() != 'assignmentRule' or rule.getElementName() != 'rateRule':
@@ -2500,11 +2502,10 @@ cdef class Model:
 
 
         reader = libsbml.SBMLReader()
-        #raw_doc = reader.readSBML(sbml_file)
-        doc = self.process_sbml(sbml_file)
+        raw_doc = reader.readSBML(sbml_file)
+        doc, model = self.process_sbml(raw_doc)
         if doc.getNumErrors() > 1:
-            raise SyntaxError('SBML File %s cannot be read without errors' % sbml_file)
-        model = doc.getModel()
+            raise SyntaxError("SBML File {0} cannot be read without errors".format(sbml_file))
 
         # Add the top tag
         out += '<model>\n\n'
@@ -2536,7 +2537,7 @@ cdef class Model:
             if reaction.getReversible():
                 warnings.warn('Warning: SBML model contains reversible reaction!\n' +
                               'Please check rate expressions and ensure they are non-negative before doing '+
-                              'stochastic simulations. This warning will always appear if you are using SBML 1 or 2')
+                              'stochastic simulations.')
 
             # Get the reactants and products
             reactant_list = []
