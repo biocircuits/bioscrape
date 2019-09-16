@@ -40,7 +40,7 @@
             </assignmentRule>
         </listOfRules>
         <listOfReactions>
-            <reaction id="in">
+            <reaction id="in" reversible = "false">
                 <listOfReactants>
                     <speciesReference species="X0"/>
                 </listOfReactants>
@@ -60,7 +60,7 @@
                     </listOfParameters>
                 </kineticLaw>
             </reaction>
-            <reaction id="out">
+            <reaction id="out" reversible = "false">
                 <listOfReactants>
                     <speciesReference species="T"/>
                 </listOfReactants>
@@ -72,7 +72,7 @@
                         <apply>
                             <times/>
                             <ci> k2 </ci>
-                            <ci> S2 </ci>
+                            <ci> T </ci>
                         </apply>
                     </math>
                     <listOfParameters>

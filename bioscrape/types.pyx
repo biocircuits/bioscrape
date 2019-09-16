@@ -2337,147 +2337,7 @@ cdef class Model:
         # new_doc = new_doc.flatten_comp_model()
         return new_doc, new_doc.getModel()
 
-    def import_sbml(self, sbml_file):
-        """
-        Convert SBML document to bioscrape Model object. Note that events, compartments, non-standard function definitions,
-        and some kinds of rules will be ignored. 
-        """
-        # Attempt to import libsbml and read the SBML model.
-        try:
-            import libsbml
-        except:
-            raise ImportError("libsbml not found. See sbml.org for installation help!\n" +
-                              'If you are using anaconda you can run the following:\n' +
-                              'conda install -c SBMLTeam python-libsbml\n\n\n')
-
-
-        reader = libsbml.SBMLReader()
-        doc = reader.readSBML(sbml_file)
-        model = doc.getModel()
-
-        # Parse through species and parameters and keep a set of both along with their values.
-        allspecies = {}
-        allparams = {}
-        allreactions = []
-        for s in model.getListOfSpecies():
-            sid = s.getId()
-            if sid == "volume" or sid == "t":
-                warnings.warn("You have defined a species called '" + sid +
-                              ". This is being ignored and treated as a keyword.")
-                continue
-            allspecies[sid] = 0.0
-            if np.isfinite(s.getInitialAmount()):
-                allspecies[sid] = s.getInitialAmount()
-            if np.isfinite(s.getInitialConcentration()) and allspecies[sid] == 0:
-                allspecies[sid] = s.getInitialConcentration()
-
-        for p in model.getListOfParameters():
-            pid = p.getId()
-            allparams[pid] = 0.0
-            if np.isfinite(p.getValue()):
-                allparams[pid] = p.getValue()
-
-        # Now go through reactions one at a time to get stoich and rates, then append to reaction_list.
-        reaction_list = []
-        for reaction in model.getListOfReactions():
-            # Warning message if reversible
-            if reaction.getReversible():
-                warnings.warn('Warning: SBML model contains reversible reaction!\n' +
-                              'Please check rate expressions and ensure they are non-negative before doing '+
-                              'stochastic simulations.') 
-
-            # Get the reactants and products
-            reactant_list = []
-            product_list = []
-            mass_action_formula = ''
-            for reactant in reaction.getListOfReactants():
-                reactantspecies = reactant.getSpecies()
-                if reactantspecies in allspecies:
-                    reactant_list.append(reactantspecies)
-                else:
-                    warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.' + 
-                                  ' The species will be added with zero initial amount'.format(reaction.getId()))
-                    allspecies[reactantspecies] = 0.0
-                if reactant.getStoichometry() == 1:
-                    mass_action_formula += reactantspecies.getId()
-                else:
-                    mass_action_formula += reactantspecies.getId() + '**' + str(reactant.getStoichometry())
-            for product in reaction.getListOfProducts():
-                productspecies = product.getSpecies()
-                if productspecies in allspecies:
-                    product_list.append(productspecies)
-                else:
-                    warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.' + 
-                                  ' The species will be added with zero initial amount'.format(reaction.getId()))
-                    allspecies[productspecies] = 0.0
-
-            # TODO add to reaction_list
-            #out += ('<reaction text="%s--%s" after="--">\n' % ('+'.join(reactant_list),'+'.join(product_list)) )
-            #out +=  '    <delay type="none"/>\n'
-
-            # get the propensity taken care of now
-            kl = reaction.getKineticLaw()
-            # capture any local parameters
-            for p in kl.getListOfParameters():
-                pid = p.getId()
-                if pid in allparams:
-                    # If local parameter ID already exists in allparams due to another local/global parameter with same ID
-                    pid = pid + reaction.getId()
-                    # Rename the ID everywhere it's used (such as in the Kinetic Law)
-                    kl.renameSId(p.getId(), pid)
-                allparams[pid] = 0.0
-                if np.isfinite(p.getValue()):
-                    allparams[pid] = p.getValue()
-
-            # get the formula as a string and then add
-            # a leading _ to parameter names
-            kl_formula = libsbml.formulaToL3String(kl.getMath())
-            rate_string = self._add_underscore_to_parameters(kl_formula,allparams)
-
-            # Identify mass-action propensities here TODO (check if math ast objects are same or not)
-            if kl.getMath() == libsbml.parseFormula(mass_action_formula).getMath():
-                propensity_type = 'mass_action'
-            else:
-                propensity_type = 'general'
-            param_value_dict = {}
-            # Add the propensity tag and finish the reaction.
-            # out += ('    <propensity type="general" rate="%s" />\n</reaction>\n\n' % rate_string)
-            #reaction_list.append((reactant_list, product_list, propensity_type, kl_param_dict))
-            # "reactions = [(['X'], [], 'massaction', {'k':'d1'}), ([], ['X'], 'massaction', {'k':'k1'})]\n",
-            rxn = (reactant_list, product_list, propensity_type, param_value_dict)
-            allreactions.append(rxn)
-        # Go through rules one at a time
-        for rule in model.getListOfRules():
-            if rule.getElementName() != 'assignmentRule' or rule.getElementName() != 'rateRule':
-                warnings.warn('Unsupported rule type: %s' % rule.getElementName())
-                continue
-            rule_formula = libsbml.formulaToL3String(rule.getMath())
-            rulevariable = rule.getVariable()
-            # Also import rate rules TODO
-            if rulevariable in allspecies:
-                rule_string = rulevariable + '=' + self._add_underscore_to_parameters(rule_formula, allparams)
-            elif rulevariable in allparams:
-                rule_string = '_' + rulevariable + '=' + self._add_underscore_to_parameters(rule_formula, allparams)
-            else:
-                warnings.warn('SBML: Attempting to assign something that is not a parameter or species %s'
-                              % rulevariable)
-                continue
-
-            # Add rules to list/dict to add to Model object TODO
-            #out += '<rule type="assignment" frequency="repeated" equation="%s" />\n' % rule_string
-
-        # Check and warn if there are other unrecognized components (function definitions, packages, etc.)
-        if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0: 
-            warnings.warn('Compartments, UnitDefintions, Events, and some other SBML model components are not recognized by bioscrape.' + 
-                          'Refer to the bioscrape wiki for more information.')
-
-        # Go through species and parameter initial values.
-        #M = Model(species_dict = allspecies, param_dict = allparams, reaction_list = allreactions, rule_list = rules)
-        M = Model(species_dict = allspecies, param_dict = allparams, reaction_list = allreactions)
-        return M 
-
-
-
+    
     def convert_sbml_to_string(self, sbml_file):
 
         """
@@ -2611,6 +2471,261 @@ cdef class Model:
         # Add the final tag and return
         out += '</model>\n'
         return out
+
+
+def import_sbml(sbml_file):
+    """
+    Convert SBML document to bioscrape Model object. Note that events, compartments, non-standard function definitions,
+    and some kinds of rules will be ignored. 
+    TODO : Finish development
+    """
+    # Attempt to import libsbml and read the SBML model.
+    try:
+        import libsbml
+    except:
+        raise ImportError("libsbml not found. See sbml.org for installation help!\n" +
+                        'If you are using anaconda you can run the following:\n' +
+                            'conda install -c SBMLTeam python-libsbml\n\n\n')
+
+
+    reader = libsbml.SBMLReader()
+    doc = reader.readSBML(sbml_file)
+
+    if doc.getNumErrors() > 1:
+        raise SyntaxError("SBML File {0} cannot be read without errors".format(sbml_file))
+
+    model = doc.getModel()
+    # Parse through species and parameters and keep a set of both along with their values.
+    allspecies = {}
+    allparams = {}
+    allreactions = []
+    for s in model.getListOfSpecies():
+        sid = s.getId()
+        if sid == "volume" or sid == "t":
+            warnings.warn("You have defined a species called '" + sid +
+                            ". This species is being ignored and treated as a keyword.")
+            continue
+        allspecies[sid] = 0.0
+        if np.isfinite(s.getInitialAmount()):
+            allspecies[sid] = s.getInitialAmount()
+        if np.isfinite(s.getInitialConcentration()) and allspecies[sid] == 0:
+            allspecies[sid] = s.getInitialConcentration()
+
+    for p in model.getListOfParameters():
+        pid = p.getId()
+        allparams[pid] = 0.0
+        if np.isfinite(p.getValue()):
+            allparams[pid] = p.getValue()
+
+    # Now go through reactions one at a time to get stoich and rates, then append to reaction_list.
+    reaction_list = []
+    for reaction in model.getListOfReactions():
+        mass_action_formula = ''
+        mass_action_formula_fwd = ''
+        mass_action_formula_rev = ''
+        mass_action_formula_fwd1 = ''
+        mass_action_formula_rev1 = ''
+        # get the propensity 
+        kl = reaction.getKineticLaw()
+        # capture any local parameters
+        for p in kl.getListOfParameters():
+            pid = p.getId()
+            if pid in allparams:
+                # If local parameter ID already exists in allparams due to another local/global parameter with same ID
+                pid = pid + reaction.getId()
+                # Rename the ID everywhere it's used (such as in the Kinetic Law)
+                kl.renameSId(p.getId(), pid)
+            allparams[pid] = 0.0
+            if np.isfinite(p.getValue()):
+                allparams[pid] = p.getValue()
+
+        # get the formula as a string and then add
+        # a leading _ to parameter names
+        kl_formula = libsbml.formulaToL3String(kl.getMath())
+        #rate_string = self._add_underscore_to_parameters(kl_formula, allparams)
+
+        param_value_dict = {}
+        param_value_dict_fwd = {}
+        param_value_dict_rev = {}
+        param_value_dict_fwd1 = {}
+        param_value_dict_rev1 = {}
+        # Warning message if reversible
+        if reaction.getReversible():
+            warnings.warn('SBML model contains reversible reaction!\n' +
+                            'Please check rate expressions and ensure they are non-negative before doing '+
+                            'stochastic simulations.') 
+            plist = kl.getListOfParameters()
+            # Create two separate reactions
+            if len(plist) == 1:
+                pid = plist[0].getId()
+                param_value_dict_fwd[pid] = plist[0].getValue()
+                param_value_dict_rev[pid] = plist[0].getValue()
+                param_value_dict_fwd1[pid] = plist[0].getValue()
+                param_value_dict_rev1[pid] = plist[0].getValue()
+                mass_action_formula_fwd += pid + ' * '  
+                mass_action_formula_rev += pid + ' * '  
+                mass_action_formula_fwd1 += pid + ' * '  
+                mass_action_formula_rev1 += pid + ' * '  
+            elif len(plist) == 2:
+                pid0 = plist[0].getId()
+                pid1 = plist[1].getId()
+                param_value_dict_fwd['k'] = pid0
+                param_value_dict_rev['k'] = pid1
+                param_value_dict_fwd1['k'] = pid1
+                param_value_dict_rev1['k'] = pid0
+                mass_action_formula_fwd += pid0 + ' * '  
+                mass_action_formula_rev += pid1 + ' * '  
+                mass_action_formula_fwd1 += pid1 + ' * '  
+                mass_action_formula_rev1 += pid0 + ' * '  
+            # Get the reactants and products
+            # Get the reactants and products
+            reactant_list_fwd = []
+            product_list_fwd = []
+            reactant_list_rev = []
+            product_list_rev = []
+            for reactant in reaction.getListOfReactants():
+                reactantspecies = model.getSpecies(reactant.getSpecies())
+                reactantspecies_id = reactantspecies.getId()
+                if reactantspecies_id in allspecies:
+                    reactant_list_fwd.append(reactantspecies_id)
+                    product_list_rev.append(reactantspecies_id)
+                else:
+                    warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.' + 
+                                ' The species will be added with zero initial amount'.format(reaction.getId()))
+                    allspecies[reactantspecies_id] = 0.0
+                    reactant_list_fwd.append(reactantspecies_id)
+                    product_list_rev.append(reactantspecies_id)
+                if reactant.getStoichiometry() == 1:
+                    mass_action_formula_fwd += reactantspecies.getId()
+                    mass_action_formula_fwd1 += reactantspecies.getId()
+                else:
+                    mass_action_formula_fwd += reactantspecies.getId() + '**' + str(reactant.getStoichiometry())
+                    mass_action_formula_fwd1 += reactantspecies.getId() + '**' + str(reactant.getStoichiometry())
+            for product in reaction.getListOfProducts():
+                productspecies = model.getSpecies(product.getSpecies())
+                productspecies_id = productspecies.getId()
+                if productspecies_id in allspecies:
+                    product_list_fwd.append(productspecies_id)
+                    reactant_list_rev.append(productspecies_id)
+                else:
+                    warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.' + 
+                                ' The species will be added with zero initial amount'.format(reaction.getId()))
+                    allspecies[productspecies_id] = 0.0
+                    product_list_fwd.append(productspecies_id)
+                    reactant_list_rev.append(productspecies_id)
+                if product.getStoichiometry() == 1:
+                    mass_action_formula_rev += productspecies.getId()
+                    mass_action_formula_rev1 += productspecies.getId()
+                else:
+                    mass_action_formula_rev += productspecies.getId() + '**' + str(product.getStoichiometry())
+                    mass_action_formula_rev1 += productspecies.getId() + '**' + str(product.getStoichiometry())
+
+            rxn_fwd = ()
+            rxn_rev = ()
+            formula_rxn = libsbml.parseL3Formula(mass_action_formula_fwd + '-' + mass_action_formula_rev)
+            formula_rxn1 = libsbml.parseL3Formula(mass_action_formula_fwd1 + '-' + mass_action_formula_rev1)
+            if kl.getMath() == formula_rxn:
+                propensity_type = 'mass_action'
+                rxn_fwd = (reactant_list_fwd, product_list_fwd, propensity_type, param_value_dict_fwd)
+                rxn_rev = (reactant_list_rev, product_list_rev, propensity_type, param_value_dict_rev)
+                allreactions.append(rxn_fwd)
+                allreactions.append(rxn_rev)
+            elif kl.getMath() == formula_rxn1:
+                propensity_type = 'mass_action'
+                rxn_fwd = (reactant_list_fwd, product_list_fwd, propensity_type, param_value_dict_fwd1)
+                rxn_rev = (reactant_list_rev, product_list_rev, propensity_type, param_value_dict_rev1)
+                allreactions.append(rxn_fwd)
+                allreactions.append(rxn_rev)
+            else:
+                propensity_type = 'general'
+                rxn_fwd = (reactant_list_fwd, product_list_fwd, propensity_type, kl_formula)
+                allreactions.append(rxn_fwd)
+
+        else:
+            plist = kl.getListOfParameters()
+            if len(plist) == 1:
+                pid = plist[0].getId()
+                mass_action_formula += pid + ' * '
+                param_value_dict['k'] = pid
+            # Get the reactants and products
+            reactant_list = []
+            product_list = []
+            for reactant in reaction.getListOfReactants():
+                reactantspecies = model.getSpecies(reactant.getSpecies())
+                reactantspecies_id = reactantspecies.getId()
+                if reactantspecies_id in allspecies:
+                    reactant_list.append(reactantspecies_id)
+                else:
+                    warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.' + 
+                                ' The species will be added with zero initial amount'.format(reaction.getId()))
+                    allspecies[reactantspecies_id] = 0.0
+                    reactant_list.append(reactantspecies_id)
+                if reactant.getStoichiometry() == 1:
+                    mass_action_formula += reactantspecies.getId()
+                else:
+                    mass_action_formula += reactantspecies.getId() + '**' + str(reactant.getStoichiometry())
+            for product in reaction.getListOfProducts():
+                productspecies = model.getSpecies(product.getSpecies())
+                productspecies_id = productspecies.getId()
+                if productspecies_id in allspecies:
+                    product_list.append(productspecies_id)
+                else:
+                    warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.' + 
+                                ' The species will be added with zero initial amount'.format(reaction.getId()))
+                    allspecies[productspecies_id] = 0.0
+                    product_list.append(productspecies_id)
+
+        # Identify mass-action propensities here
+            print(kl.getFormula())
+            print(mass_action_formula)
+            print(libsbml.parseFormula(kl.getFormula()) == libsbml.parseFormula(mass_action_formula))
+            if libsbml.parseL3Formula(kl.getFormula()) == libsbml.parseL3Formula(mass_action_formula):
+                propensity_type = 'mass_action'
+                rxn = (reactant_list, product_list, propensity_type, param_value_dict)
+            else:
+                propensity_type = 'general'
+                rxn = (reactant_list, product_list, propensity_type, kl_formula)
+        # "reactions = [(['X'], [], 'massaction', {'k':'d1'}), ([], ['X'], 'massaction', {'k':'k1'})]\n",
+            allreactions.append(rxn)
+    # Go through rules one at a time
+    allrules = []
+    #"Rules must be a tuple: (rule_type (string), rule_attributes (dict), rule_frequency (optional))")
+    for rule in model.getListOfRules():
+        rule_formula = libsbml.formulaToL3String(rule.getMath())
+        rulevariable = rule.getVariable()
+        if rule.getElementName() != 'assignmentRule' or rule.getElementName() != 'rateRule':
+            warnings.warn('Unsupported rule type: %s' % rule.getElementName())
+            continue
+        elif rule.getElementName() == 'assignmentRule':
+            rule_type = 'assignment'
+        elif rule.getElementName() == 'rateRule':
+            rule_rxn = ([''], [rulevariable.getId()], 'general', rule_formula) # Create --> X type reaction to model rate rules.
+            allreactions.append(rule_rxn)
+            continue
+
+        rule_tuple = (rule_type, rule_formula)
+        allrules.append(rule_tuple)
+        # Also import rate rules TODO
+        #if rulevariable in allspecies:
+           # rule_string = rulevariable + '=' + self._add_underscore_to_parameters(rule_formula, allparams)
+        #elif rulevariable in allparams:
+           # rule_string = '_' + rulevariable + '=' + self._add_underscore_to_parameters(rule_formula, allparams)
+        #else:
+        #    warnings.warn('SBML: Attempting to assign something that is not a parameter or species %s'
+        #                    % rulevariable)
+        #    continue
+
+        # Add rules to list/dict to add to Model object TODO
+        #out += '<rule type="assignment" frequency="repeated" equation="%s" />\n' % rule_string
+    # Check and warn if there are other unrecognized components (function definitions, packages, etc.)
+    if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0: 
+        warnings.warn('Compartments, UnitDefintions, Events, and some other SBML model components are not recognized by bioscrape.' + 
+                        'Refer to the bioscrape wiki for more information.')
+
+    #M = Model(species_dict = allspecies, param_dict = allparams, reaction_list = allreactions, rule_list = rules)
+    print(allreactions)
+    M = Model(species = allspecies.keys(), parameters = allparams.items(), reactions = allreactions, initial_condition_dict = allspecies, rules = allrules)
+    return M 
 
 
 
