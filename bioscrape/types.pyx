@@ -1595,8 +1595,10 @@ cdef class Model:
 
         #Copy dictionaries so they aren't altered if they are being used by external code
         propensity_param_dict = dict(propensity_param_dict)
+
         if delay_param_dict != None:
             delay_param_dict = dict(delay_param_dict)
+
 
         #Reaction Reactants and Products stored in a dictionary
         reaction_update_dict = {}
@@ -2333,7 +2335,7 @@ cdef class Model:
                 p.setId(new_id)
 
             new_doc = self.renameSIds(new_doc, oldSIds, newSIds)
-        # TODO : Also flatten a Comp package SBML model Level 3 to get rid of any other local scope issues
+        # enhancement: Also flatten a Comp package SBML model Level 3 to get rid of any other local scope issues
         # new_doc = new_doc.flatten_comp_model()
         return new_doc, new_doc.getModel()
 
@@ -2477,7 +2479,9 @@ def import_sbml(sbml_file):
     """
     Convert SBML document to bioscrape Model object. Note that events, compartments, non-standard function definitions,
     and some kinds of rules will be ignored. 
-    TODO : Finish development
+    Adds mass action kinetics based reactions with the appropriate mass action propensity in bioscrape and all 
+    other types are added as general propensity types. 
+    Local parameters are renamed if there is a conflict since bioscrape does not have a local environment.
     """
     # Attempt to import libsbml and read the SBML model.
     try:
@@ -2534,7 +2538,8 @@ def import_sbml(sbml_file):
                 # If local parameter ID already exists in allparams due to another local/global parameter with same ID
                 pid = pid + reaction.getId()
                 # Rename the ID everywhere it's used (such as in the Kinetic Law)
-                kl.renameSId(p.getId(), pid)
+                kl.renameSIdRefs(p.getId(), pid)
+                p.setId(pid)
             allparams[pid] = 0.0
             if np.isfinite(p.getValue()):
                 allparams[pid] = p.getValue()
@@ -2558,10 +2563,10 @@ def import_sbml(sbml_file):
             # Create two separate reactions
             if len(plist) == 1:
                 pid = plist[0].getId()
-                param_value_dict_fwd[pid] = plist[0].getValue()
-                param_value_dict_rev[pid] = plist[0].getValue()
-                param_value_dict_fwd1[pid] = plist[0].getValue()
-                param_value_dict_rev1[pid] = plist[0].getValue()
+                param_value_dict_fwd['k'] = pid
+                param_value_dict_rev['k'] = pid
+                param_value_dict_fwd1['k'] = pid
+                param_value_dict_rev1['k'] = pid
                 mass_action_formula_fwd += pid + ' * '  
                 mass_action_formula_rev += pid + ' * '  
                 mass_action_formula_fwd1 += pid + ' * '  
@@ -2596,11 +2601,19 @@ def import_sbml(sbml_file):
                     reactant_list_fwd.append(reactantspecies_id)
                     product_list_rev.append(reactantspecies_id)
                 if reactant.getStoichiometry() == 1:
-                    mass_action_formula_fwd += reactantspecies.getId()
-                    mass_action_formula_fwd1 += reactantspecies.getId()
+                    if reactant == reaction.getListOfReactants()[-1]:
+                        mass_action_formula_fwd += reactantspecies.getId()
+                        mass_action_formula_fwd1 += reactantspecies.getId()
+                    else:
+                        mass_action_formula_fwd += reactantspecies.getId() + ' * '  
+                        mass_action_formula_fwd1 += reactantspecies.getId() + ' * '  
                 else:
-                    mass_action_formula_fwd += reactantspecies.getId() + '**' + str(reactant.getStoichiometry())
-                    mass_action_formula_fwd1 += reactantspecies.getId() + '**' + str(reactant.getStoichiometry())
+                    if reactant == reaction.getListOfReactants()[-1]:
+                            mass_action_formula_fwd += reactantspecies.getId() + '^' + str(int(reactant.getStoichiometry()))
+                            mass_action_formula_fwd1 += reactantspecies.getId() + '^' + str(int(reactant.getStoichiometry()))
+                    else:
+                        mass_action_formula_fwd += reactantspecies.getId() + '^' + str(int(reactant.getStoichiometry())) + ' * '  
+                        mass_action_formula_fwd1 += reactantspecies.getId() + '^' + str(int(reactant.getStoichiometry())) + ' * '  
             for product in reaction.getListOfProducts():
                 productspecies = model.getSpecies(product.getSpecies())
                 productspecies_id = productspecies.getId()
@@ -2614,25 +2627,36 @@ def import_sbml(sbml_file):
                     product_list_fwd.append(productspecies_id)
                     reactant_list_rev.append(productspecies_id)
                 if product.getStoichiometry() == 1:
-                    mass_action_formula_rev += productspecies.getId()
-                    mass_action_formula_rev1 += productspecies.getId()
+                    if product == reaction.getListOfProducts()[-1]:
+                        mass_action_formula_rev += productspecies.getId()
+                        mass_action_formula_rev1 += productspecies.getId()
+                    else:
+                        mass_action_formula_rev += productspecies.getId() + ' * '  
+                        mass_action_formula_rev1 += productspecies.getId() + ' * '  
                 else:
-                    mass_action_formula_rev += productspecies.getId() + '**' + str(product.getStoichiometry())
-                    mass_action_formula_rev1 += productspecies.getId() + '**' + str(product.getStoichiometry())
+                    if product == reaction.getListOfProducts()[-1]:
+                        mass_action_formula_rev += productspecies.getId() + '^' + str(int(product.getStoichiometry()))
+                        mass_action_formula_rev1 += productspecies.getId() + '^' + str(int(product.getStoichiometry()))
+                    else:
+                        mass_action_formula_rev += productspecies.getId() + '^' + str(int(product.getStoichiometry())) + ' * '  
+                        mass_action_formula_rev1 += productspecies.getId() + '^' + str(int(product.getStoichiometry())) + ' * '  
 
             rxn_fwd = ()
             rxn_rev = ()
-            formula_rxn = libsbml.parseFormula(mass_action_formula_fwd + '-' + mass_action_formula_rev)
-            formula_rxn1 = libsbml.parseFormula(mass_action_formula_fwd1 + '-' + mass_action_formula_rev1)
+            mass_action_formula = mass_action_formula_fwd + ' - ' + mass_action_formula_rev
+            mass_action_formula1 = mass_action_formula_fwd1 + ' - ' + mass_action_formula_rev1
+            formula_rxn = libsbml.parseFormula(mass_action_formula)
+            formula_rxn1 = libsbml.parseFormula(mass_action_formula1)
 
             ast_kl = libsbml.parseFormula(kl.getFormula())
-            if ast_kl.getNumerator() == formula_rxn.getNumerator() and ast_kl.getDenominator() == formula_rxn.getDenominator():
+            # Is there a better way to compare MathML / AST node objects ? TODO
+            if mass_action_formula == kl.getFormula():
                 propensity_type = 'massaction'
                 rxn_fwd = (reactant_list_fwd, product_list_fwd, propensity_type, param_value_dict_fwd)
                 rxn_rev = (reactant_list_rev, product_list_rev, propensity_type, param_value_dict_rev)
                 allreactions.append(rxn_fwd)
                 allreactions.append(rxn_rev)
-            elif ast_kl.getNumerator() == formula_rxn1.getNumerator() and ast_kl.getDenominator() == formula_rxn1.getDenominator():
+            elif mass_action_formula1 == kl.getFormula():
                 propensity_type = 'massaction'
                 rxn_fwd = (reactant_list_fwd, product_list_fwd, propensity_type, param_value_dict_fwd1)
                 rxn_rev = (reactant_list_rev, product_list_rev, propensity_type, param_value_dict_rev1)
@@ -2640,7 +2664,9 @@ def import_sbml(sbml_file):
                 allreactions.append(rxn_rev)
             else:
                 propensity_type = 'general'
-                rxn_fwd = (reactant_list_fwd, product_list_fwd, propensity_type, kl_formula)
+                general_kl_formula = {}
+                general_kl_formula['rate'] = kl_formula
+                rxn_fwd = (reactant_list_fwd, product_list_fwd, propensity_type, general_kl_formula)
                 allreactions.append(rxn_fwd)
 
         else:
@@ -2663,9 +2689,15 @@ def import_sbml(sbml_file):
                     allspecies[reactantspecies_id] = 0.0
                     reactant_list.append(reactantspecies_id)
                 if reactant.getStoichiometry() == 1:
-                    mass_action_formula += reactantspecies.getId()
+                    if reactant == reaction.getListOfReactants()[-1]:
+                        mass_action_formula += reactantspecies.getId()
+                    else:
+                        mass_action_formula += reactantspecies.getId() + ' * '
                 else:
-                    mass_action_formula += reactantspecies.getId() + '**' + str(reactant.getStoichiometry())
+                    if reactant == reaction.getListOfReactants()[-1]:
+                        mass_action_formula += reactantspecies.getId() + '^' + str(reactant.getStoichiometry())
+                    else:
+                        mass_action_formula += reactantspecies.getId() + '^' + str(reactant.getStoichiometry()) + ' * '
             for product in reaction.getListOfProducts():
                 productspecies = model.getSpecies(product.getSpecies())
                 productspecies_id = productspecies.getId()
@@ -2680,13 +2712,15 @@ def import_sbml(sbml_file):
         # Identify mass-action propensities here
             ast_ma = libsbml.parseFormula(mass_action_formula)
             ast_kl = libsbml.parseFormula(kl.getFormula())
-            if ast_kl.getNumerator() == ast_ma.getNumerator() and ast_kl.getDenominator() == ast_ma.getDenominator():
+            #if ast_kl.getNumerator() == ast_ma.getNumerator() and ast_kl.getDenominator() == ast_ma.getDenominator():
+            if mass_action_formula == kl.getFormula():
                 propensity_type = 'massaction'
                 rxn = (reactant_list, product_list, propensity_type, param_value_dict)
             else:
                 propensity_type = 'general'
-                rxn = (reactant_list, product_list, propensity_type, kl_formula)
-        # "reactions = [(['X'], [], 'massaction', {'k':'d1'}), ([], ['X'], 'massaction', {'k':'k1'})]\n",
+                general_kl_formula = {}
+                general_kl_formula['rate'] = kl_formula
+                rxn = (reactant_list, product_list, propensity_type, general_kl_formula)
             allreactions.append(rxn)
     # Go through rules one at a time
     allrules = []
@@ -2706,25 +2740,11 @@ def import_sbml(sbml_file):
 
         rule_tuple = (rule_type, rule_formula)
         allrules.append(rule_tuple)
-        # Also import rate rules TODO
-        #if rulevariable in allspecies:
-           # rule_string = rulevariable + '=' + self._add_underscore_to_parameters(rule_formula, allparams)
-        #elif rulevariable in allparams:
-           # rule_string = '_' + rulevariable + '=' + self._add_underscore_to_parameters(rule_formula, allparams)
-        #else:
-        #    warnings.warn('SBML: Attempting to assign something that is not a parameter or species %s'
-        #                    % rulevariable)
-        #    continue
-
-        # Add rules to list/dict to add to Model object TODO
-        #out += '<rule type="assignment" frequency="repeated" equation="%s" />\n' % rule_string
     # Check and warn if there are other unrecognized components (function definitions, packages, etc.)
     if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0: 
         warnings.warn('Compartments, UnitDefintions, Events, and some other SBML model components are not recognized by bioscrape.' + 
                         'Refer to the bioscrape wiki for more information.')
 
-    #M = Model(species_dict = allspecies, param_dict = allparams, reaction_list = allreactions, rule_list = rules)
-    print(allreactions)
     M = Model(species = allspecies.keys(), parameters = allparams.items(), reactions = allreactions, initial_condition_dict = allspecies, rules = allrules)
     return M 
 
