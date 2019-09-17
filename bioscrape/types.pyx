@@ -2625,13 +2625,13 @@ def import_sbml(sbml_file):
             formula_rxn = libsbml.parseL3Formula(mass_action_formula_fwd + '-' + mass_action_formula_rev)
             formula_rxn1 = libsbml.parseL3Formula(mass_action_formula_fwd1 + '-' + mass_action_formula_rev1)
             if kl.getMath() == formula_rxn:
-                propensity_type = 'mass_action'
+                propensity_type = 'massaction'
                 rxn_fwd = (reactant_list_fwd, product_list_fwd, propensity_type, param_value_dict_fwd)
                 rxn_rev = (reactant_list_rev, product_list_rev, propensity_type, param_value_dict_rev)
                 allreactions.append(rxn_fwd)
                 allreactions.append(rxn_rev)
             elif kl.getMath() == formula_rxn1:
-                propensity_type = 'mass_action'
+                propensity_type = 'massaction'
                 rxn_fwd = (reactant_list_fwd, product_list_fwd, propensity_type, param_value_dict_fwd1)
                 rxn_rev = (reactant_list_rev, product_list_rev, propensity_type, param_value_dict_rev1)
                 allreactions.append(rxn_fwd)
@@ -2678,9 +2678,10 @@ def import_sbml(sbml_file):
         # Identify mass-action propensities here
             print(kl.getFormula())
             print(mass_action_formula)
-            print(libsbml.parseFormula(kl.getFormula()) == libsbml.parseFormula(mass_action_formula))
-            if libsbml.parseL3Formula(kl.getFormula()) == libsbml.parseL3Formula(mass_action_formula):
-                propensity_type = 'mass_action'
+            ast_ma = libsbml.parseFormula(mass_action_formula)
+            ast_kl = libsbml.parseFormula(kl.getFormula())
+            if ast_kl.getNumerator() == ast_ma.getNumerator() and ast_kl.getDenominator() == ast_ma.getDenominator():
+                propensity_type = 'massaction'
                 rxn = (reactant_list, product_list, propensity_type, param_value_dict)
             else:
                 propensity_type = 'general'

@@ -14,3 +14,4 @@ for s in M_sbml.get_species_list():
     plt.plot(timepoints, result[s], label = s)
 
 plt.legend()
+plt.show()
