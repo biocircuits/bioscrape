@@ -1708,14 +1708,14 @@ cdef class Model:
         rxn_txt += '>\n\t<propensity type="'
         rxn_txt += propensity_type+'" '
         for k in propensity_param_dict:
-            rxn_txt+=k+'="'+propensity_param_dict[k]+'" '
+            rxn_txt+=k+'="'+str(propensity_param_dict[k])+'" '
         rxn_txt += '/>\n\t<delay type="'
         if delay_type == None:
             rxn_txt += 'none" />'
         else:
             rxn_txt += delay_type+'" '
             for k in delay_param_dict:
-                rxn_txt += 'k="'+delay_param_dict[k]+'" '
+                rxn_txt += 'k="'+ str(delay_param_dict[k])+'" '
             rxn_txt+='/>'
         rxn_txt += '\n</reaction>\n'
         self.txt_dict['reactions']+=rxn_txt
