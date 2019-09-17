@@ -1776,6 +1776,7 @@ cdef class Model:
             self.repeat_rules.append(rule_object)
         else:
             raise SyntaxError('Invalid Rule Frequency: ' + str(rule_frequency))
+ 
 
         self.write_rule_txt(rule_type, rule_attributes, rule_frequency)
 
@@ -1816,7 +1817,7 @@ cdef class Model:
     #Checks that species' values are all set. Unset values default to 0 and warning is raised.
     def check_species(self):
         uninitialized_species = False
-        warning_txt = "The follow species are uninitialized and their value has defaulted to 0: "
+        warning_txt = "The following species are uninitialized and their value has been defaulted to 0: "
         for s in self.species2index.keys():
             i = self.species2index[s]
             if self.species_values[i] == -1:
@@ -2535,11 +2536,15 @@ def import_sbml(sbml_file):
             pid = p.getId()
             if pid in allparams:
                 # If local parameter ID already exists in allparams due to another local/global parameter with same ID
-                pid = pid + '_' + reaction.getId()
+                oldid = pid
+                newid = oldid + '_' + reaction.getId()
                 # Rename the ID everywhere it's used (such as in the Kinetic Law)
-                #kl.renameSIdRefs(p.getId(), pid)
-                #p.setId(pid)
-                renameSIds(doc, [p.getId()], [pid])
+                kl.renameSIdRefs(oldid, newid)
+                p.setId(newid)
+                # Rename its usages
+                for element in reaction.getListOfAllElements():
+                    element.renameSIdRefs(oldid, newid)
+                pid = newid
             allparams[pid] = 0.0
             if np.isfinite(p.getValue()):
                 allparams[pid] = p.getValue()
@@ -2740,13 +2745,20 @@ def import_sbml(sbml_file):
         else:
             raise ValueError('Invalid SBML Rule type.')
         rule_dict = {}
-        rule_dict['equation'] = rule_formula
+        rule_dict['equation'] = rulevariable + '=' + rule_formula
         rule_frequency = 'repeated'
         rule_tuple = (rule_type, rule_dict, rule_frequency)
         allrules.append(rule_tuple)
-    # Check and warn if there are other unrecognized components (function definitions, packages, etc.)
+    
+    print('allparams = {0}'.format(allparams))
+    print('allspecies = {0}'.format(allspecies))
+    print('allreactions = {0}'.format(allreactions))
+
+    print(allrules)
+
+    # Check and warn if there are any unrecognized components (function definitions, packages, etc.)
     if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0: 
-        warnings.warn('Compartments, UnitDefintions, Events, and some other SBML model components are not recognized by bioscrape.' + 
+        warnings.warn('Compartments, UnitDefintions, Events, and some other SBML model components are not recognized by bioscrape. ' + 
                         'Refer to the bioscrape wiki for more information.')
 
     M = Model(species = allspecies.keys(), parameters = allparams.items(), reactions = allreactions, initial_condition_dict = allspecies, rules = allrules)
