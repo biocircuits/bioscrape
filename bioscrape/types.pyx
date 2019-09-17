@@ -2199,22 +2199,6 @@ cdef class Model:
     ######################################              SBML CONVERSION                     ##############################
     #################################################                     ################################################
 
-    def _add_underscore_to_parameters(self, formula, parameters):
-        sympy_rate = sympy.sympify(formula, _clash1)
-        nodes = [sympy_rate]
-        index = 0
-        while index < len(nodes):
-            node = nodes[index]
-            index += 1
-            nodes.extend(node.args)
-
-        for node in nodes:
-            if type(node) == sympy.Symbol:
-                if node.name in parameters:
-                    node.name = '_' + node.name
-
-        return str(sympy_rate)
-
     def process_sbml(self, doc):
         ''' 
         Processes an SBML file so that it no longer contains multiplicity in local variable names.
@@ -2347,7 +2331,7 @@ cdef class Model:
             # get the formula as a string and then add
             # a leading _ to parameter names
             kl_formula = libsbml.formulaToL3String(kl.getMath())
-            rate_string = self._add_underscore_to_parameters(kl_formula,allparams)
+            rate_string = _add_underscore_to_parameters(kl_formula,allparams)
 
             # Add the propensity tag and finish the reaction.
             out += ('    <propensity type="general" rate="%s" />\n</reaction>\n\n' % rate_string)
@@ -2360,9 +2344,9 @@ cdef class Model:
             rule_formula = libsbml.formulaToL3String(rule.getMath())
             rulevariable = rule.getVariable()
             if rulevariable in allspecies:
-                rule_string = rulevariable + '=' + self._add_underscore_to_parameters(rule_formula,allparams)
+                rule_string = rulevariable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
             elif rulevariable in allparams:
-                rule_string = '_' + rulevariable + '=' + self._add_underscore_to_parameters(rule_formula,allparams)
+                rule_string = '_' + rulevariable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
             else:
                 warnings.warn('SBML: Attempting to assign something that is not a parameter or species %s'
                               % rulevariable)
@@ -2390,6 +2374,25 @@ cdef class Model:
         # Add the final tag and return
         out += '</model>\n'
         return out
+
+
+# Helpful utility functions start here 
+def _add_underscore_to_parameters(formula, parameters):
+    sympy_rate = sympy.sympify(formula, _clash1)
+    nodes = [sympy_rate]
+    index = 0
+    while index < len(nodes):
+        node = nodes[index]
+        index += 1
+        nodes.extend(node.args)
+
+    for node in nodes:
+        if type(node) == sympy.Symbol:
+            if node.name in parameters:
+                node.name = '_' + node.name
+
+    return str(sympy_rate)
+
 
 # Renames lists of SIds in an SBML Document
 def renameSIds(document, oldSIds, newSIds, debug = False):
@@ -2552,7 +2555,7 @@ def import_sbml(sbml_file):
         # get the formula as a string and then add
         # a leading _ to parameter names
         kl_formula = libsbml.formulaToL3String(kl.getMath())
-        #rate_string = self._add_underscore_to_parameters(kl_formula, allparams)
+        rate_string = _add_underscore_to_parameters(kl_formula, allparams)
 
         param_value_dict = {}
         param_value_dict_fwd = {}
@@ -2670,7 +2673,7 @@ def import_sbml(sbml_file):
             else:
                 propensity_type = 'general'
                 general_kl_formula = {}
-                general_kl_formula['rate'] = kl_formula
+                general_kl_formula['rate'] = rate_string
                 rxn_fwd = (reactant_list_fwd, product_list_fwd, propensity_type, general_kl_formula)
                 allreactions.append(rxn_fwd)
 
@@ -2724,7 +2727,7 @@ def import_sbml(sbml_file):
             else:
                 propensity_type = 'general'
                 general_kl_formula = {}
-                general_kl_formula['rate'] = kl_formula
+                general_kl_formula['rate'] = rate_string 
                 rxn = (reactant_list, product_list, propensity_type, general_kl_formula)
             allreactions.append(rxn)
     # Go through rules one at a time
@@ -2733,28 +2736,36 @@ def import_sbml(sbml_file):
     for rule in model.getListOfRules():
         rule_formula = libsbml.formulaToL3String(rule.getMath())
         rulevariable = rule.getVariable()
+        if rulevariable in allspecies:
+            rule_string = rulevariable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
+        elif rulevariable in allparams:
+            rule_string = '_' + rulevariable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
+        else:
+            warnings.warn('SBML: Attempting to assign something that is not a parameter or species %s'
+                            % rulevariable)
+            continue
         if rule.getElementName() == 'algebraicRule':
             warnings.warn('Unsupported rule type: %s' % rule.getElementName())
             continue
         elif rule.getElementName() == 'assignmentRule':
             rule_type = 'assignment'
         elif rule.getElementName() == 'rateRule':
-            rule_rxn = ([''], [rulevariable.getId()], 'general', rule_formula) # Create --> X type reaction to model rate rules.
+            rate_rule_formula = _add_underscore_to_parameters(rule_formula, allparams)
+            rule_rxn = ([''], [rulevariable], 'general', rate_rule_formula) # Create --> X type reaction to model rate rules.
             allreactions.append(rule_rxn)
             continue
         else:
             raise ValueError('Invalid SBML Rule type.')
         rule_dict = {}
-        rule_dict['equation'] = rulevariable + '=' + rule_formula
+        rule_dict['equation'] = rule_string
         rule_frequency = 'repeated'
         rule_tuple = (rule_type, rule_dict, rule_frequency)
         allrules.append(rule_tuple)
     
-    print('allparams = {0}'.format(allparams))
-    print('allspecies = {0}'.format(allspecies))
-    print('allreactions = {0}'.format(allreactions))
-
-    print(allrules)
+    #print('allparams = {0}'.format(allparams))
+    #print('allspecies = {0}'.format(allspecies))
+    #print('allreactions = {0}'.format(allreactions))
+    #print(allrules)
 
     # Check and warn if there are any unrecognized components (function definitions, packages, etc.)
     if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0: 

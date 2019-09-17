@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 M_sbml = import_sbml('models/sbml_test.xml')
 
 # Load SBML using the old method that works with strings - 
-M_sbml = read_model_from_sbml('models/sbml_test.xml')
+# M_sbml = read_model_from_sbml('models/sbml_test.xml')
 
 # Write it to bioscrape
 M_sbml.write_bioscrape_xml('models/sbml_test_bioscrape.xml')
