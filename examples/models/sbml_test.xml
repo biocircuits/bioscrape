@@ -13,7 +13,7 @@
             <species id="S2" compartment="cell" initialConcentration="0"/>
         </listOfSpecies>
         <listOfParameters>
-            <parameter id="Keq" value="2.5"/>
+            <parameter id="k1" value="2.5"/>
         </listOfParameters>
         <listOfRules>
             <assignmentRule variable="S1">
@@ -24,7 +24,7 @@
                         <apply>
                             <plus/>
                             <cn> 1 </cn>
-                            <ci> Keq </ci>
+                            <ci> k1 </ci>
                         </apply>
                     </apply>
                 </math>
@@ -33,7 +33,7 @@
                 <math xmlns="http://www.w3.org/1998/Math/MathML">
                     <apply>
                         <times/>
-                        <ci> Keq </ci>
+                        <ci> k1 </ci>
                         <ci> S1 </ci>
                     </apply>
                 </math>

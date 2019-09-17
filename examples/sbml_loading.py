@@ -1,10 +1,13 @@
-from bioscrape.types import import_sbml
+from bioscrape.types import import_sbml, read_model_from_sbml
 from bioscrape.simulator import py_simulate_model
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-M_sbml = import_sbml('models/sbml_test.xml')
+# Import SBML
+# M_sbml = import_sbml('models/sbml_test.xml')
+M_sbml = read_model_from_sbml('models/sbml_test.xml')
+# Write it to bioscrape
 M_sbml.write_bioscrape_xml('models/sbml_test_bioscrape.xml')
 
 timepoints = np.linspace(0,100,1000)

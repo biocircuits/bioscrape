@@ -2214,90 +2214,6 @@ cdef class Model:
 
         return str(sympy_rate)
 
-    # Renames lists of SIds in an SBML Document
-    def renameSIds(self, sbml_doc, oldSIds, newSIds, debug = False):
-        '''
-        Updates the SId from oldSId to newSId for any component of the Subsystem.
-        Returns the SBMLDocument of the updated Subsystem
-        '''
-
-        #
-        # @file    renameSId.py
-        # @brief   Utility program, renaming a specific SId
-        #          while updating all references to it.
-        # @author  Frank T. Bergmann
-        #
-        # <!--------------------------------------------------------------------------
-        # This sample program is distributed under a different license than the rest
-        # of libSBML.  This program uses the open-source MIT license, as follows:
-        #
-        # Copyright (c) 2013-2018 by the California Institute of Technology
-        # (California, USA), the European Bioinformatics Institute (EMBL-EBI, UK)
-        # and the University of Heidelberg (Germany), with support from the National
-        # Institutes of Health (USA) under grant R01GM070923.  All rights reserved.
-        #
-        # Permission is hereby granted, free of charge, to any person obtaining a
-        # copy of this software and associated documentation files (the "Software"),
-        # to deal in the Software without restriction, including without limitation
-        # the rights to use, copy, modify, merge, publish, distribute, sublicense,
-        # and/or sell copies of the Software, and to permit persons to whom the
-        # Software is furnished to do so, subject to the following conditions:
-        #
-        # The above copyright notice and this permission notice shall be included in
-        # all copies or substantial portions of the Software.
-        #
-        # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-        # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-        # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
-        # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-        # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-        # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-        # DEALINGS IN THE SOFTWARE.
-        #
-        # Neither the name of the California Institute of Technology (Caltech), nor
-        # of the European Bioinformatics Institute (EMBL-EBI), nor of the University
-        # of Heidelberg, nor the names of any contributors, may be used to endorse
-        # or promote products derived from this software without specific prior
-        # written permission.
-        # ------------------------------------------------------------------------ -->
-        #
-
-        try:
-            import libsbml
-        except:
-            raise ImportError("libsbml not found. See sbml.org for installation help!\n" +
-                              'If you are using anaconda you can run the following:\n' +
-                              'conda install -c SBMLTeam python-libsbml\n\n\n')
-
-        document = sbml_doc
-
-        if len(oldSIds) != len(newSIds):
-            raise ValueError("Length oldSIds != length newSIds")
-
-        for ind in range(len(oldSIds)):
-            oldSId = oldSIds[ind]
-            newSId = newSIds[ind]
-
-            if oldSId == newSId:
-                warnings.warn("The Ids are identical: " +str(oldSId)+". SId skipped.")
-
-            if not libsbml.SyntaxChecker.isValidInternalSId(newSId):
-                warnings.warn("The new SId '{0}' does not represent a valid SId.".format(newSId))
-                
-
-            element = document.getElementBySId(oldSId)
-
-            if element == None:
-                if debug:
-                    warnings.warn("Found no element with SId '{0}' in subsystem {1}".format(oldSId,document.getModel().getId()))
-
-            # update all references to this element
-            allElements = document.getListOfAllElements()
-            for i in range(allElements.getSize()):
-                current = allElements.get(i)
-                current.renameSIdRefs(oldSId, newSId)
-        return document
-
     def process_sbml(self, doc):
         ''' 
         Processes an SBML file so that it no longer contains multiplicity in local variable names.
@@ -2334,7 +2250,7 @@ cdef class Model:
                 newSIds.append(new_id)
                 p.setId(new_id)
 
-            new_doc = self.renameSIds(new_doc, oldSIds, newSIds)
+            new_doc = renameSIds(new_doc, oldSIds, newSIds)
         # enhancement: Also flatten a Comp package SBML model Level 3 to get rid of any other local scope issues
         # new_doc = new_doc.flatten_comp_model()
         return new_doc, new_doc.getModel()
@@ -2474,6 +2390,89 @@ cdef class Model:
         out += '</model>\n'
         return out
 
+# Renames lists of SIds in an SBML Document
+def renameSIds(document, oldSIds, newSIds, debug = False):
+    '''
+    Updates the SId from oldSId to newSId for any component of the Subsystem.
+    Returns the SBMLDocument of the updated Subsystem
+    '''
+
+    #
+    # @file    renameSId.py
+    # @brief   Utility program, renaming a specific SId
+    #          while updating all references to it.
+    # @author  Frank T. Bergmann
+    #
+    # <!--------------------------------------------------------------------------
+    # This sample program is distributed under a different license than the rest
+    # of libSBML.  This program uses the open-source MIT license, as follows:
+    #
+    # Copyright (c) 2013-2018 by the California Institute of Technology
+    # (California, USA), the European Bioinformatics Institute (EMBL-EBI, UK)
+    # and the University of Heidelberg (Germany), with support from the National
+    # Institutes of Health (USA) under grant R01GM070923.  All rights reserved.
+    #
+    # Permission is hereby granted, free of charge, to any person obtaining a
+    # copy of this software and associated documentation files (the "Software"),
+    # to deal in the Software without restriction, including without limitation
+    # the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    # and/or sell copies of the Software, and to permit persons to whom the
+    # Software is furnished to do so, subject to the following conditions:
+    #
+    # The above copyright notice and this permission notice shall be included in
+    # all copies or substantial portions of the Software.
+    #
+    # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+    # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    # DEALINGS IN THE SOFTWARE.
+    #
+    # Neither the name of the California Institute of Technology (Caltech), nor
+    # of the European Bioinformatics Institute (EMBL-EBI), nor of the University
+    # of Heidelberg, nor the names of any contributors, may be used to endorse
+    # or promote products derived from this software without specific prior
+    # written permission.
+    # ------------------------------------------------------------------------ -->
+    #
+
+    try:
+        import libsbml
+    except:
+        raise ImportError("libsbml not found. See sbml.org for installation help!\n" +
+                            'If you are using anaconda you can run the following:\n' +
+                            'conda install -c SBMLTeam python-libsbml\n\n\n')
+
+
+    if len(oldSIds) != len(newSIds):
+        raise ValueError("Length oldSIds != length newSIds")
+
+    for ind in range(len(oldSIds)):
+        oldSId = oldSIds[ind]
+        newSId = newSIds[ind]
+
+        if oldSId == newSId:
+            warnings.warn("The Ids are identical: " +str(oldSId)+". SId skipped.")
+
+        if not libsbml.SyntaxChecker.isValidInternalSId(newSId):
+            warnings.warn("The new SId '{0}' does not represent a valid SId.".format(newSId))
+            
+
+        element = document.getElementBySId(oldSId)
+
+        if element == None:
+            if debug:
+                warnings.warn("Found no element with SId '{0}' in subsystem {1}".format(oldSId,document.getModel().getId()))
+
+        # update all references to this element
+        allElements = document.getListOfAllElements()
+        for i in range(allElements.getSize()):
+            current = allElements.get(i)
+            current.renameSIdRefs(oldSId, newSId)
+    return document
+
 
 def import_sbml(sbml_file):
     """
@@ -2536,10 +2535,11 @@ def import_sbml(sbml_file):
             pid = p.getId()
             if pid in allparams:
                 # If local parameter ID already exists in allparams due to another local/global parameter with same ID
-                pid = pid + reaction.getId()
+                pid = pid + '_' + reaction.getId()
                 # Rename the ID everywhere it's used (such as in the Kinetic Law)
-                kl.renameSIdRefs(p.getId(), pid)
-                p.setId(pid)
+                #kl.renameSIdRefs(p.getId(), pid)
+                #p.setId(pid)
+                renameSIds(doc, [p.getId()], [pid])
             allparams[pid] = 0.0
             if np.isfinite(p.getValue()):
                 allparams[pid] = p.getValue()
@@ -2728,7 +2728,7 @@ def import_sbml(sbml_file):
     for rule in model.getListOfRules():
         rule_formula = libsbml.formulaToL3String(rule.getMath())
         rulevariable = rule.getVariable()
-        if rule.getElementName() != 'assignmentRule' or rule.getElementName() != 'rateRule':
+        if rule.getElementName() == 'algebraicRule':
             warnings.warn('Unsupported rule type: %s' % rule.getElementName())
             continue
         elif rule.getElementName() == 'assignmentRule':
@@ -2737,8 +2737,12 @@ def import_sbml(sbml_file):
             rule_rxn = ([''], [rulevariable.getId()], 'general', rule_formula) # Create --> X type reaction to model rate rules.
             allreactions.append(rule_rxn)
             continue
-
-        rule_tuple = (rule_type, rule_formula)
+        else:
+            raise ValueError('Invalid SBML Rule type.')
+        rule_dict = {}
+        rule_dict['equation'] = rule_formula
+        rule_frequency = 'repeated'
+        rule_tuple = (rule_type, rule_dict, rule_frequency)
         allrules.append(rule_tuple)
     # Check and warn if there are other unrecognized components (function definitions, packages, etc.)
     if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0: 
