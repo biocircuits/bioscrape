@@ -2,6 +2,7 @@ from distutils.core import setup
 from Cython.Build import cythonize
 from numpy import get_include
 from distutils.extension import Extension
+import platform
 import os
 
 numpyInclude = [get_include(), '.']
@@ -14,7 +15,10 @@ sourceFiles = ['random.pyx', 'types.pyx', 'simulator.pyx', 'inference.pyx']
 ext_options = {}
 ext_options['language'] = 'c++'
 ext_options['include_dirs'] = numpyInclude
-extra_compile_args = []
+if platform.system() == "Darwin":
+    ext_options['extra_compile_args'] = ['-std=c++11', "-mmacosx-version-min=10.9"]
+    ext_options['extra_link_args'] = ["-stdlib=libc++", "-mmacosx-version-min=10.9"]
+    print('Using macOS clang args')
 
 
 # building part

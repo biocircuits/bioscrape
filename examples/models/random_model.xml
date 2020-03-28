@@ -1,0 +1,24 @@
+<model>
+<species name="D" value="36.0" />
+<species name="C" value="24.0" />
+<species name="E" value="33.0" />
+<species name="G" value="88.0" />
+<species name="F" value="68.0" />
+<species name="A" value="77.0" />
+<species name="B" value="17.0" />
+
+<parameter name="DummyVar_UnimolecularPropensity_k_0" value="0.495" />
+<parameter name="DummyVar_PositiveProportionalHillPropensity_k_1" value="0.732" />
+<parameter name="DummyVar_PositiveProportionalHillPropensity_K_2" value="0.158" />
+<parameter name="DummyVar_PositiveProportionalHillPropensity_n_3" value="0.576" />
+
+<reaction text= "D -- C + E + G + F ">
+	<propensity type="massaction" k="DummyVar_UnimolecularPropensity_k_0" species="D" />
+	<delay type="none" />
+</reaction>
+<reaction text= "F + F + G + G -- A + C + D + D ">
+	<propensity type="proportionalhillpositive" k="DummyVar_PositiveProportionalHillPropensity_k_1" K="DummyVar_PositiveProportionalHillPropensity_K_2" n="DummyVar_PositiveProportionalHillPropensity_n_3" s1="A" d="B" />
+	<delay type="none" />
+</reaction>
+
+</model>

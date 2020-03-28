@@ -490,7 +490,6 @@ cdef class Volume:
         :param v: (double) the volume to set.
         :return: None
         """
-
         self.current_volume = v
 
     cdef inline double get_volume(self):
@@ -498,7 +497,6 @@ cdef class Volume:
         Get the current volume
         :return: (double) the current volume.
         """
-
         return self.current_volume
 
 
@@ -581,6 +579,7 @@ cdef class Model:
     cdef unsigned _next_species_index
     cdef unsigned _next_params_index
     cdef unsigned _dummy_param_counter
+    cdef unsigned has_delay
 
     cdef vector[void*] c_propensities
     cdef list propensities
@@ -613,6 +612,8 @@ cdef class Model:
     cdef np.ndarray get_params_values(self)
 
     cdef void _initialize(self)
+
+    cdef dict txt_dict #Used to store text for writing bioscrape XML
 
 
 
