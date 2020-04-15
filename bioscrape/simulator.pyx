@@ -419,7 +419,7 @@ cdef class ModelCSimInterface(CSimInterface):
         #Check Model and initialization
         if not self.model.initialized:
             self.model.py_initialize()
-            warnings.warn("Uninitialized Model Passed into ModelCSimInterface. Model.initialize() called automatically.")
+            warnings.warn("Uninitialized Model Passed into ModelCSimInterface. Model.py_initialize() called automatically.")
         self.check_interface()
         self.c_propensities = self.model.get_c_propensities()
         self.c_delays = self.model.get_c_delays()
