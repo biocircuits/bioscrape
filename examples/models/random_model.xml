@@ -1,23 +1,25 @@
 <model>
-<species name="C" value="81.0" />
-<species name="E" value="56.0" />
-<species name="D" value="60.0" />
-<species name="B" value="12.0" />
-<species name="A" value="94.0" />
-<species name="G" value="71.0" />
-<species name="F" value="68.0" />
+<species name="E" value="15.0" />
+<species name="B" value="36.0" />
+<species name="D" value="22.0" />
+<species name="G" value="92.0" />
+<species name="C" value="74.0" />
+<species name="F" value="30.0" />
+<species name="A" value="71.0" />
 
-<parameter name="DummyVar_NegativeProportionalHillPropensity_k_0" value="0.258" />
-<parameter name="DummyVar_NegativeProportionalHillPropensity_K_1" value="1.88" />
-<parameter name="DummyVar_NegativeProportionalHillPropensity_n_2" value="0.545" />
-<parameter name="DummyVar_MassActionPropensity_k_3" value="0.195" />
+<parameter name="DummyVar_NegativeProportionalHillPropensity_k_0" value="0.704" />
+<parameter name="DummyVar_NegativeProportionalHillPropensity_K_1" value="5.658" />
+<parameter name="DummyVar_NegativeProportionalHillPropensity_n_2" value="0.207" />
+<parameter name="DummyVar_PositiveProportionalHillPropensity_k_3" value="0.8" />
+<parameter name="DummyVar_PositiveProportionalHillPropensity_K_4" value="1.047" />
+<parameter name="DummyVar_PositiveProportionalHillPropensity_n_5" value="0.75" />
 
-<reaction text= "C + E + D + B -- A + B + E + B ">
-	<propensity type="proportionalhillnegative" k="DummyVar_NegativeProportionalHillPropensity_k_0" K="DummyVar_NegativeProportionalHillPropensity_K_1" n="DummyVar_NegativeProportionalHillPropensity_n_2" s1="A" d="D" />
+<reaction text= "E + B + D -- G + D + C ">
+	<propensity type="proportionalhillnegative" k="DummyVar_NegativeProportionalHillPropensity_k_0" K="DummyVar_NegativeProportionalHillPropensity_K_1" n="DummyVar_NegativeProportionalHillPropensity_n_2" s1="E" d="B" />
 	<delay type="none" />
 </reaction>
-<reaction text= "C + G + C -- B + A + F ">
-	<propensity type="massaction" k="DummyVar_MassActionPropensity_k_3" species="C*G*C" />
+<reaction text= "C + E + E -- F + A ">
+	<propensity type="proportionalhillpositive" k="DummyVar_PositiveProportionalHillPropensity_k_3" K="DummyVar_PositiveProportionalHillPropensity_K_4" n="DummyVar_PositiveProportionalHillPropensity_n_5" s1="E" d="C" />
 	<delay type="none" />
 </reaction>
 

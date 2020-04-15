@@ -1349,6 +1349,8 @@ cdef class Model:
         self.params_values = np.array([])
         self.species_values = np.array([])
         self.txt_dict = {'reactions':"", 'rules':""} # A dictionary to store XML txt to write bioscrape xml
+        self.reaction_definitions = [] # List of reaction tuples useful for writing SBML
+        self.rule_definitions = [] #A list of rule tuples useful for writing SBML
 
         #These must be updated later
         self.update_array = None
@@ -1680,6 +1682,7 @@ cdef class Model:
 
         self._add_reaction(reaction_update_dict, prop_object, propensity_param_dict, delay_reaction_update_dict, delay_object, delay_param_dict)
         self.write_rxn_txt(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict)
+        self.reaction_definitions.append((reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict))
     
     def write_rxn_txt(self, reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict):
         #Write bioscrape XML and save it to the xml dictionary
@@ -1784,6 +1787,7 @@ cdef class Model:
  
 
         self.write_rule_txt(rule_type, rule_attributes, rule_frequency)
+        self.rule_definitions.append((rule_type, rule_attributes, rule_frequency))
 
     def write_rule_txt(self, rule_type, rule_attributes, rule_frequency):
         rule_txt = '<rule type="'+rule_type+'" frequency="'+rule_frequency+'" '
@@ -2205,6 +2209,45 @@ cdef class Model:
         f.write(txt)
         f.close()
 
+    #Generates an SBML Model
+    def generate_sbml_model(self, stochastic_model = False, **keywords):
+        if self.has_delay:
+            raise NotImplementedError("Writing SBML for bioscrape models with delay has not been implemented.")
+
+        document, model = sbmlutil.create_sbml_model(**keywords)
+
+        for p in self.get_param_list():
+            val = self.get_param_value(p)
+            sbmlutil.add_parameter(model = model, param_name=p, param_value = val)
+
+        for s in self.get_species():
+            sbmlutil.add_species(model=model, compartment=model.getCompartment(0),
+                    species=s, initial_concentration=self.get_species_value(s))
+
+        rxn_count = 0
+        for rxn_tuple in self.reaction_definitions:
+            rxn_id = "r" + str(rxn_count)
+
+            (reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict) = rxn_tuple
+            
+            sbmlutil.add_reaction(model, reactants, products, rxn_id, propensity_type, propensity_param_dict,
+                         stochastic = stochastic_model)
+            rxn_count += 1
+
+        for rule_tuple in self.rule_definitions:
+            raise NotImplementedError("Writing SBML for models with rules has not been implemented.")
+
+        if document.getNumErrors():
+            warnings.warn('SBML model generated has errors. Use document.getErrorLog() to print all errors.')
+        return document, model
+
+    #write an SBML Model
+    def write_sbml_model(self, file_name, stochastic_model = False, **keywords):
+        document, _ = self.generate_sbml_model(stochastic_model = stochastic_model, **keywords)
+        sbml_string = sbmlutil.libsbml.writeSBMLToString(document)
+        with open(file_name, 'w') as f:
+            f.write(sbml_string)
+        return True
 
 ##################################################                ####################################################
 ######################################              DATA    TYPES                       ##############################
