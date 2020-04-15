@@ -56,7 +56,6 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
             allparams[pid] = p.getValue()
 
     # Now go through reactions one at a time to get stoich and rates, then append to reaction_list.
-    reaction_list = []
     for reaction in model.getListOfReactions():
         # get the propensity 
         kl = reaction.getKineticLaw()
@@ -119,7 +118,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
         if "PropensityType" in annotation_string:
             ind0 = annotation_string.find("<PropensityType>")
             ind1 = annotation_string.find("</PropensityType>")
-            propensity_definition = {}
+            # propensity_definition = {}
             annotation_list = annotation_string[ind0:ind1].split(" ")
             key_vals = [(i.split("=")[0], i.split("=")[1]) for i in annotation_list if "=" in i]
             propensity_params = {}

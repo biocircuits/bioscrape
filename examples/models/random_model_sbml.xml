@@ -12,37 +12,29 @@
       <compartment id="default" spatialDimensions="3" size="1e-06" constant="true"/>
     </listOfCompartments>
     <listOfSpecies>
-      <species id="E" name="E" compartment="default" initialConcentration="15" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
-      <species id="B" name="B" compartment="default" initialConcentration="36" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
-      <species id="D" name="D" compartment="default" initialConcentration="22" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
-      <species id="G" name="G" compartment="default" initialConcentration="92" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
-      <species id="C" name="C" compartment="default" initialConcentration="74" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
-      <species id="F" name="F" compartment="default" initialConcentration="30" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
-      <species id="A" name="A" compartment="default" initialConcentration="71" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="E" name="E" compartment="default" initialConcentration="35" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="D" name="D" compartment="default" initialConcentration="16" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="C" name="C" compartment="default" initialConcentration="95" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="B" name="B" compartment="default" initialConcentration="95" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="A" name="A" compartment="default" initialConcentration="27" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="F" name="F" compartment="default" initialConcentration="71" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="G" name="G" compartment="default" initialConcentration="60" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
     </listOfSpecies>
     <listOfParameters>
-      <parameter id="DummyVar_NegativeProportionalHillPropensity_k_0" value="0.704" constant="true"/>
-      <parameter id="DummyVar_NegativeProportionalHillPropensity_K_1" value="5.658" constant="true"/>
-      <parameter id="DummyVar_NegativeProportionalHillPropensity_n_2" value="0.207" constant="true"/>
-      <parameter id="DummyVar_PositiveProportionalHillPropensity_k_3" value="0.8" constant="true"/>
-      <parameter id="DummyVar_PositiveProportionalHillPropensity_K_4" value="1.047" constant="true"/>
-      <parameter id="DummyVar_PositiveProportionalHillPropensity_n_5" value="0.75" constant="true"/>
+      <parameter id="DummyVar_NegativeProportionalHillPropensity_k_0" value="0.312" constant="true"/>
+      <parameter id="DummyVar_NegativeProportionalHillPropensity_K_1" value="0.586" constant="true"/>
+      <parameter id="DummyVar_NegativeProportionalHillPropensity_n_2" value="2.511" constant="true"/>
+      <parameter id="DummyVar_MassActionPropensity_k_3" value="0.372" constant="true"/>
     </listOfParameters>
     <listOfReactions>
       <reaction id="r0" reversible="false" fast="false">
         <annotation>
-          <PropensityType> type=proportionalhillnegative k=DummyVar_NegativeProportionalHillPropensity_k_0 K=DummyVar_NegativeProportionalHillPropensity_K_1 n=DummyVar_NegativeProportionalHillPropensity_n_2 s1=E d=B</PropensityType>
+          <PropensityType> type=proportionalhillnegative k=DummyVar_NegativeProportionalHillPropensity_k_0 K=DummyVar_NegativeProportionalHillPropensity_K_1 n=DummyVar_NegativeProportionalHillPropensity_n_2 s1=C d=C</PropensityType>
         </annotation>
         <listOfReactants>
-          <speciesReference species="B" stoichiometry="1" constant="false"/>
           <speciesReference species="D" stoichiometry="1" constant="false"/>
           <speciesReference species="E" stoichiometry="1" constant="false"/>
         </listOfReactants>
-        <listOfProducts>
-          <speciesReference species="C" constant="false"/>
-          <speciesReference species="D" constant="false"/>
-          <speciesReference species="G" constant="false"/>
-        </listOfProducts>
         <kineticLaw>
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
@@ -50,13 +42,13 @@
               <apply>
                 <times/>
                 <ci> DummyVar_NegativeProportionalHillPropensity_k_0 </ci>
-                <ci> B </ci>
+                <ci> C </ci>
               </apply>
               <apply>
                 <plus/>
                 <apply>
                   <power/>
-                  <ci> E </ci>
+                  <ci> C </ci>
                   <ci> DummyVar_NegativeProportionalHillPropensity_n_2 </ci>
                 </apply>
                 <ci> DummyVar_NegativeProportionalHillPropensity_K_1 </ci>
@@ -67,39 +59,25 @@
       </reaction>
       <reaction id="r1" reversible="false" fast="false">
         <annotation>
-          <PropensityType> type=proportionalhillpositive k=DummyVar_PositiveProportionalHillPropensity_k_3 K=DummyVar_PositiveProportionalHillPropensity_K_4 n=DummyVar_PositiveProportionalHillPropensity_n_5 s1=E d=C</PropensityType>
+          <PropensityType> type=massaction k=DummyVar_MassActionPropensity_k_3</PropensityType>
         </annotation>
         <listOfReactants>
-          <speciesReference species="E" stoichiometry="2" constant="false"/>
+          <speciesReference species="D" stoichiometry="1" constant="false"/>
+          <speciesReference species="B" stoichiometry="1" constant="false"/>
           <speciesReference species="C" stoichiometry="1" constant="false"/>
         </listOfReactants>
         <listOfProducts>
-          <speciesReference species="A" constant="false"/>
-          <speciesReference species="F" constant="false"/>
+          <speciesReference species="D" constant="false"/>
+          <speciesReference species="C" constant="false"/>
         </listOfProducts>
         <kineticLaw>
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
-              <divide/>
-              <apply>
-                <times/>
-                <ci> DummyVar_PositiveProportionalHillPropensity_k_3 </ci>
-                <ci> C </ci>
-                <apply>
-                  <power/>
-                  <ci> E </ci>
-                  <ci> n </ci>
-                </apply>
-              </apply>
-              <apply>
-                <plus/>
-                <apply>
-                  <power/>
-                  <ci> E </ci>
-                  <ci> DummyVar_PositiveProportionalHillPropensity_n_5 </ci>
-                </apply>
-                <ci> DummyVar_PositiveProportionalHillPropensity_K_4 </ci>
-              </apply>
+              <times/>
+              <ci> DummyVar_MassActionPropensity_k_3 </ci>
+              <ci> D </ci>
+              <ci> B </ci>
+              <ci> C </ci>
             </apply>
           </math>
         </kineticLaw>
