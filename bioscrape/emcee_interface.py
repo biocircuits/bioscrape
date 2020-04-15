@@ -7,7 +7,8 @@ import sys
 import warnings
 import emcee
 import matplotlib.pyplot as plt
-from bioscrape.types import Model, read_model_from_sbml
+from bioscrape.types import Model
+from bioscrape.sbmlutil import import_sbml as sbmlutil_import_sbml
 from bioscrape.simulator import ModelCSimInterface, DeterministicSimulator, SSASimulator
 from bioscrape.pid_interfaces import StochasticInference, DeterministicInference
 
@@ -311,7 +312,7 @@ class MCMC(object):
         raise NotImplementedError
 
     def import_sbml(self, filename):
-        M = read_model_from_sbml(filename)
+        M = sbmlutil_import_sbml(filename)
         self.M = M
         return self.M
 
