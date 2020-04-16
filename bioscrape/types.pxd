@@ -614,6 +614,8 @@ cdef class Model:
     cdef void _initialize(self)
 
     cdef dict txt_dict #Used to store text for writing bioscrape XML
+    cdef list reaction_definitions #used to store reaction tuples for SBML
+    cdef list rule_definitions #used to store rule tuples for SBML
 
 
 
