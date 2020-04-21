@@ -32,6 +32,8 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
         raise SyntaxError("SBML File {0} cannot be read without errors".format(sbml_file))
 
     model = doc.getModel()
+    if model is None:
+        raise ValueError("SBML File {0} not found. Model could not be read.".format(sbml_file))
 
     # Parse through species and parameters and keep a set of both along with their values.
     allspecies = {}
@@ -324,10 +326,19 @@ def add_parameter(model, param_name, param_value, debug=False):
 
     return parameter
 
+# Helper function to add a rule to an sbml model
+# rule must be a chemical_reaction_network.reaction object
+# propensity params is a dictionary of the parameters for non-massaction propensities.
+def add_rule(model, variable_id, rule_id, rule_type, rule_equation, **kwargs):
+    rule = model.createRule(rule_id)
+    rule.setVariable(variable_id)
+    # TODO : Finish
+    return rule 
+
 
 # Helper function to add a reaction to an sbml model
-# reaction must be a chemical_reaction_network.reaction object
-#propensity params is a dictionary of the parameters for non-massaction propensities.
+# propensity params is a dictionary of the parameters for non-massaction propensities.
+# propensity_params is a dictionary with keyword 'rate' for general propensity
 def add_reaction(model, inputs_list, outputs_list,
                  reaction_id, propensity_type, propensity_params, 
                  stochastic = False, propensity_annotation = True):
@@ -362,7 +373,7 @@ def add_reaction(model, inputs_list, outputs_list,
         annotation_dict["n"] = propensity_params['n']
 
     elif propensity_type == "general":
-        raise NotImplementedError("SBML writing of general propensities not implemented")
+        raise ValueError('')
     else:
         raise ValueError(propensity_type+" is not a supported propensity_type")
 
@@ -459,8 +470,7 @@ def add_reaction(model, inputs_list, outputs_list,
         annotation_dict["d"] = d_species_id
 
     elif propensity_type == "general":
-        raise NotImplementedError("General propensity SBML Writing Not Implemented")
-
+        ratestring = propensity_params['rate']
 
     # Create the products
     for i in range(len(outputs)):

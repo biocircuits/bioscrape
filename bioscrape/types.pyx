@@ -11,7 +11,8 @@ import re
 import sympy
 from sympy.abc import _clash1
 import warnings
-import sbmlutil
+import libsbml
+from bioscrape.sbmlutil import add_parameter, add_reaction, add_rule, create_sbml_model, import_sbml
 
 from libc.math cimport log, sqrt, cos, round, exp, fabs
 
@@ -1365,7 +1366,7 @@ cdef class Model:
         elif filename != None:
             self.parse_model(filename, input_printout = input_printout)
         elif sbml_filename != None:
-            sbmlutil.import_sbml(sbml_filename, bioscrape_model = self, input_printout = input_printout)
+            import_sbml(sbml_filename, bioscrape_model = self, input_printout = input_printout)
 
         for species in species:
             self._add_species(species)
@@ -2214,14 +2215,15 @@ cdef class Model:
         if self.has_delay:
             raise NotImplementedError("Writing SBML for bioscrape models with delay has not been implemented.")
 
-        document, model = sbmlutil.create_sbml_model(**keywords)
+        # Create an empty SBMLDocument object to hold the bioscrape model
+        document, model = create_sbml_model(**keywords)
 
         for p in self.get_param_list():
             val = self.get_param_value(p)
-            sbmlutil.add_parameter(model = model, param_name=p, param_value = val)
+            add_parameter(model = model, param_name=p, param_value = val)
 
         for s in self.get_species():
-            sbmlutil.add_species(model=model, compartment=model.getCompartment(0),
+            add_species(model=model, compartment=model.getCompartment(0),
                     species=s, initial_concentration=self.get_species_value(s))
 
         rxn_count = 0
@@ -2230,12 +2232,20 @@ cdef class Model:
 
             (reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict) = rxn_tuple
             
-            sbmlutil.add_reaction(model, reactants, products, rxn_id, propensity_type, propensity_param_dict,
+            add_reaction(model, reactants, products, rxn_id, propensity_type, propensity_param_dict,
                          stochastic = stochastic_model)
             rxn_count += 1
 
+        rule_count = 0
         for rule_tuple in self.rule_definitions:
-            raise NotImplementedError("Writing SBML for models with rules has not been implemented.")
+            rule_id = "rule" + str(rule_count)
+
+            # Syntax of rule_tuple = (rule_type, rule_dict, rule_frequency)
+            (rule_type, rule_dict, rule_frequency) = rule_tuple
+            # TODO : Finish 
+            add_rule(model, reactants, products, rule_id, propensity_type, propensity_param_dict,
+                         stochastic = stochastic_model)
+            rule_count += 1
 
         if document.getNumErrors():
             warnings.warn('SBML model generated has errors. Use document.getErrorLog() to print all errors.')
@@ -2244,7 +2254,7 @@ cdef class Model:
     #write an SBML Model
     def write_sbml_model(self, file_name, stochastic_model = False, **keywords):
         document, _ = self.generate_sbml_model(stochastic_model = stochastic_model, **keywords)
-        sbml_string = sbmlutil.libsbml.writeSBMLToString(document)
+        sbml_string = libsbml.writeSBMLToString(document)
         with open(file_name, 'w') as f:
             f.write(sbml_string)
         return True
