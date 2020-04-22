@@ -1,21 +1,21 @@
 <model>
-<species name="E" value="28.0" />
-<species name="B" value="47.0" />
-<species name="C" value="17.0" />
-<species name="A" value="47.0" />
-<species name="F" value="64.0" />
-<species name="D" value="15.0" />
-<species name="G" value="97.0" />
+<species name="A" value="46.0" />
+<species name="G" value="63.0" />
+<species name="E" value="32.0" />
+<species name="B" value="22.0" />
+<species name="C" value="96.0" />
+<species name="D" value="99.0" />
+<species name="F" value="24.0" />
 
-<parameter name="DummyVar_UnimolecularPropensity_k_0" value="3.045" />
-<parameter name="DummyVar_MassActionPropensity_k_1" value="1.076" />
+<parameter name="DummyVar_UnimolecularPropensity_k_0" value="3.068" />
+<parameter name="DummyVar_UnimolecularPropensity_k_1" value="2.255" />
 
-<reaction text= "E -- B + C ">
-	<propensity type="massaction" k="DummyVar_UnimolecularPropensity_k_0" species="E" />
+<reaction text= "A -- G + E + B ">
+	<propensity type="massaction" k="DummyVar_UnimolecularPropensity_k_0" species="A" />
 	<delay type="none" />
 </reaction>
-<reaction text= "A + B + C + B -- F ">
-	<propensity type="massaction" k="DummyVar_MassActionPropensity_k_1" species="A*B*C*B" />
+<reaction text= "E -- ">
+	<propensity type="massaction" k="DummyVar_UnimolecularPropensity_k_1" species="E" />
 	<delay type="none" />
 </reaction>
 

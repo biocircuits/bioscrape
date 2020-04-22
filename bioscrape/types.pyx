@@ -2220,6 +2220,9 @@ cdef class Model:
 
         for p in self.get_param_list():
             val = self.get_param_value(p)
+            if p[0] == '_':
+                # Remove the underscore at the beginning of the parameter name
+                p = p.replace('_','',1)
             add_parameter(model = model, param_name=p, param_value = val)
 
         for s in self.get_species():
@@ -2238,7 +2241,6 @@ cdef class Model:
         rule_count = 0
         for rule_tuple in self.rule_definitions:
             rule_id = "rule" + str(rule_count)
-
             # Syntax of rule_tuple = (rule_type, rule_dict, rule_frequency)
             (rule_type, rule_dict, rule_frequency) = rule_tuple
             # Extract the rule variable id from rule_dict:

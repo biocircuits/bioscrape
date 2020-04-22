@@ -12,17 +12,17 @@
       <compartment id="default" spatialDimensions="3" size="1e-06" constant="true"/>
     </listOfCompartments>
     <listOfSpecies>
-      <species id="E" name="E" compartment="default" initialConcentration="28" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
-      <species id="B" name="B" compartment="default" initialConcentration="47" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
-      <species id="C" name="C" compartment="default" initialConcentration="17" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
-      <species id="A" name="A" compartment="default" initialConcentration="47" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
-      <species id="F" name="F" compartment="default" initialConcentration="64" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
-      <species id="D" name="D" compartment="default" initialConcentration="15" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
-      <species id="G" name="G" compartment="default" initialConcentration="97" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="A" name="A" compartment="default" initialConcentration="46" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="G" name="G" compartment="default" initialConcentration="63" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="E" name="E" compartment="default" initialConcentration="32" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="B" name="B" compartment="default" initialConcentration="22" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="C" name="C" compartment="default" initialConcentration="96" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="D" name="D" compartment="default" initialConcentration="99" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="F" name="F" compartment="default" initialConcentration="24" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
     </listOfSpecies>
     <listOfParameters>
-      <parameter id="DummyVar_UnimolecularPropensity_k_0" value="3.045" constant="true"/>
-      <parameter id="DummyVar_MassActionPropensity_k_1" value="1.076" constant="true"/>
+      <parameter id="DummyVar_UnimolecularPropensity_k_0" value="3.068" constant="true"/>
+      <parameter id="DummyVar_UnimolecularPropensity_k_1" value="2.255" constant="true"/>
     </listOfParameters>
     <listOfReactions>
       <reaction id="r0" reversible="false" fast="false">
@@ -30,46 +30,36 @@
           <PropensityType> type=massaction k=DummyVar_UnimolecularPropensity_k_0</PropensityType>
         </annotation>
         <listOfReactants>
-          <speciesReference species="E" stoichiometry="1" constant="false"/>
+          <speciesReference species="A" stoichiometry="1" constant="false"/>
         </listOfReactants>
         <listOfProducts>
-          <speciesReference species="C" constant="false"/>
-          <speciesReference species="B" constant="false"/>
+          <speciesReference species="E" stoichiometry="1" constant="false"/>
+          <speciesReference species="B" stoichiometry="1" constant="false"/>
+          <speciesReference species="G" stoichiometry="1" constant="false"/>
         </listOfProducts>
         <kineticLaw>
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
               <times/>
+              <ci> A </ci>
               <ci> DummyVar_UnimolecularPropensity_k_0 </ci>
-              <ci> E </ci>
             </apply>
           </math>
         </kineticLaw>
       </reaction>
       <reaction id="r1" reversible="false" fast="false">
         <annotation>
-          <PropensityType> type=massaction k=DummyVar_MassActionPropensity_k_1</PropensityType>
+          <PropensityType> type=massaction k=DummyVar_UnimolecularPropensity_k_1</PropensityType>
         </annotation>
         <listOfReactants>
-          <speciesReference species="C" stoichiometry="1" constant="false"/>
-          <speciesReference species="B" stoichiometry="2" constant="false"/>
-          <speciesReference species="A" stoichiometry="1" constant="false"/>
+          <speciesReference species="E" stoichiometry="1" constant="false"/>
         </listOfReactants>
-        <listOfProducts>
-          <speciesReference species="F" constant="false"/>
-        </listOfProducts>
         <kineticLaw>
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
               <times/>
-              <ci> DummyVar_MassActionPropensity_k_1 </ci>
-              <ci> C </ci>
-              <apply>
-                <power/>
-                <ci> B </ci>
-                <cn type="integer"> 2 </cn>
-              </apply>
-              <ci> A </ci>
+              <ci> DummyVar_UnimolecularPropensity_k_1 </ci>
+              <ci> E </ci>
             </apply>
           </math>
         </kineticLaw>

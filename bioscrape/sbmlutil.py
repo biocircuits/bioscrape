@@ -99,8 +99,8 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
             if reactantspecies_id in allspecies:
                 reactant_list.append(reactantspecies_id)
             else:
-                warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.' + 
-                            ' The species will be added with zero initial amount'.format(reaction.getId()))
+                warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.'
+                 + ' The species will be added with zero initial amount'.format(reaction.getId()))
                 allspecies[reactantspecies_id] = 0.0
                 reactant_list.append(reactantspecies_id)
             
@@ -240,8 +240,20 @@ def _add_underscore_to_parameters(formula, parameters):
 
     return str(sympy_rate)
 
+def _remove_underscore_from_parameters(formula, parameters):
+    sympy_rate = sympy.sympify(formula, _clash1)
+    nodes = [sympy_rate]
+    index = 0
+    while index < len(nodes):
+        node = nodes[index]
+        index += 1
+        nodes.extend(node.args)
+    for node in nodes:
+        if type(node) == sympy.Symbol:
+            if node.name in parameters:
+                node.name = node.name.replace('_','',1)
+    return str(sympy_rate).replace('**','^')
 
-# Create an SBML model
 def create_sbml_model(compartment_id="default", time_units='second', extent_units='mole', substance_units='mole',
                       length_units='metre', area_units='square_metre', volume_units='litre', volume = 1e-6):
     document = libsbml.SBMLDocument(3, 1)
@@ -276,14 +288,15 @@ def create_sbml_model(compartment_id="default", time_units='second', extent_unit
 
 
 # Creates an SBML id from a chemical_reaction_network.species object
-def species_sbml_id(species, document=None):
+def species_sbml_id(species_name, document=None):
     # Construct the species ID
     # species_id = repr(species).replace(" ", "_").replace(":", "_").replace("--", "_").replace("-", "_").replace("'", "")
     all_ids = []
     if document:
         all_ids = getAllIds(document.getListOfAllElements())
+
     trans = SetIdFromNames(all_ids)
-    species_id = trans.getValidIdForName(species)
+    species_id = trans.getValidIdForName(species_name)
     return species_id
 
 
@@ -295,8 +308,10 @@ def add_species(model, compartment, species, debug=False, initial_concentration=
     # Construct the species name
     species_name = species
 
-    # Construct the species ID
-    species_id = species_sbml_id(species, model.getSBMLDocument())
+    # Construct the species ID 
+    # NOTE: These changes to the species id are not propagated into KineticLaw objects etc.
+    # TODO: Fix this. 
+    species_id = species_sbml_id(species_name, model.getSBMLDocument())
 
     if debug: print("Adding species", species_name, species_id)
     sbml_species = model.createSpecies()
@@ -316,13 +331,18 @@ def add_species(model, compartment, species, debug=False, initial_concentration=
 def add_parameter(model, param_name, param_value, debug=False):
     # Check to see if this parameter is already present
     parameter = model.createParameter()
-    all_ids = getAllIds(model.getSBMLDocument().getListOfAllElements())
-    trans = SetIdFromNames(all_ids)
-    parameter.setId(trans.getValidIdForName(param_name)) 
-
+    # all_ids = getAllIds(model.getSBMLDocument().getListOfAllElements())
+    # trans = SetIdFromNames(all_ids)
+    # parameter.setId(trans.getValidIdForName(param_name)) 
+    if debug: print("Adding parameter", param_name)
+    # param_name might be an invalid SBML identifier. But, if we change the name here 
+    # then we need to make sure the changes are propagated to KineticLaws etc. TODO.
+    if param_name[0] == '_':
+        param_name = param_name.replace('_','',1)
+    parameter.setId(param_name)
     # Set the value of the parameter
     parameter.setValue(float(param_value))
-    parameter.setConstant(True)
+    parameter.setConstant(True) # Is set to False while creating rules (if some parameter is changed using Rules)
 
     return parameter
 
@@ -337,10 +357,25 @@ def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, **kwargs):
         # Simply create SBML assignment rule type. For additive rule type as well, 
         # AssignmentRule type of SBML will work as $s_0$ is the artificial species that 
         # exists in the bioscrape model. 
+        for param in model.getListOfParameters():
+            if rule_variable == param.getId():
+                param.setConstant(False)
+        # allparams = {}
+        # for p in model.getListOfParameters():
+        #     pid = p.getId()
+        #     pid = '_' + pid
+        #     allparams[pid] = p.getValue()
+        # rule_formula = _remove_underscore_from_parameters(rule_formula, allparams)
+
+        # General propensity add modifier
+        # Rules params constant false
+        # Rules underscore thing
         rule = model.createAssignmentRule()
         rule.setId(rule_id)
+        if rule_variable[0] == '_':
+            rule_variable = rule_variable.replace('_','',1)
         rule.setVariable(rule_variable)
-        rule.setFormula(rule_forumla)  
+        rule.setFormula(rule_formula)  
     return rule 
 
 
@@ -359,14 +394,18 @@ def add_reaction(model, inputs_list, outputs_list,
 
     reaction = model.createReaction()
     reaction.setReversible(False)
-    reaction.setFast(False)
+    reaction.setFast(False) # Deprecated in SBML
     all_ids = getAllIds(model.getSBMLDocument().getListOfAllElements())
     trans = SetIdFromNames(all_ids)
     reaction.setId(trans.getValidIdForName(reaction_id))
     ratestring = "" #Stores the string representing the rate function
     annotation_dict = {"type":propensity_type}
     
-
+    allparams = {}
+    for p in model.getListOfParameters():
+        pid = p.getId()
+        pid = '_' + pid
+        allparams[pid] = p.getValue()
     ratelaw = reaction.createKineticLaw()
     #Create Local Propensity Parameters
     if propensity_type=="massaction":
@@ -382,18 +421,20 @@ def add_reaction(model, inputs_list, outputs_list,
 
     elif propensity_type == "general":
         ratestring = propensity_params['rate']
+        annotation_dict["rate"] = propensity_params['rate']
     else:
         raise ValueError(propensity_type+" is not a supported propensity_type")
 
     # Create the reactants
+    reactants_list = []
     for i in range(len(inputs)):
         species = str(inputs[i]).replace("'", "")
         stoichiometry = input_coefs[i]
-        # What to do when there are multiple species with same name?
-        # Having multiple species with same name should be an invalid bioscrape construct (AP, 04/21/20)
+        # Multiple species with same name should be an invalid bioscrape construct.
         species_id = getSpeciesByName(model,species).getId()
         reactant = reaction.createReactant()
         reactant.setSpecies(species_id)  # ! TODO: add error checking
+        reactants_list.append(species_id)
         reactant.setConstant(False)
         reactant.setStoichiometry(stoichiometry)
 
@@ -410,6 +451,19 @@ def add_reaction(model, inputs_list, outputs_list,
                 ratestring += f" * {species_id}^{stoichiometry}"
             else:
                 ratestring += f" * {species_id}"
+    
+    # Create the products
+    products_list = []
+    for i in range(len(outputs)):
+        species = str(outputs[i]).replace("'", "")
+        stoichiometry = output_coefs[i]
+        product = reaction.createProduct()
+        species_id = getSpeciesByName(model, species).getId()
+        product.setSpecies(species_id)
+        products_list.append(species_id)
+        product.setStoichiometry(stoichiometry)
+        product.setConstant(False)
+
 
     #Create ratestring for non-massaction propensities
     if propensity_type == "hillpositive":
@@ -419,7 +473,10 @@ def add_reaction(model, inputs_list, outputs_list,
                     "'s1':species (chemical_reaction_network.species)")
 
         s = str(propensity_params['s1']).replace("'", "")
-        s_species_id = getSpeciesByName(model,s).getId()
+        s_species_id = getSpeciesByName(model, s).getId()
+        if s_species_id not in reactants_list and s_species_id not in products_list:
+            modifier = reaction.createModifier()
+            modifier.setSpecies(s_species_id)
         n = propensity_params['n']
         K = propensity_params['K']
         ratestring+=f"*{s_species_id}^n/({s_species_id}^{n}+{K})"
@@ -433,10 +490,12 @@ def add_reaction(model, inputs_list, outputs_list,
                     "'s1':species (chemical_reaction_network.species)")
         s = str(propensity_params['s1']).replace("'", "")
         s_species_id = getSpeciesByName(model,s).getId()
+        if s_species_id not in reactants_list and s_species_id not in products_list:
+            modifier = reaction.createModifier()
+            modifier.setSpecies(s_species_id)
         n = propensity_params['n']
         K = propensity_params['K']
         ratestring+=f"/({s_species_id}^{n}+{K})"
-
         annotation_dict["s1"] = s_species_id
 
     elif propensity_type == "proportionalhillpositive":
@@ -449,7 +508,13 @@ def add_reaction(model, inputs_list, outputs_list,
         s = str(propensity_params['s1']).replace("'", "")
         d = str(propensity_params['d']).replace("'", "")
         s_species_id = getSpeciesByName(model,s).getId()
+        if s_species_id not in reactants_list and s_species_id not in products_list:
+            modifier = reaction.createModifier()
+            modifier.setSpecies(s_species_id)
         d_species_id = getSpeciesByName(model,d).getId()
+        if d_species_id not in reactants_list and d_species_id not in products_list:
+            modifier = reaction.createModifier()
+            modifier.setSpecies(d_species_id)
         n = propensity_params['n']
         K = propensity_params['K']
 
@@ -468,7 +533,13 @@ def add_reaction(model, inputs_list, outputs_list,
         s = str(propensity_params['s1']).replace("'", "")
         d = str(propensity_params['d']).replace("'", "")
         s_species_id = getSpeciesByName(model,s).getId()
+        if s_species_id not in reactants_list and s_species_id not in products_list:
+            modifier = reaction.createModifier()
+            modifier.setSpecies(s_species_id)
         d_species_id = getSpeciesByName(model,d).getId()
+        if d_species_id not in reactants_list and d_species_id not in products_list:
+            modifier = reaction.createModifier()
+            modifier.setSpecies(d_species_id)
         n = propensity_params['n']
         K = propensity_params['K']
 
@@ -477,22 +548,11 @@ def add_reaction(model, inputs_list, outputs_list,
         annotation_dict["s1"] = s_species_id
         annotation_dict["d"] = d_species_id
 
-    elif propensity_type == "general":
-        ratestring = propensity_params['rate']
-
-    # Create the products
-    for i in range(len(outputs)):
-        species = str(outputs[i]).replace("'", "")
-        stoichiometry = output_coefs[i]
-        product = reaction.createProduct()
-        species_id = getSpeciesByName(model, species).getId()
-        product.setSpecies(species_id)
-        reactant.setStoichiometry(stoichiometry)
-        product.setConstant(False)
-
+    ratestring = _remove_underscore_from_parameters(ratestring, allparams)
     # Set the ratelaw to the ratestring
     math_ast = libsbml.parseL3Formula(ratestring)
     ratelaw.setMath(math_ast)
+
     if propensity_annotation:
         annotation_string = "<PropensityType>"
         for k in annotation_dict:
