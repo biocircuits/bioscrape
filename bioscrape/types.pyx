@@ -117,6 +117,8 @@ cdef class ConstitutivePropensity(Propensity):
                 self.rate_index = parameter_indices[value]
             elif key == 'species':
                 pass
+            elif key == "propensity_type":
+                pass
             else:
                 warnings.warn('Warning! Useless field for ConstitutivePropensity'+str(key))
 
@@ -143,6 +145,8 @@ cdef class UnimolecularPropensity(Propensity):
                 self.species_index = species_indices[value]
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
+            elif key == "propensity_type":
+                pass
             else:
                 warnings.warn('Warning! Useless field for UnimolecularPropensity '+str(key))
 
@@ -1603,6 +1607,10 @@ cdef class Model:
 
         #Copy dictionaries so they aren't altered if they are being used by external code
         propensity_param_dict = dict(propensity_param_dict)
+
+        #Remove "propensity_type" key which may be leftover from SBML annotations
+        if 'propensity_type' in propensity_param_dict:
+            propensity_param_dict.pop("propensity_type")
 
         if delay_param_dict != None:
             delay_param_dict = dict(delay_param_dict)
