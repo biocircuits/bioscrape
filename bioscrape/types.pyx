@@ -2242,9 +2242,14 @@ cdef class Model:
 
             # Syntax of rule_tuple = (rule_type, rule_dict, rule_frequency)
             (rule_type, rule_dict, rule_frequency) = rule_tuple
-            # TODO : Finish 
-            add_rule(model, reactants, products, rule_id, propensity_type, propensity_param_dict,
-                         stochastic = stochastic_model)
+            # Extract the rule variable id from rule_dict:
+            equation = rule_dict['equation']
+            split_eqn = [s.strip() for s in equation.split('=') ]
+            assert(len(split_eqn) == 2)
+            # Extract the rule formula for the variable above from rule_dict:
+            rule_formula = split_eqn[1]
+            rule_variable = split_eqn[0]
+            add_rule(model, rule_id, rule_type, rule_variable, rule_formula)
             rule_count += 1
 
         if document.getNumErrors():

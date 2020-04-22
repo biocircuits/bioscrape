@@ -329,10 +329,18 @@ def add_parameter(model, param_name, param_value, debug=False):
 # Helper function to add a rule to an sbml model
 # rule must be a chemical_reaction_network.reaction object
 # propensity params is a dictionary of the parameters for non-massaction propensities.
-def add_rule(model, variable_id, rule_id, rule_type, rule_equation, **kwargs):
-    rule = model.createRule(rule_id)
-    rule.setVariable(variable_id)
-    # TODO : Finish
+def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, **kwargs):
+    # Create SBML equivalent of bioscrape rule:
+    if rule_type == 'algebraic':
+        raise NotImplementedError
+    if rule_type == 'assignment' or rule_type = 'additive':
+        # Simply create SBML assignment rule type. For additive rule type as well, 
+        # AssignmentRule type of SBML will work as $s_0$ is the artificial species that 
+        # exists in the bioscrape model. 
+        rule = model.createAssignmentRule()
+        rule.setId(rule_id)
+        rule.setVariable(rule_variable)
+        rule.setFormula(rule_forumla)  
     return rule 
 
 
@@ -373,7 +381,7 @@ def add_reaction(model, inputs_list, outputs_list,
         annotation_dict["n"] = propensity_params['n']
 
     elif propensity_type == "general":
-        raise ValueError('')
+        ratestring = propensity_params['rate']
     else:
         raise ValueError(propensity_type+" is not a supported propensity_type")
 
@@ -381,8 +389,8 @@ def add_reaction(model, inputs_list, outputs_list,
     for i in range(len(inputs)):
         species = str(inputs[i]).replace("'", "")
         stoichiometry = input_coefs[i]
-
         # What to do when there are multiple species with same name?
+        # Having multiple species with same name should be an invalid bioscrape construct (AP, 04/21/20)
         species_id = getSpeciesByName(model,species).getId()
         reactant = reaction.createReactant()
         reactant.setSpecies(species_id)  # ! TODO: add error checking
