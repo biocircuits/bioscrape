@@ -123,6 +123,6 @@ examples/models/random_model.xml
 examples/models/random_model_sbml.xml
 examples/models/sbml_test_bioscrape.xml
 examples/models/sbml_test_bioscrape.xml
-examples/models/represilator_bioscrape.xml
-examples/models/represilator_sbml_back.xml
+examples/models/represillator_bioscrape.xml
+examples/models/represillator_sbml_back.xml
 examples/models/txtl_model_sbml.xml
