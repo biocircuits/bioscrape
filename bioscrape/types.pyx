@@ -12,7 +12,7 @@ import sympy
 from sympy.abc import _clash1
 import warnings
 import libsbml
-from bioscrape.sbmlutil import add_parameter, add_reaction, add_rule, create_sbml_model, import_sbml
+from bioscrape.sbmlutil import add_species, add_parameter, add_reaction, add_rule, create_sbml_model, import_sbml
 
 from libc.math cimport log, sqrt, cos, round, exp, fabs
 
@@ -2223,8 +2223,7 @@ cdef class Model:
             add_parameter(model = model, param_name=p, param_value = val)
 
         for s in self.get_species():
-            add_species(model=model, compartment=model.getCompartment(0),
-                    species=s, initial_concentration=self.get_species_value(s))
+            add_species(model=model, compartment=model.getCompartment(0), species=s, initial_concentration=self.get_species_value(s))
 
         rxn_count = 0
         for rxn_tuple in self.reaction_definitions:

@@ -333,7 +333,7 @@ def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, **kwargs):
     # Create SBML equivalent of bioscrape rule:
     if rule_type == 'algebraic':
         raise NotImplementedError
-    if rule_type == 'assignment' or rule_type = 'additive':
+    if rule_type == 'assignment' or rule_type == 'additive':
         # Simply create SBML assignment rule type. For additive rule type as well, 
         # AssignmentRule type of SBML will work as $s_0$ is the artificial species that 
         # exists in the bioscrape model. 
