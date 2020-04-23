@@ -20,29 +20,29 @@
       <species id="Z" name="Z" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
     </listOfSpecies>
     <listOfParameters>
-      <parameter id="beta" value="0.2" constant="true"/>
-      <parameter id="alpha0" value="0.216404256133345" constant="true"/>
-      <parameter id="alpha" value="216.187851877211" constant="true"/>
+      <parameter id="beta" value="0.2" constant="false"/>
+      <parameter id="alpha0" value="0.216404256133345" constant="false"/>
+      <parameter id="alpha" value="216.187851877211" constant="false"/>
       <parameter id="eff" value="20" constant="true"/>
       <parameter id="n" value="2" constant="true"/>
       <parameter id="KM" value="40" constant="true"/>
       <parameter id="tau_mRNA" value="2" constant="true"/>
       <parameter id="tau_prot" value="10" constant="true"/>
-      <parameter id="t_ave" value="2.88539008177793" constant="true"/>
-      <parameter id="kd_mRNA" value="0.346573590279973" constant="true"/>
-      <parameter id="kd_prot" value="0.0693147180559945" constant="true"/>
-      <parameter id="k_tl" value="6.93147180559945" constant="true"/>
-      <parameter id="a_tr" value="29.97" constant="true"/>
+      <parameter id="t_ave" value="2.88539008177793" constant="false"/>
+      <parameter id="kd_mRNA" value="0.346573590279973" constant="false"/>
+      <parameter id="kd_prot" value="0.0693147180559945" constant="false"/>
+      <parameter id="k_tl" value="6.93147180559945" constant="false"/>
+      <parameter id="a_tr" value="29.97" constant="false"/>
       <parameter id="ps_a" value="0.5" constant="true"/>
       <parameter id="ps_0" value="0.0005" constant="true"/>
-      <parameter id="a0_tr" value="0.03" constant="true"/>
+      <parameter id="a0_tr" value="0.03" constant="false"/>
     </listOfParameters>
     <listOfRules>
       <assignmentRule variable="t_ave">
         <math xmlns="http://www.w3.org/1998/Math/MathML">
           <apply>
             <divide/>
-            <ci> _tau_mRNA </ci>
+            <ci> tau_mRNA </ci>
             <apply>
               <ln/>
               <cn type="integer"> 2 </cn>
@@ -54,8 +54,8 @@
         <math xmlns="http://www.w3.org/1998/Math/MathML">
           <apply>
             <divide/>
-            <ci> _tau_mRNA </ci>
-            <ci> _tau_prot </ci>
+            <ci> tau_mRNA </ci>
+            <ci> tau_prot </ci>
           </apply>
         </math>
       </assignmentRule>
@@ -63,8 +63,8 @@
         <math xmlns="http://www.w3.org/1998/Math/MathML">
           <apply>
             <divide/>
-            <ci> _eff </ci>
-            <ci> _t_ave </ci>
+            <ci> eff </ci>
+            <ci> t_ave </ci>
           </apply>
         </math>
       </assignmentRule>
@@ -75,12 +75,12 @@
             <apply>
               <times/>
               <cn type="integer"> -60 </cn>
-              <ci> _ps_0 </ci>
+              <ci> ps_0 </ci>
             </apply>
             <apply>
               <times/>
               <cn type="integer"> 60 </cn>
-              <ci> _ps_a </ci>
+              <ci> ps_a </ci>
             </apply>
           </apply>
         </math>
@@ -90,7 +90,7 @@
           <apply>
             <times/>
             <cn type="integer"> 60 </cn>
-            <ci> _ps_0 </ci>
+            <ci> ps_0 </ci>
           </apply>
         </math>
       </assignmentRule>
@@ -102,7 +102,7 @@
               <ln/>
               <cn type="integer"> 2 </cn>
             </apply>
-            <ci> _tau_prot </ci>
+            <ci> tau_prot </ci>
           </apply>
         </math>
       </assignmentRule>
@@ -114,7 +114,7 @@
               <ln/>
               <cn type="integer"> 2 </cn>
             </apply>
-            <ci> _tau_mRNA </ci>
+            <ci> tau_mRNA </ci>
           </apply>
         </math>
       </assignmentRule>
@@ -124,13 +124,13 @@
             <divide/>
             <apply>
               <times/>
-              <ci> _a_tr </ci>
-              <ci> _eff </ci>
-              <ci> _tau_prot </ci>
+              <ci> a_tr </ci>
+              <ci> eff </ci>
+              <ci> tau_prot </ci>
             </apply>
             <apply>
               <times/>
-              <ci> _KM </ci>
+              <ci> KM </ci>
               <apply>
                 <ln/>
                 <cn type="integer"> 2 </cn>
@@ -145,13 +145,13 @@
             <divide/>
             <apply>
               <times/>
-              <ci> _a0_tr </ci>
-              <ci> _eff </ci>
-              <ci> _tau_prot </ci>
+              <ci> a0_tr </ci>
+              <ci> eff </ci>
+              <ci> tau_prot </ci>
             </apply>
             <apply>
               <times/>
-              <ci> _KM </ci>
+              <ci> KM </ci>
               <apply>
                 <ln/>
                 <cn type="integer"> 2 </cn>
@@ -220,6 +220,9 @@
         <listOfProducts>
           <speciesReference species="PX" stoichiometry="1" constant="false"/>
         </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference species="X"/>
+        </listOfModifiers>
         <kineticLaw>
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
@@ -237,6 +240,9 @@
         <listOfProducts>
           <speciesReference species="PY" stoichiometry="1" constant="false"/>
         </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference species="Y"/>
+        </listOfModifiers>
         <kineticLaw>
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
@@ -254,6 +260,9 @@
         <listOfProducts>
           <speciesReference species="PZ" stoichiometry="1" constant="false"/>
         </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference species="Z"/>
+        </listOfModifiers>
         <kineticLaw>
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
@@ -322,6 +331,9 @@
         <listOfProducts>
           <speciesReference species="X" stoichiometry="1" constant="false"/>
         </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference species="PZ"/>
+        </listOfModifiers>
         <kineticLaw>
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
@@ -363,6 +375,9 @@
         <listOfProducts>
           <speciesReference species="Y" stoichiometry="1" constant="false"/>
         </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference species="PX"/>
+        </listOfModifiers>
         <kineticLaw>
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
@@ -404,6 +419,9 @@
         <listOfProducts>
           <speciesReference species="Z" stoichiometry="1" constant="false"/>
         </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference species="PY"/>
+        </listOfModifiers>
         <kineticLaw>
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
