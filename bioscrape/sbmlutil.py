@@ -832,5 +832,5 @@ def getSpeciesByName(model, name, compartment=''):
     elif not species_found:
         raise ValueError('The species ' + name + ' not found.')
     else:
-        warn('Multiple species with name ' + name + ' found. Returning a list')
+        warnings.warn('Multiple species with name ' + name + ' found. Returning a list')
         return species_found
