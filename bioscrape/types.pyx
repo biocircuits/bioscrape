@@ -1872,7 +1872,7 @@ cdef class Model:
 
     def parse_model(self, filename, input_printout = False):
         """
-        Parse the model from the file filling in all the local variables (propensities, delays, update arrays). Also
+        Parse the model from an XML file filling in all the local variables (propensities, delays, update arrays). Also
         maps the species and parameters to indices in a species and parameters vector.
 
         :param filename: (str or file) the model file. if a string, the file is opened. otherwise, it is assumed

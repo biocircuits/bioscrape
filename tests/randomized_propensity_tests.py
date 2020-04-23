@@ -12,6 +12,8 @@ import test_utils
 from bioscrape.simulator import *
 from bioscrape.types import *
 
+# Seed RNG value. All tests use this value.
+seed = 54173
 
 # Set to True to get in-line prints and plotting
 debug = False
@@ -41,13 +43,12 @@ propensity_species_requirements = {
 
 TEST_NAME = "random_propensities"
 
-@pytest.mark.parametrize('prop_type', 
-					   ['hillpositive', 'proportionalhillpositive', 
-					    'hillnegative', 'proportionalhillnegative', 
-					    'massaction', 'general'])
-def test_random_propensities(prop_type):
-	# RNG seed
-	seed = 54173
+@pytest.fixture(scope="module", params=['hillpositive', 
+										'proportionalhillpositive', 
+					    				'hillnegative', 
+					    				'proportionalhillnegative', 
+					    				'massaction', 'general'])
+def random_prop_model(prop_type):
 	test_utils.set_seed(seed)
 
 	#Will always consider the reaction: A+B-->C
@@ -56,8 +57,6 @@ def test_random_propensities(prop_type):
 	all_species = inputs + outputs
 	timepoints = np.arange(0, 50, .01)
 	x0 = {"A":25, "B": 25, "C":0}
-
-	test_results = dict()
 
 	if debug:
 		print('simulating propensity type ', prop_type)
@@ -101,16 +100,29 @@ def test_random_propensities(prop_type):
 	rxn = (inputs, outputs, prop_type, param_dict)
 	M = Model(reactions = [rxn], initial_condition_dict = x0)
 	M.set_species(x0)
-	results_d = py_simulate_model(timepoints, Model = M)
-	results_s = py_simulate_model(timepoints, Model = M, stochastic = True)
+	return M
+
+# @pytest.mark.parametrize('prop_type', 
+# 					   )
+def test_random_propensities(random_prop_model):
+	test_results = dict()
+
+	results_d = py_simulate_model(timepoints, Model = random_prop_model)
+	results_s = py_simulate_model(timepoints, Model = random_prop_model, 
+								  stochastic = True)
 
 	test_results[prop_type + "_deterministic"] = results_d
 	test_results[prop_type + "_stochastic"]    = results_s
 
 	test_utils.check_sim_results(TEST_NAME, test_results)
 
+def test_random_propensity_sbml(random_prop_model):
+	
+
 def debug_random_prop_tests():
 	'''
+	This is not a test.
+
 	Plot frozen results for debugging purposes.
 	'''
 	propensity_types = ['hillpositive', 'proportionalhillpositive', 
