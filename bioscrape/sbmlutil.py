@@ -79,7 +79,6 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
             allparams[pid] = 0.0
             if np.isfinite(p.getValue()):
                 allparams[pid] = p.getValue()
-
         # get the formula as a string and then add
         # a leading _ to parameter names
         kl_formula = libsbml.formulaToL3String(kl.getMath())
