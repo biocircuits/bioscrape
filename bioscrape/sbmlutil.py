@@ -97,32 +97,38 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
             reactantspecies = model.getSpecies(reactant.getSpecies())
             reactantspecies_id = reactantspecies.getId()
             if reactantspecies_id in allspecies:
-                if np.isfinite(reactant.getStoichiometry()) or reactant.getStoichiometry() is None:
+                if np.isfinite(reactant.getStoichiometry()): 
                     for i in range(int(reactant.getStoichiometry())):
                         reactant_list.append(reactantspecies_id)    
+                else:
+                    reactant_list.append(reactantspecies_id)
             else:
                 warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.'
                  + ' The species will be added with zero initial amount'.format(reaction.getId()))
                 allspecies[reactantspecies_id] = 0.0
-                if np.isfinite(reactant.getStoichiometry()) or reactant.getStoichiometry() is None:
+                if np.isfinite(reactant.getStoichiometry()):
                     for i in range(int(reactant.getStoichiometry())):
                         reactant_list.append(reactantspecies_id)
-            
+                else:
+                    reactant_list.append(reactantspecies_id)
         for product in reaction.getListOfProducts():
             productspecies = model.getSpecies(product.getSpecies())
             productspecies_id = productspecies.getId()
             if productspecies_id in allspecies:
-                if np.isfinite(product.getStoichiometry()) or product.getStoichiometry() is None:
+                if np.isfinite(product.getStoichiometry()):
                     for i in range(int(product.getStoichiometry())):
                         product_list.append(productspecies_id)
+                else:
+                    product_list.append(productspecies_id)
             else:
                 warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.' + 
                             ' The species will be added with zero initial amount'.format(reaction.getId()))
                 allspecies[productspecies_id] = 0.0
-                if np.isfinite(product.getStoichiometry()) or product.getStoichiometry() is None:
+                if np.isfinite(product.getStoichiometry()):
                     for i in range(int(product.getStoichiometry())):
                         product_list.append(productspecies_id)
-
+                else:
+                    product_list.append(productspecies_id)
         #Identify propensities based upon annotations
         annotation_string = reaction.getAnnotationString()
         if "PropensityType" in annotation_string:
