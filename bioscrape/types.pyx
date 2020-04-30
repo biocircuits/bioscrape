@@ -2234,7 +2234,7 @@ cdef class Model:
             add_parameter(model = model, param_name=p, param_value = val)
 
         for s in self.get_species():
-            add_species(model=model, compartment=model.getCompartment(0), species=s, initial_concentration=self.get_species_value(s))
+            add_species(model = model, compartment=model.getCompartment(0), species=s, initial_concentration=self.get_species_value(s))
 
         rxn_count = 0
         for rxn_tuple in self.reaction_definitions:
@@ -2254,7 +2254,7 @@ cdef class Model:
             # Extract the rule variable id from rule_dict:
             equation = rule_dict['equation']
             split_eqn = [s.strip() for s in equation.split('=') ]
-            assert(len(split_eqn) == 2)
+            assert(len(split_eqn) == 2) # Checking rule_dict equation structure.
             # Extract the rule formula for the variable above from rule_dict:
             rule_formula = split_eqn[1]
             rule_variable = split_eqn[0]

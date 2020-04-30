@@ -242,7 +242,7 @@ class MCMC(object):
             # Find best p
             best_p_ind = np.where(n == np.max(n))
             if np.shape(best_p_ind)[-1] != 1:
-                warnings.warn('Multiple parameter values for {0} found with max distribution, choosing the first one. The results might be misleadig.'.format(params_names[i]))
+                warnings.warn('Multiple parameter values for {0} found with max distribution, choosing the first one. The results might be misleadig.'.format(params_to_estimate[i]))
                 best_p_ind = np.array(best_p_ind[0].tolist()[0])
             assert len(best_p_ind) == 1
             best_p.append(bins[best_p_ind])

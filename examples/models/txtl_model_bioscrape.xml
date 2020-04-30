@@ -1,19 +1,19 @@
 <model>
 <species name="G" value="1.0" />
 <species name="T" value="0.0" />
-<species name="X" value="0.0" />
 <species name="I" value="0.0" />
+<species name="X" value="0.0" />
 <species name="S" value="0.0" />
 
 <parameter name="KI" value="10.0" />
 <parameter name="n" value="2.0" />
 <parameter name="ktx" value="1.5" />
-<parameter name="DummyVar_PositiveHillPropensity_n_0" value="1.0" />
 <parameter name="KR" value="20.0" />
+<parameter name="DummyVar_PositiveHillPropensity_n_0" value="1.0" />
 <parameter name="ktl" value="10.0" />
 <parameter name="delta" value="0.1" />
 <parameter name="I0" value="10.0" />
-<parameter name="T_I0" value="25.0" />
+<parameter name="T_I0" value="50.0" />
 
 <reaction text= "G -- G + T ">
 	<propensity type="proportionalhillpositive" d="G" s1="I" k="ktx" K="KI" n="n" />
@@ -32,6 +32,6 @@
 	<delay type="none" />
 </reaction>
 
-<rule type="assignment" frequency="repeated" equation="I = _I0*Heaviside(t-_T_I0)"  />
-<rule type="assignment" frequency="repeated" equation="S = 50*X/(1+.2*X)"  />
+<rule type="assignment" frequency="repeated" frequency="repeated" equation="I = _I0*Heaviside(t-_T_I0)"  />
+<rule type="assignment" frequency="repeated" frequency="repeated" equation="S = 50*X/(1+.2*X)"  />
 </model>
