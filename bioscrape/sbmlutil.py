@@ -294,7 +294,7 @@ def _remove_underscore_from_parameters(formula, parameters):
 
 def create_sbml_model(compartment_id="default", time_units='second', extent_units='mole', substance_units='mole',
                       length_units='metre', area_units='square_metre', volume_units='litre', volume = 1e-6):
-    document = libsbml.SBMLDocument(3, 1)
+    document = libsbml.SBMLDocument(3, 2)
     model = document.createModel()
     model.setId('bioscrape_generated_model_' + str(np.random.randint(1e6)))
     # Define units for area (not used, but keeps COPASI from complaining)
