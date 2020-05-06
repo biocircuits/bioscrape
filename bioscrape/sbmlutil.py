@@ -96,46 +96,65 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
             reactantspecies = model.getSpecies(reactant.getSpecies())
             reactantspecies_id = reactantspecies.getId()
             if reactantspecies_id in allspecies:
-                for i in range(int(reactant.getStoichiometry())):
+                if np.isfinite(reactant.getStoichiometry()): 
+                    for i in range(int(reactant.getStoichiometry())):
+                        reactant_list.append(reactantspecies_id)    
+                else:
                     reactant_list.append(reactantspecies_id)
             else:
                 warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.'
                  + ' The species will be added with zero initial amount'.format(reaction.getId()))
                 allspecies[reactantspecies_id] = 0.0
-                for i in range(int(reactant.getStoichiometry())):
+                if np.isfinite(reactant.getStoichiometry()):
+                    for i in range(int(reactant.getStoichiometry())):
+                        reactant_list.append(reactantspecies_id)
+                else:
                     reactant_list.append(reactantspecies_id)
-            
         for product in reaction.getListOfProducts():
             productspecies = model.getSpecies(product.getSpecies())
             productspecies_id = productspecies.getId()
             if productspecies_id in allspecies:
-                for i in range(int(product.getStoichiometry())):
+                if np.isfinite(product.getStoichiometry()):
+                    for i in range(int(product.getStoichiometry())):
+                        product_list.append(productspecies_id)
+                else:
                     product_list.append(productspecies_id)
             else:
                 warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.' + 
                             ' The species will be added with zero initial amount'.format(reaction.getId()))
                 allspecies[productspecies_id] = 0.0
-                for i in range(int(product.getStoichiometry())):
+                if np.isfinite(product.getStoichiometry()):
+                    for i in range(int(product.getStoichiometry())):
+                        product_list.append(productspecies_id)
+                else:
                     product_list.append(productspecies_id)
-
         #Identify propensities based upon annotations
         annotation_string = reaction.getAnnotationString()
         if "PropensityType" in annotation_string:
             ind0 = annotation_string.find("<PropensityType>")
             ind1 = annotation_string.find("</PropensityType>")
-            # propensity_definition = {}
-            annotation_list = annotation_string[ind0:ind1].split(" ")
-            key_vals = [(i.split("=")[0], i.split("=")[1]) for i in annotation_list if "=" in i]
-            propensity_params = {}
-            for (k, v) in key_vals:
-                try:
-                    propensity_params[k] = float(v)
-                except ValueError:
-                    propensity_params[k] = v
-            if input_printout:
-                print("Reaction found:", reactant_list, "->", product_list)
-                print("Annotated propensity found with params:", propensity_params)
-            rxn  = (reactant_list, product_list, propensity_params['type'], propensity_params)
+            if ind0 == -1 or ind1 == -1:
+                # Annotation could not be read
+                if input_printout:
+                    print('Annotation could not be read properly, adding reaction with general propensity.')
+                propensity_type = 'general'
+                general_kl_formula = {}
+                general_kl_formula['rate'] = rate_string 
+                rxn = (reactant_list, product_list, propensity_type, general_kl_formula)
+            else:
+                # propensity_definition = {}
+                annotation_list = annotation_string[ind0:ind1].split(" ")
+                key_vals = [(i.split("=")[0], i.split("=")[1]) for i in annotation_list if "=" in i]
+                propensity_params = {}
+                for (k, v) in key_vals:
+                    try:
+                        propensity_params[k] = float(v)
+                    except ValueError:
+                        propensity_params[k] = v
+                if input_printout:
+                    print("Reaction found:", reactant_list, "->", product_list)
+                    print("Annotated propensity found with params:", propensity_params)
+                rxn  = (reactant_list, product_list, propensity_params['type'], propensity_params)
 
         else: #No annotation found
             propensity_type = 'general'
@@ -144,7 +163,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
             rxn = (reactant_list, product_list, propensity_type, general_kl_formula)
             if input_printout:
                 print("Reaction found:", reactant_list, "->", product_list)
-                print("Unnotated propensity found with ratestring:", rate_string)
+                print("Annotated propensity found with general ratestring:", rate_string)
         allreactions.append(rxn)
             
     # Go through rules one at a time
@@ -276,10 +295,11 @@ def create_sbml_model(compartment_id="default", time_units='second', extent_unit
                       length_units='metre', area_units='square_metre', volume_units='litre', volume = 1e-6):
     document = libsbml.SBMLDocument(3, 1)
     model = document.createModel()
-
+    model.setId('bioscrape_generated_model_' + str(np.random.randint(1e6)))
     # Define units for area (not used, but keeps COPASI from complaining)
     unitdef = model.createUnitDefinition()
     unitdef.setId('square_metre')
+    unitdef.setName('square_metre')
     unit = unitdef.createUnit()
     unit.setKind(libsbml.UNIT_KIND_METRE)
     unit.setExponent(2)
@@ -297,6 +317,7 @@ def create_sbml_model(compartment_id="default", time_units='second', extent_unit
     # Define the default compartment
     compartment = model.createCompartment()
     compartment.setId(compartment_id)
+    compartment.setName(compartment_id)
     compartment.setConstant(True)  # keep compartment size constant
     compartment.setSpatialDimensions(3)  # 3 dimensional compartment
     compartment.setVolume(volume)  # 1 microliter
@@ -333,6 +354,7 @@ def add_species(model, compartment, species, debug=False, initial_concentration=
     sbml_species = model.createSpecies()
     sbml_species.setName(species_name)
     sbml_species.setId(species_id)
+    sbml_species.setName(species_id)
     sbml_species.setCompartment(compartment.getId())
     sbml_species.setConstant(False)
     sbml_species.setBoundaryCondition(False)
@@ -356,6 +378,7 @@ def add_parameter(model, param_name, param_value, debug=False):
     if param_name[0] == '_':
         param_name = param_name.replace('_','',1)
     parameter.setId(param_name)
+    parameter.setName(param_name)
     # Set the value of the parameter
     parameter.setValue(float(param_value))
     parameter.setConstant(True) # Is set to False while creating rules (if some parameter is changed using Rules)
@@ -386,6 +409,7 @@ def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, **kwargs):
         rule_formula = _remove_underscore_from_parameters(rule_formula, allparams)
         rule = model.createAssignmentRule()
         rule.setId(rule_id)
+        rule.setName(rule_id)
         rule.setVariable(rule_variable)
         rule.setFormula(rule_formula)  
     return rule 
@@ -410,6 +434,7 @@ def add_reaction(model, inputs_list, outputs_list,
     all_ids = getAllIds(model.getSBMLDocument().getListOfAllElements())
     trans = SetIdFromNames(all_ids)
     reaction.setId(trans.getValidIdForName(reaction_id))
+    reaction.setName(reaction.getId())
     ratestring = "" #Stores the string representing the rate function
     annotation_dict = {"type":propensity_type}
     allspecies = []
@@ -451,6 +476,8 @@ def add_reaction(model, inputs_list, outputs_list,
         reactant.setSpecies(species_id)  # ! TODO: add error checking
         reactants_list.append(species_id)
         reactant.setConstant(False)
+        if stoichiometry is None or stoichiometry is np.nan:
+            stoichiometry = 1.0
         reactant.setStoichiometry(stoichiometry)
 
         #Create Rate-strings for massaction propensities
@@ -476,6 +503,8 @@ def add_reaction(model, inputs_list, outputs_list,
         species_id = getSpeciesByName(model, species).getId()
         product.setSpecies(species_id)
         products_list.append(species_id)
+        if stoichiometry is None or stoichiometry is np.nan:
+            stoichiometry = 1.0
         product.setStoichiometry(stoichiometry)
         product.setConstant(False)
 

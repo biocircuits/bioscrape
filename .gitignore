@@ -15,6 +15,9 @@ cython_example.ipynb
 # MacOS junk
 .DS_Store
 
+# VScode junk
+.vscode/
+
 # Distribution / packaging
 .Python
 env/
