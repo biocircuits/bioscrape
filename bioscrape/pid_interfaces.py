@@ -1,4 +1,3 @@
-
 from bioscrape.inference import DeterministicLikelihood as DLL
 from bioscrape.inference import StochasticTrajectoriesLikelihood as STLL
 from bioscrape.inference import StochasticTrajectories
@@ -46,7 +45,7 @@ class StochasticInference(object):
         params_exp = np.exp(log_params)
         for key, p in zip(M.get_params2index().keys(),params_exp):
             params_dict[key] = p
-        # Priors (uniform priors only implemented)
+        # Priors
         priors = self.priors
         # Check prior
         if check_priors(params_dict, priors) == False:
@@ -100,15 +99,24 @@ class DeterministicInference(object):
         dataDet = BulkData(np.array(timepoints), data, measurements, N)
         #If there are multiple initial conditions in a data-set, should correspond to multiple initial conditions for inference.
         #Note len(initial_conditions) must be equal to the number of trajectories N
+        if debug:
+            print('dataDet type is', type(dataDet))
+            print('initial cond is', initial_conditions)
+        # TODO: Initial conditions not going through correctly?
+        # TODO: priors needs all parameters of the models when it should only need those that are being identified.
+        # TODO: Need to fix how multiple initial conditions will be handled because in pid_interfaces only one at a time can go through.
         LL_det = DLL(model = M, init_state = initial_conditions,
         data = dataDet, norm_order = norm_order)
         #Multiple samples with a single initial only require a single initial condition.
         # Set params here and return the likelihood object.
+        print('here in det')
         if LL_det:
             # if debug:
             #     print('setting {0} to LL_det object'.format(params_dict))
             LL_det.set_init_params(params_dict)
-            return -LL_det.py_log_likelihood()
+            LL_det_cost = -LL_det.py_log_likelihood()
+            print(LL_det_cost)
+            return LL_det_cost
         
 
 
