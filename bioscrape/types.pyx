@@ -180,7 +180,7 @@ cdef class BimolecularPropensity(Propensity):
         else:
             return params[self.rate_index]*state[self.s1_index]*max(state[self.s1_index]-1, 0) / volume
 
-    
+
     def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
 
         for key,value in param_dictionary.items():
@@ -421,7 +421,7 @@ cdef class MassActionPropensity(Propensity):
             return ans / (volume ** (self.num_species - 1) )
 
     cdef double get_stochastic_volume_propensity(self, double *state, double *params, double volume, double time):
-        
+
         cdef double ans = self.get_stochastic_propensity(state, params, time)
         if self.num_species == 0:
             return ans*volume
@@ -972,7 +972,7 @@ cdef class GammaDelay(Delay):
 
     cdef double get_delay(self, double* state, double* params):
         return cyrandom.gamma_rv(params[self.k_index],params[self.theta_index])
-   
+
     def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
 
         for key,value in param_dictionary.items():
@@ -1402,7 +1402,7 @@ cdef class Model:
                 self.create_rule(rule_type, rule_attributes, rule_frequency = rule_frequency, input_printout = input_printout)
             else:
                 raise ValueError("Rules must be a tuple: (rule_type (string), rule_attributes (dict), rule_frequency (optional))")
-            
+
         if initial_condition_dict != None:
             for specie in initial_condition_dict:
                 self._add_species(specie)
@@ -1467,7 +1467,7 @@ cdef class Model:
         if specie not in self.species2index:
             self._add_species(specie)
         self.species_values[self.species2index[specie]] = value
-        
+
     #Helper function to add a reaction to the model
     #Inputs:
     #   reaction_update_dict (dictionary): species_index --> change in count. Species not in the products or reactants can be omitted
@@ -1506,7 +1506,7 @@ cdef class Model:
             self._add_species(species_name)
         for param_name in param_names:
             self._add_param(param_name)
-        
+
         #Moved to Model._initialize
         #self.delays.append(delay_object)
         #self.c_delays.push_back(<void*> delay_object)
@@ -1555,7 +1555,7 @@ cdef class Model:
 
         elif propensity_type == 'massaction':
             species_string = propensity_param_dict['species']
-            
+
             # if mass action propensity has less than 3 things, then use consitutitve, uni, bimolecular for speed.
             if species_string in ["0", "", '', None, 0]:
                 prop_object = ConstitutivePropensity()
@@ -1670,7 +1670,7 @@ cdef class Model:
         else:
             delay_products = []
 
-        
+
         if delay_type == 'none' or delay_type == None:
             delay_object = NoDelay()
             delay_param_dict = {}
@@ -1691,8 +1691,12 @@ cdef class Model:
 
         self._add_reaction(reaction_update_dict, prop_object, propensity_param_dict, delay_reaction_update_dict, delay_object, delay_param_dict)
         self.write_rxn_txt(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict)
+<<<<<<< HEAD
         self.reaction_definitions.append((reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict))
     
+=======
+
+>>>>>>> integration_tests
     def write_rxn_txt(self, reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict):
         #Write bioscrape XML and save it to the xml dictionary
         rxn_txt = '<reaction text= "'
@@ -1734,7 +1738,7 @@ cdef class Model:
         else:
             rxn_txt += delay_type+'" '
             for k in delay_param_dict:
-                rxn_txt += 'k="'+ str(delay_param_dict[k])+'" '
+                rxn_txt += 'k="'+str(delay_param_dict[k])+'" '
             rxn_txt+='/>'
         rxn_txt += '\n</reaction>\n'
         self.txt_dict['reactions']+=rxn_txt
@@ -1761,7 +1765,7 @@ cdef class Model:
     #Creates a rule and adds it to the model.
     #Inputs:
     #   rule_type (str): The type of rule. Supported: "additive" and "assignment"
-    #   rule_attributes (dict): A dictionary of rule parameters / attributes. 
+    #   rule_attributes (dict): A dictionary of rule parameters / attributes.
     #       NOTE: the only attributes used by additive/assignment rules are 'equation'
     #   rule_frequency: must be 'repeated'
     #Rule Types Supported:
@@ -1890,7 +1894,7 @@ cdef class Model:
 
     def parse_model(self, filename, input_printout = False):
         """
-        Parse the model from the file filling in all the local variables (propensities, delays, update arrays). Also
+        Parse the model from an XML file filling in all the local variables (propensities, delays, update arrays). Also
         maps the species and parameters to indices in a species and parameters vector.
 
         :param filename: (str or file) the model file. if a string, the file is opened. otherwise, it is assumed
@@ -1980,7 +1984,7 @@ cdef class Model:
             param_value = float(param['value'])
             param_name = param['name']
             self.set_parameter(param_name = param_name, param_value = param_value)
-        
+
         Species = xml.find_all('species')
         for species in Species:
             species_value = float(species['value'])
@@ -2054,7 +2058,7 @@ cdef class Model:
         A = self.get_species_array()
         species_dict = {}
         for s in self.species2index:
-            species_dict[s] = A[self.species2index[s]] 
+            species_dict[s] = A[self.species2index[s]]
         return species_dict
         # return {(s, A[self.species2index[s]]) for s in self.species2index}
 
@@ -2212,16 +2216,228 @@ cdef class Model:
         txt += self.txt_dict["reactions"]
         txt+='\n'
         txt += self.txt_dict["rules"]
-        txt += "</model>" 
-        
+        txt += "</model>"
+
         f = open(file_name, 'w')
         f.write(txt)
         f.close()
 
+<<<<<<< HEAD
     #Generates an SBML Model
     def generate_sbml_model(self, stochastic_model = False, **keywords):
         if self.has_delay:
             raise NotImplementedError("Writing SBML for bioscrape models with delay has not been implemented.")
+=======
+
+
+    ##################################################                ####################################################
+    ######################################              SBML CONVERSION                     ##############################
+    #################################################                     ################################################
+
+    def process_sbml(self, doc):
+        ''' 
+        Processes an SBML file so that it no longer contains multiplicity in local variable names.
+        '''
+        try:
+            import libsbml
+        except:
+            raise ImportError("libsbml not found. See sbml.org for installation help!\n" +
+                              'If you are using anaconda you can run the following:\n' +
+                              'conda install -c SBMLTeam python-libsbml\n\n\n')
+
+        document = sbml_doc
+
+        if len(oldSIds) != len(newSIds):
+            raise ValueError("Length oldSIds != length newSIds")
+
+        for ind in range(len(oldSIds)):
+            oldSId = oldSIds[ind]
+            newSId = newSIds[ind]
+
+            if oldSId == newSId:
+                warnings.warn("The Ids are identical: " +str(oldSId)+". SId skipped.")
+
+            if not libsbml.SyntaxChecker.isValidInternalSId(newSId):
+                warnings.warn("The new SId '{0}' does not represent a valid SId.".format(newSId))
+
+
+            element = document.getElementBySId(oldSId)
+
+            if element == None:
+                if debug:
+                    warnings.warn("Found no element with SId '{0}' in subsystem {1}".format(oldSId,document.getModel().getId()))
+
+            # update all references to this element
+            allElements = document.getListOfAllElements()
+            for i in range(allElements.getSize()):
+                current = allElements.get(i)
+                current.renameSIdRefs(oldSId, newSId)
+        return document
+
+    #Processes an SBML file so that it no longer contains multiplicity in local variable names
+    # TODO : Need to fix this, doesn't work right now.
+    def process_sbml(self, sbml_file):
+        try:
+            import libsbml
+        except:
+            raise ImportError("libsbml not found. See sbml.org for installation help!\n" +
+                              'If you are using anaconda you can run the following:\n' +
+                              'conda install -c SBMLTeam python-libsbml\n\n\n')
+        reader = libsbml.SBMLReader()
+        doc = reader.readSBML(sbml_file)
+
+        if doc.getNumErrors() > 1:
+            raise SyntaxError("SBML File cannot be read without errors. Check sbml.org/validator for more information.")
+
+        model = doc.getModel()
+
+        #Search Reactions for Local Parameters
+        reaction_list = model.getListOfReactions()
+        for i in range(len(reaction_list)):
+            reaction = reaction_list[i]
+            # Warning message if reversible
+            if reaction.getReversible():
+                warnings.warn('Warning: SBML model contains reversible reaction!\n' +
+                              'Please check rate expressions and ensure they are non-negative before doing '+
+                              'stochastic simulations. This warning will always appear if you are using SBML 1 or 2')
+
+            # get the propensity taken care of now
+            kl = reaction.getKineticLaw()
+            reaction_id = reaction.getId()
+            # capture any local parameters
+            parameter_list =kl.getListOfParameters()
+            for j in range(len(parameter_list)):
+                p = parameter_list[j]
+                pid = p.getId()
+                oldSIds.append(pid)
+                new_id = pid + reaction_id
+                newSIds.append(new_id)
+                p.setId(new_id)
+
+            new_doc = renameSIds(new_doc, oldSIds, newSIds)
+        # enhancement: Also flatten a Comp package SBML model Level 3 to get rid of any other local scope issues
+        # new_doc = new_doc.flatten_comp_model()
+        return new_doc, new_doc.getModel()
+
+    
+    def convert_sbml_to_string(self, sbml_file):
+
+        """
+        Convert a SBML model file to a BioSCRAPE compatible XML file. Note that events, compartments, non-standard
+        function definitions, and rules that are not assignment rules are not supported. Furthermore, reversible
+        reactions are highly not recommended, as they will mess up the simulator in stochastic mode.
+
+        This function requires libsbml to be installed for Python. See sbml.org for help.
+
+        :param sbml_file:(string) Name of the SBML file to read in from.
+        :return:
+        """
+        out = ''
+
+        # Attempt to import libsbml and read the model.
+        try:
+            import libsbml
+        except:
+            raise ImportError("libsbml not found. See sbml.org for installation help!\n" +
+                              'If you are using anaconda you can run the following:\n' +
+                              'conda install -c SBMLTeam python-libsbml\n\n\n')
+
+
+        reader = libsbml.SBMLReader()
+        raw_doc = reader.readSBML(sbml_file)
+        doc, model = self.process_sbml(raw_doc)
+        if doc.getNumErrors() > 1:
+            raise SyntaxError("SBML File {0} cannot be read without errors".format(sbml_file))
+
+        # Add the top tag
+        out += '<model>\n\n'
+
+        # Parse through species and parameters and keep a set of both along with their values.
+        allspecies = {}
+        allparams = {}
+
+        for s in model.getListOfSpecies():
+            sid = s.getIdAttribute()
+            if sid == "volume" or sid == "t":
+                warnings.warn("You have defined a species called '" + sid +
+                              ". This is being ignored and treated as a keyword.")
+                continue
+            allspecies[sid] = 0.0
+            if np.isfinite(s.getInitialAmount()):
+                allspecies[sid] = s.getInitialAmount()
+            if np.isfinite(s.getInitialConcentration()) and allspecies[sid] == 0:
+                allspecies[sid] = s.getInitialConcentration()
+
+        for p in model.getListOfParameters():
+            pid = p.getIdAttribute()
+            allparams[pid] = 0.0
+            if np.isfinite(p.getValue()):
+                allparams[pid] = p.getValue()
+        # Go through reactions one at a time to get stoich and rates.
+        for reaction in model.getListOfReactions():
+            # Warning message if reversible
+            if reaction.getReversible():
+                warnings.warn('Warning: SBML model contains reversible reaction!\n' +
+                              'Please check rate expressions and ensure they are non-negative before doing '+
+                              'stochastic simulations.')
+
+            # Get the reactants and products
+            reactant_list = []
+            product_list = []
+
+            for reactant in reaction.getListOfReactants():
+                reactantspecies = reactant.getSpecies()
+                if reactantspecies in allspecies:
+                    reactant_list.append(reactantspecies)
+            for product in reaction.getListOfProducts():
+                productspecies = product.getSpecies()
+                if productspecies in allspecies:
+                    product_list.append(productspecies)
+
+            out += ('<reaction text="%s--%s" after="--">\n' % ('+'.join(reactant_list),'+'.join(product_list)) )
+            out +=  '    <delay type="none"/>\n'
+
+            # get the propensity taken care of now
+            kl = reaction.getKineticLaw()
+            # capture any local parameters
+            for p in kl.getListOfParameters():
+                pid = p.getIdAttribute()
+                allparams[pid] = 0.0
+                if np.isfinite(p.getValue()):
+                    allparams[pid] = p.getValue()
+
+
+            # get the formula as a string and then add
+            # a leading _ to parameter names
+            kl_formula = libsbml.formulaToL3String(kl.getMath())
+            rate_string = _add_underscore_to_parameters(kl_formula,allparams)
+
+            # Add the propensity tag and finish the reaction.
+            out += ('    <propensity type="general" rate="%s" />\n</reaction>\n\n' % rate_string)
+
+        # Go through rules one at a time
+        for rule in model.getListOfRules():
+            if rule.getElementName() != 'assignmentRule':
+                warnings.warn('Unsupported rule type: %s' % rule.getElementName())
+                continue
+            rule_formula = libsbml.formulaToL3String(rule.getMath())
+            rulevariable = rule.getVariable()
+            if rulevariable in allspecies:
+                rule_string = rulevariable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
+            elif rulevariable in allparams:
+                rule_string = '_' + rulevariable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
+            else:
+                warnings.warn('SBML: Attempting to assign something that is not a parameter or species %s'
+                              % rulevariable)
+                continue
+
+            out += '<rule type="assignment" frequency="repeated" equation="%s" />\n' % rule_string
+
+        # Check and warn if there are events
+        if len(model.getListOfEvents()) > 0:
+            warnings.warn('SBML model has events. They are being ignored!\n')
+
+>>>>>>> integration_tests
 
         # Create an empty SBMLDocument object to hold the bioscrape model
         document, model = create_sbml_model(**keywords)
