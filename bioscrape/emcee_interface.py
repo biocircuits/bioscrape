@@ -34,6 +34,7 @@ class MCMC(object):
         self.N_simulations = 3
         self.LL_data = None
         self.debug = False
+        self.cost_progress = []
         return 
 
     def get_parameters(self):
@@ -175,10 +176,17 @@ class MCMC(object):
     def cost_function(self, log_params):
         if self.type == 'stochastic':
             pid_interface = StochasticInference(self.params_to_estimate, self.M, self.prior)
-            return pid_interface.get_likelihood_function(log_params, self.LL_data, self.timepoints, self.measurements, self.initial_conditions, norm_order = self.norm_order, N_simulations = self.N_simulations, debug = self.debug)
+            cost_value = pid_interface.get_likelihood_function(log_params, self.LL_data, self.timepoints, self.measurements, 
+                                                            self.initial_conditions, norm_order = self.norm_order, 
+                                                            N_simulations = self.N_simulations, debug = self.debug)
+            self.cost_progress.append(cost_value)
+            return cost_value
         elif self.type == 'deterministic':
             pid_interface = DeterministicInference(self.params_to_estimate, self.M, self.prior)
-            return pid_interface.get_likelihood_function(log_params, self.LL_data, self.timepoints, self.measurements, self.initial_conditions, norm_order = self.norm_order, debug = self.debug)
+            cost_value = pid_interface.get_likelihood_function(log_params, self.LL_data, self.timepoints, self.measurements,
+                                                            self.initial_conditions, norm_order = self.norm_order, debug = self.debug)
+            self.cost_progress.append(cost_value)
+            return cost_value
 
     def run_emcee(self, **kwargs):
         plot_show = kwargs.get('plot_show')
@@ -218,6 +226,8 @@ class MCMC(object):
         with open('mcmc_results.csv','w', newline = "") as f:
             writer = csv.writer(f)
             writer.writerows(sampler.flatchain)
+            writer.writerow('\nCost function progress\n')
+            writer.writerow(self.cost_progress)
             f.close()
         print('Successfully completed MCMC parameter identification procedure. Parameter distribution data written to mcmc_results.csv file')
         fitted_model, params = self.plot_mcmc_results(sampler, plot_show)
@@ -262,6 +272,13 @@ class MCMC(object):
             p_sampled_value = best_p[i]
             params[p_name] = p_sampled_value
         fitted_model.M.set_params(params)
+        if len(self.cost_progress) and plot_show:
+            plt.plot(self.cost_progress, linewidth = 3)
+            plt.title('Cost function progress')
+            plt.xlabel('MCMC samples')
+            plt.ylabel('Cost function')
+            plt.savefig('Cost function progress')
+            plt.show()
         return fitted_model, params
     
     def simulate(self, timepoints, **kwargs):

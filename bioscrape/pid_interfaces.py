@@ -109,13 +109,11 @@ class DeterministicInference(object):
         data = dataDet, norm_order = norm_order)
         #Multiple samples with a single initial only require a single initial condition.
         # Set params here and return the likelihood object.
-        print('here in det')
         if LL_det:
             # if debug:
             #     print('setting {0} to LL_det object'.format(params_dict))
             LL_det.set_init_params(params_dict)
             LL_det_cost = -LL_det.py_log_likelihood()
-            print(LL_det_cost)
             return LL_det_cost
         
 
