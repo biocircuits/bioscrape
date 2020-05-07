@@ -3,7 +3,7 @@ import os
 import warnings
 
 import bioscrape.random
-import bioscrape.types
+import bioscrape.sbmlutil
 
 
 frozen_results_loc = os.path.join(os.path.dirname(__file__), 
@@ -27,19 +27,19 @@ def check_sbml_IO(test_name, model_dict):
     that the model can be loaded correctly. 
 
     If this test has not been run yet (i.e., there is no folder associated with 
-    the test), then whatever results are contained in results_dict will be saved 
-    as the new frozen output of that test. In this case, the test will always 
-    fail, and this function will raise a Warning.
+    the test), then whatever models are contained in model_dict will be saved 
+    as SBML as the new frozen output of that test. In this case, the test SHOULD 
+    always succeed, but this function will raise a Warning.
 
     Parmeters:
         test_name - a string descriptor of the test. This will be used to name 
-                    the folder of frozen results.
-        results_dict - a dictionary mapping names of results (usually a string)
+                    the folder of frozen SBML outputs.
+        model_dict - a dictionary mapping names of models (usually a string)
                         to Model objects. 
     Returns: None
 
     Effects: 
-             If frozen results do not already exist, creates a directory of 
+             If frozen SBML does not already exist, creates a directory of 
                 results freezing the SBML outputs of the models in model_dict,
                 arranged as follows:
 
@@ -64,11 +64,12 @@ def check_sbml_IO(test_name, model_dict):
 
     for model_name, model in model_dict.items():
         frozen_sbml_file = os.path.join(test_folder, model_name + ".sbml")
-        temp_sbml_file   = os.path.join(test_folder, model_name) + ".sbml.tmp")
+        print(f"{frozen_sbml_file=}")
+        temp_sbml_file   = os.path.join(test_folder, model_name + ".sbml.tmp")
     
         if not os.path.exists(frozen_sbml_file):
-            # SAVE MODEL AS SBML: Currently not implemented
-            model.SAVE_AS_SBML_FUNCTION(..., frozen_sbml_file)
+    #         # SAVE MODEL AS SBML: Currently not implemented
+            model.write_sbml_model(frozen_sbml_file)
             warnings.warn(Warning("Simulation " + test_name +  ":" +  sim_name + 
                           " has no saved result; freezing this result."))
             continue
@@ -76,7 +77,7 @@ def check_sbml_IO(test_name, model_dict):
         # Test SBML writing. 
         # Note: As written, this test is extremely sensitive to formatting. 
         # Should probably make it so it ignores e.g. whitespace.
-        model.SAVE_AS_SBML_FUNCTION(..., temp_sbml_file)
+        model.write_sbml_model(temp_sbml_file)
         with open(frozen_sbml_file, 'r') as frozen_text:
             with open(temp_sbml_file, 'r') as temp_text:
                 for frozen_line in frozen_text:
@@ -84,9 +85,9 @@ def check_sbml_IO(test_name, model_dict):
                     assert temp_line == frozen_line, \
                             f"{test_name}:{model_name} Model's SBML write " + \
                              "does not match frozen results."
-        frozen_model = bioscrape.types.import_sbml(temp_sbml_file)
-        assert frozen_model == model, f"{test_name}:{model_name} changes when "\
-                                     + "loaded from SBML."
+        reloaded_model = bioscrape.sbmlutil.import_sbml(temp_sbml_file)
+        assert reloaded_model == model, f"{test_name}:{model_name} changes " + \
+                                         "when saved as SBML and reloaded."
 
 def check_sim_results(test_name, results_dict):
     '''
@@ -95,8 +96,8 @@ def check_sim_results(test_name, results_dict):
 
     If this test has not been run yet (i.e., there is no folder associated with 
     the test), then whatever results are contained in results_dict will be saved 
-    as the new frozen output of that test. In this case, the test will always 
-    fail, and this function will raise a Warning.
+    as the new frozen output of that test. In this case, the test SHOULD always 
+    succeed, but this function will raise a Warning.
 
     Parameters:
         test_name - a string descriptor of the test. This will be used to name

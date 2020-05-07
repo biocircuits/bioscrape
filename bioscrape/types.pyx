@@ -1691,12 +1691,9 @@ cdef class Model:
 
         self._add_reaction(reaction_update_dict, prop_object, propensity_param_dict, delay_reaction_update_dict, delay_object, delay_param_dict)
         self.write_rxn_txt(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict)
-<<<<<<< HEAD
         self.reaction_definitions.append((reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict))
     
-=======
 
->>>>>>> integration_tests
     def write_rxn_txt(self, reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict):
         #Write bioscrape XML and save it to the xml dictionary
         rxn_txt = '<reaction text= "'
