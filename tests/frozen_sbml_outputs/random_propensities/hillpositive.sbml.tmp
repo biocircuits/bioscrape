@@ -27,8 +27,8 @@
           <PropensityType> type=hillpositive k=DummyVar_PositiveHillPropensity_k_0 K=DummyVar_PositiveHillPropensity_K_1 n=DummyVar_PositiveHillPropensity_n_2 s1=A</PropensityType>
         </annotation>
         <listOfReactants>
-          <speciesReference species="B" stoichiometry="1" constant="false"/>
           <speciesReference species="A" stoichiometry="1" constant="false"/>
+          <speciesReference species="B" stoichiometry="1" constant="false"/>
         </listOfReactants>
         <listOfProducts>
           <speciesReference species="C" constant="false"/>

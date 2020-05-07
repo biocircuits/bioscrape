@@ -25,8 +25,8 @@
           <PropensityType> type=massaction k=DummyVar_BimolecularPropensity_k_0</PropensityType>
         </annotation>
         <listOfReactants>
-          <speciesReference species="B" stoichiometry="1" constant="false"/>
           <speciesReference species="A" stoichiometry="1" constant="false"/>
+          <speciesReference species="B" stoichiometry="1" constant="false"/>
         </listOfReactants>
         <listOfProducts>
           <speciesReference species="C" constant="false"/>
@@ -36,8 +36,8 @@
             <apply>
               <times/>
               <ci> DummyVar_BimolecularPropensity_k_0 </ci>
-              <ci> B </ci>
               <ci> A </ci>
+              <ci> B </ci>
             </apply>
           </math>
         </kineticLaw>
