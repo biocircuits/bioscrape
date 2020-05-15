@@ -180,7 +180,7 @@ cdef class BimolecularPropensity(Propensity):
         else:
             return params[self.rate_index]*state[self.s1_index]*max(state[self.s1_index]-1, 0) / volume
 
-    
+
     def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
 
         for key,value in param_dictionary.items():
@@ -421,7 +421,7 @@ cdef class MassActionPropensity(Propensity):
             return ans / (volume ** (self.num_species - 1) )
 
     cdef double get_stochastic_volume_propensity(self, double *state, double *params, double volume, double time):
-        
+
         cdef double ans = self.get_stochastic_propensity(state, params, time)
         if self.num_species == 0:
             return ans*volume
@@ -972,7 +972,7 @@ cdef class GammaDelay(Delay):
 
     cdef double get_delay(self, double* state, double* params):
         return cyrandom.gamma_rv(params[self.k_index],params[self.theta_index])
-   
+
     def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
 
         for key,value in param_dictionary.items():
@@ -1402,7 +1402,7 @@ cdef class Model:
                 self.create_rule(rule_type, rule_attributes, rule_frequency = rule_frequency, input_printout = input_printout)
             else:
                 raise ValueError("Rules must be a tuple: (rule_type (string), rule_attributes (dict), rule_frequency (optional))")
-            
+
         if initial_condition_dict != None:
             for specie in initial_condition_dict:
                 self._add_species(specie)
@@ -1467,7 +1467,7 @@ cdef class Model:
         if specie not in self.species2index:
             self._add_species(specie)
         self.species_values[self.species2index[specie]] = value
-        
+
     #Helper function to add a reaction to the model
     #Inputs:
     #   reaction_update_dict (dictionary): species_index --> change in count. Species not in the products or reactants can be omitted
@@ -1506,7 +1506,7 @@ cdef class Model:
             self._add_species(species_name)
         for param_name in param_names:
             self._add_param(param_name)
-        
+
         #Moved to Model._initialize
         #self.delays.append(delay_object)
         #self.c_delays.push_back(<void*> delay_object)
@@ -1555,7 +1555,7 @@ cdef class Model:
 
         elif propensity_type == 'massaction':
             species_string = propensity_param_dict['species']
-            
+
             # if mass action propensity has less than 3 things, then use consitutitve, uni, bimolecular for speed.
             if species_string in ["0", "", '', None, 0]:
                 prop_object = ConstitutivePropensity()
@@ -1670,7 +1670,7 @@ cdef class Model:
         else:
             delay_products = []
 
-        
+
         if delay_type == 'none' or delay_type == None:
             delay_object = NoDelay()
             delay_param_dict = {}
@@ -1734,7 +1734,7 @@ cdef class Model:
         else:
             rxn_txt += delay_type+'" '
             for k in delay_param_dict:
-                rxn_txt += 'k="'+ str(delay_param_dict[k])+'" '
+                rxn_txt += 'k="'+str(delay_param_dict[k])+'" '
             rxn_txt+='/>'
         rxn_txt += '\n</reaction>\n'
         self.txt_dict['reactions']+=rxn_txt
@@ -1761,7 +1761,7 @@ cdef class Model:
     #Creates a rule and adds it to the model.
     #Inputs:
     #   rule_type (str): The type of rule. Supported: "additive" and "assignment"
-    #   rule_attributes (dict): A dictionary of rule parameters / attributes. 
+    #   rule_attributes (dict): A dictionary of rule parameters / attributes.
     #       NOTE: the only attributes used by additive/assignment rules are 'equation'
     #   rule_frequency: must be 'repeated'
     #Rule Types Supported:
@@ -1890,7 +1890,7 @@ cdef class Model:
 
     def parse_model(self, filename, input_printout = False):
         """
-        Parse the model from the file filling in all the local variables (propensities, delays, update arrays). Also
+        Parse the model from an XML file filling in all the local variables (propensities, delays, update arrays). Also
         maps the species and parameters to indices in a species and parameters vector.
 
         :param filename: (str or file) the model file. if a string, the file is opened. otherwise, it is assumed
@@ -1980,7 +1980,7 @@ cdef class Model:
             param_value = float(param['value'])
             param_name = param['name']
             self.set_parameter(param_name = param_name, param_value = param_value)
-        
+
         Species = xml.find_all('species')
         for species in Species:
             species_value = float(species['value'])
@@ -2054,7 +2054,7 @@ cdef class Model:
         A = self.get_species_array()
         species_dict = {}
         for s in self.species2index:
-            species_dict[s] = A[self.species2index[s]] 
+            species_dict[s] = A[self.species2index[s]]
         return species_dict
         # return {(s, A[self.species2index[s]]) for s in self.species2index}
 
@@ -2212,8 +2212,8 @@ cdef class Model:
         txt += self.txt_dict["reactions"]
         txt+='\n'
         txt += self.txt_dict["rules"]
-        txt += "</model>" 
-        
+        txt += "</model>"
+
         f = open(file_name, 'w')
         f.write(txt)
         f.close()
