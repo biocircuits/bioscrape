@@ -278,7 +278,7 @@ class MCMC(object):
         else:
             thin = np.mean(np.array(self.autocorrelation_time)) / 2 #thin by half the autocorrelation time
             if not np.isfinite(thin):
-                thin = None
+                thin = 1
             else:
                 thin = int(thin)
         if 'flat' in kwargs.keys():
