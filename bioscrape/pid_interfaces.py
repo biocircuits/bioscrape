@@ -39,16 +39,18 @@ class StochasticInference(object):
         self.priors = priors
         return
 
-    def get_likelihood_function(self, log_params, data, timepoints, measurements, initial_conditions, norm_order = 2, N_simulations = 3, debug = False):
+    def get_likelihood_function(self, params, data, timepoints, measurements, initial_conditions, norm_order = 2, N_simulations = 3, debug = False):
         M = self.M
         params_dict = {}
-        params_exp = np.exp(log_params)
-        for key, p in zip(M.get_params2index().keys(),params_exp):
+        # params_exp = np.exp(log_params)
+        if debug:
+            print(params)
+        for key, p in zip(M.get_params2index().keys(), params):
             params_dict[key] = p
         # Priors
         priors = self.priors
         # Check prior
-        if check_priors(params_dict, priors) == False:
+        if check_priors(params_dict, priors) is False:
             return -np.inf
 
         N = np.shape(data)[0]
@@ -69,7 +71,7 @@ class StochasticInference(object):
             # if debug:
             #     print('setting {0} to LL_stoch object'.format(params_dict))
             LL_stoch.set_init_params(params_dict)
-            return -LL_stoch.py_log_likelihood()
+            return LL_stoch.py_log_likelihood()
 
        
 
@@ -81,16 +83,18 @@ class DeterministicInference(object):
         self.priors = priors
         return
 
-    def get_likelihood_function(self, log_params, data, timepoints, measurements, initial_conditions, norm_order = 2, debug = False ):
+    def get_likelihood_function(self, params, data, timepoints, measurements, initial_conditions, norm_order = 2, debug = False ):
         M = self.M
         params_dict = {}
-        params_exp = np.exp(log_params)
-        for key, p in zip(M.get_params2index().keys(),params_exp):
+        # params_exp = np.exp(log_params)
+        for key, p in zip(M.get_params2index().keys(),params):
             params_dict[key] = p
         priors = self.priors
         # Check prior
-        if check_priors(params_dict, priors) == False:
+        if check_priors(params_dict, priors) is False:
             return -np.inf
+        else:
+            lp = 0.0
 
         N = np.shape(data)[0]
         #Ceate Likelihood objects:
@@ -100,8 +104,10 @@ class DeterministicInference(object):
         #If there are multiple initial conditions in a data-set, should correspond to multiple initial conditions for inference.
         #Note len(initial_conditions) must be equal to the number of trajectories N
         if debug:
-            print('dataDet type is', type(dataDet))
-            print('initial cond is', initial_conditions)
+            print('The timepoints shape is {0}'.format(np.shape(timepoints)))
+            print('The data shape is {0}'.format(np.shape(data)))
+            print('The measurmenets is {0}'.format(measurements))
+            print('The N is {0}'.format(N))
         # TODO: Initial conditions not going through correctly?
         # TODO: priors needs all parameters of the models when it should only need those that are being identified.
         # TODO: Need to fix how multiple initial conditions will be handled because in pid_interfaces only one at a time can go through.
@@ -113,8 +119,8 @@ class DeterministicInference(object):
             # if debug:
             #     print('setting {0} to LL_det object'.format(params_dict))
             LL_det.set_init_params(params_dict)
-            LL_det_cost = -LL_det.py_log_likelihood()
-            return LL_det_cost
+            LL_det_cost = LL_det.py_log_likelihood()
+            return lp + LL_det_cost
         
 
 
