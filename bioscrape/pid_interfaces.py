@@ -8,17 +8,17 @@ import numpy as np
 def check_priors(param_dict, prior):
     import scipy.stats
     for key,value in param_dict.items():
-        type = prior[key][0]
-        if type == 'uniform':
+        prior_type = prior[key][0]
+        if prior_type == 'uniform':
             if len(prior[key]) != 3:
-                raise ValueError('For uniform distribution, the dictionary entry must be : [type, lower_bound, upper_bound]')
+                raise ValueError('For uniform distribution, the dictionary entry must be : [prior_type, lower_bound, upper_bound]')
             lb = prior[key][1]
             ub = prior[key][2]
             if value > ub or value < lb:
                 return False
-        elif type == 'gaussian':
+        elif prior_type == 'gaussian':
             if len(prior[key]) != 4:
-                raise ValueError('For Gaussian distribution, the dictionary entry must be : [type, mean, std_dev, threshold]')
+                raise ValueError('For Gaussian distribution, the dictionary entry must be : [prior_type, mean, std_dev, threshold]')
             mu = prior[key][1]
             sig = prior[key][2]
             prob_threshold = prior[key][3]
