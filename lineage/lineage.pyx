@@ -548,7 +548,7 @@ cdef class LineageModel(Model):
 	cdef list global_species
 	cdef double global_volume
 
-	def __init__(self, filename = None, species = [], reactions = [], parameters = [], rules = [], events = [], global_species = [], global_volume = None, sbml_filename = None, initial_condition_dict = None, input_printout = False, initialize_model = True):
+	def __init__(self, filename = None, species = [], reactions = [], parameters = [], rules = [], events = [], sbml_filename = None, initial_condition_dict = None, input_printout = False, initialize_model = True):
 
 
 		self.volume_events_list = []
@@ -581,45 +581,10 @@ cdef class LineageModel(Model):
 				"Division" in rule_type or "division" in rule_type):
 				original_rules.append(rule)
 
-		if len(global_species) > 0 and global_volume == None:
-			warnings.warn("global species added to LineageModel without the global_volume keyword being passed in. Global volume will vary dynamically and be equal to the total volume of all the cells.")
-		elif len(global_species) == 0 and global_volume != None:
-			warnings.warn("Setting global_volume without passing in the global_species keyword to LineageModel will do nothing unless you manually add global rections with the LineageModel.create_global_reaction function.")
-		
-		#Seperate reactions with global species inputs
-		local_reactions = []
-		global_reactions = []
-		self.global_species = global_species
-		if len(global_species) > 0:
-			global_rxn_count = 0
-			for rxn in reactions:
-				reactants = rxn[0]
-				if len(rxn) > 4:
-					delay_reactants = rxn[5]
-				else:
-					delay_reactants = []
-				if len([r for r in global_species if r in reactants]) > 0:
-					global_reactions.append(rxn)
-				else:
-					local_reactions.append(rxn)
-		else:
-			local_reactions = reactions
+
 
 		#Call super constructor
-		super().__init__(filename = filename, species = species, reactions = local_reactions, parameters = parameters, rules = original_rules, initial_condition_dict = initial_condition_dict, sbml_filename = sbml_filename,  input_printout = input_printout, initialize_model = False)
-
-		if global_volume == None:
-			self.global_volume = 0
-		else:
-			self.global_volume = global_volume
-		self._add_param("global_volume")
-		self.set_parameter("global_volume", self.global_volume)
-
-		#add global reactions
-		global_rxn_count = 0
-		for rxn in global_reactions:
-			self.create_global_reaction(rxn, volume_param = "global_volume", volume_value = self.global_volume, identifier = global_rxn_count, global_species = self.global_species)
-			global_rxn_count += 1
+		super().__init__(filename = filename, species = species, reactions = reactions, parameters = parameters, rules = original_rules, initial_condition_dict = initial_condition_dict, sbml_filename = sbml_filename,  input_printout = input_printout, initialize_model = False)
 
 		#Add new types to the model
 		for rule in rules:
@@ -871,60 +836,6 @@ cdef class LineageModel(Model):
 		else:
 			raise ValueError("Unknown VolumeRule type: "+str(rule_type))
 		self.add_lineage_rule(rule_object, rule_param_dict, rule_type = 'volume')
-
-	
-	def create_global_reaction(self, rxn, volume_param = "global_volume", volume_value = 1, identifier = ""):
-
-		raise NotImplementedError("Do I even want global reactions like this? I think not!")
-
-		if len(rxn) == 4:
-			reactants, products, propensity_type, propensity_param_dict = rxn
-			delay_type, delay_reactants, delay_products, delay_param_dict = None, None,  None, None
-		elif len(rxn) == 8:
-			reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict = rxn
-		else:
-			raise ValueError("Reaction Tuple of the wrong length! Must be of length 4 (no delay) or 8 (with delays). See BioSCRAPE Model API for details.")
-		
-
-		if False in [p in self.global_species for p in products] or False in [r in self.global_species for r in reactants]:
-			raise ValueError(f"Global Reaction {reactants} --> {products} contains non-global species.")
-
-		elif len(global_species) == 0:
-			warnings.warn("No global species defined for this model or passed into create_global_reaction. Defaulting to non-global reaction.")
-			self.create_reaction(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict)
-		elif "k" not in propensity_param_dict:
-			warnings.warn("create_global_reaction only works with propensities that have a rate parameter 'k' in their param_dictionary. propensity_type="+propensity_type+" either doesn't have the proper parameter or is incompatible with automatic global reactions. This reaction will be added but not rescaled.") 
-			self.create_reaction(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict)
-		else:
-			old_val = propensity_param_dict["k"]
-			try:
-				float(old_val)
-				float_val = True
-			except ValueError:
-				float_val = False
-
-			rate_var = "global_reaction_"+propensity_type+"_k_rescaled_"+str(identifier)
-			n_global = len([r for r in reactants if r in global_species])
-			
-			self._add_param(rate_var)
-			if float_val:
-				rule_equation = "_"+rate_var + "=" + str(old_val)+"/"+"(_"+volume_param+"^"+str(n_global)+")"
-				self.set_parameter(rate_var, 1.*old_val/(volume_value**n_global))
-			else:
-				rule_equation = "_"+rate_var + "= _"+old_val+"/"+"(_"+volume_param+"^"+str(n_global)+")"
-				self._add_param(old_val)
-				self.set_parameter(rate_var, 1./(volume_value**n_global))
-			propensity_param_dict["k"] = rate_var
-			
-
-			self._add_param(volume_param)
-			self.set_parameter(volume_param, volume_value)
-			self.create_reaction(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict)
-			self.create_rule("assignment", {"equation":rule_equation})
-
-
-
-
 
 	cdef unsigned get_num_division_rules(self):
 		return self.num_division_rules
@@ -2114,9 +2025,9 @@ def py_SimulateSingleCell(timepoints, Model = None, interface = None, initial_ce
 cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 	#Used for Simulating Interacting lineages
-	cdef int spec_ind,
+	cdef int spec_ind, global_crn_initialized
 	cdef unsigned num_global_species, num_interfaces, total_cell_count
-	cdef double[:] global_species, c_period_timepoints, active_lineages
+	cdef double[:] c_global_species, c_period_timepoints, active_lineages
 	cdef int[:, :] global_species_inds #stores global_species_inds[i, j] --> species index of interface j for global species i
 
 	cdef double total_cell_volume, global_volume, leftover_global_volume, temp_volume, global_volume_param, average_dist_threshold, global_sync_period, dt
@@ -2125,7 +2036,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 	cdef SingleCellSSAResult new_r, merge_r
 	cdef LineageVolumeCellState new_cs
 	cdef Schnitz new_s
-	cdef double[:, :] global_species_array #output results for global species
+	cdef double[:, :] c_global_species_array #output results for global species
 
 	#variables for the simulators used for simulating CRNs in the global volume
 	cdef VolumeSSASimulator global_ssa_simulator
@@ -2136,27 +2047,54 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 	cdef Volume global_volume_object
 	cdef VolumeSSAResult global_crn_result
 
+	def __init__(self):
+		self.global_crn_initialized = 0
+
+
 	def get_global_species_array(self):
 		print("get_global_species_array")
-		if self.global_species_array is None:
+		if self.c_global_species_array is None:
 			warnings.warn("Global Species Array has not been created. Perhaps a simulation hasn't been run yet? Returning empty array.")
 			return np.ndarray()
 		else:
-			return np.asarray(self.global_species_array)
+			return np.asarray(self.c_global_species_array)
 
 	def get_global_crn_results(self, as_data_frame = True, Model = None):
 		print("get_global_crn_results")
-		if self.global_ssa_simulator is None and self.global_deterministic_simulator is None:
-			warnings.warn("InteractingLineageSSASimulator has no global simulators or results. Returning None.")
-			return None
-		elif self.global_crn_result is None:
-			warnings.warn("global_crn_result has not been created. Perhaps a simulation hasn't been run yet? Returning None.")
+		if self.global_crn_initialized == 0 or self.global_crn_result == None:
+			warnings.warn("No Global simulation was performed. Will return None.")
 			return None
 		elif as_data_frame:
 			return self.global_crn_result.py_get_dataframe(Model = Model)
 		else:
 			return self.global_crn_result
 
+	#Functions to set up Global simulation
+	def setup_global_volume_simulation(self, simulator, interface, global_species_global_crn_inds):
+		if isinstance(simulator, VolumeSSASimulator):
+			self.global_ssa_simulator = simulator
+			self.global_deterministic_simulator = None
+		elif isinstance(simulator, DeterministicSimulator):
+			self.global_deterministic_simulator = simulator
+			self.global_ssa_simulator = None
+			self.global_volume_object = Volume()
+		else:
+			raise ValueError("set_global_simulator requires a VolumeSSASimulator or DeterministicSimulator")
+
+		if isinstance(interface, ModelCSimInterface):
+			self.global_interface = interface
+			self.global_crn_state = self.global_interface.get_initial_state()
+
+			if self.global_deterministic_simulator is not None:
+				self.global_interface.py_prep_deterministic_simulation()
+		else:
+			raise ValueError("set_global_interface requires as ModelCSimInterface")
+
+		self.global_species_global_crn_inds = global_species_global_crn_inds.astype(int)
+
+		#instantiate VSR to store results
+		self.global_crn_result = VolumeSSAResult(np.ndarray(), np.ndarray(), np.ndarray(), 0)
+		self.global_crn_initialized = 1
 
 
 
@@ -2238,7 +2176,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 				for i in range(self.num_global_species):
 					spec_ind = self.global_species_inds[i, interface_ind]
 					if spec_ind >= 0: #If the cell contains the global species, set its internal s_i to 0 and add that to the global total
-						self.global_species[i] += self.c_current_state[spec_ind]
+						self.c_global_species[i] += self.c_current_state[spec_ind]
 						self.cs.set_state_comp(0, spec_ind)
 
 	#Synchronizes global species by redistributing them between different volumes, including the global volume
@@ -2261,12 +2199,12 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 		if living_cells:
 			for i in range(self.num_global_species):
 				#If the amount of a global species is above the threshold for stochastic distribute, distribute the average
-				if self.total_cell_volume/self.global_volume*self.global_species[i]/self.total_cell_count > self.average_dist_threshold:
-					self.global_species[i] = self.distribute_global_species_average(self.global_species[i], i)
+				if self.total_cell_volume/self.global_volume*self.c_global_species[i]/self.total_cell_count > self.average_dist_threshold:
+					self.c_global_species[i] = self.distribute_global_species_average(self.c_global_species[i], i)
 
 				#Otherwise distribute stochastically
 				else:
-					self.global_species[i] = self.distribute_global_species_multinomial(self.global_species[i], i)
+					self.c_global_species[i] = self.distribute_global_species_multinomial(self.c_global_species[i], i)
 
 	#Distribute global species to their expected values	
 	#global_species is the number of species to distribue between all old_cell_states
@@ -2342,32 +2280,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 		return new_global_species
 	
-	#Functions to set up Global simulation
-
-	def setup_global_volume_simulation(self, simulator, interface, global_species_global_crn_inds):
-		if isinstance(simulator, VolumeSSASimulator):
-			self.global_ssa_simulator = simulator
-			self.global_deterministic_simulator = None
-		elif isinstance(simulator, DeterministicSimulator):
-			self.global_deterministic_simulator = simulator
-			self.global_ssa_simulator = None
-			self.global_volume_object = Volume()
-		else:
-			raise ValueError("set_global_simulator requires a VolumeSSASimulator or DeterministicSimulator")
-
-		if isinstance(interface, ModelCSimInterface):
-			self.global_interface = interface
-			self.global_crn_state = self.global_interface.get_initial_state()
-
-			if self.global_deterministic_simulator is not None:
-				self.global_interface.py_prep_deterministic_simulation()
-		else:
-			raise ValueError("set_global_interface requires as ModelCSimInterface")
-
-		self.global_species_global_crn_inds = global_species_global_crn_inds.astype(int)
-
-		#instantiate VSR to store results
-		self.global_crn_result = VolumeSSAResult(np.ndarray(), np.ndarray(), np.ndarray(), 0)
+	
 
 		
 		
@@ -2387,7 +2300,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			#Set the state to the concentration=count/volume
 			for i in range(self.num_global_species):
 				spec_ind = self.global_species_global_crn_inds[i]
-				self.global_crn_state[spec_ind] = self.global_species[i]/self.leftover_global_volume
+				self.global_crn_state[spec_ind] = self.c_global_species[i]/self.leftover_global_volume
 
 			#Simulate
 			self.global_interface.set_initial_state(np.asarray(self.global_crn_state))
@@ -2397,7 +2310,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			#reset self.global_species after simulation count = volume*concentration
 			for i in range(self.num_global_species):
 				spec_ind = self.global_species_global_crn_inds[i]
-				self.global_species[i] = self.global_crn_state[spec_ind]*self.leftover_global_volume
+				self.c_global_species[i] = self.global_crn_state[spec_ind]*self.leftover_global_volume
 
 
 		#Stochastic Simulation
@@ -2405,7 +2318,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			#Set the global species
 			for i in range(self.num_global_species):
 				spec_ind = self.global_species_global_crn_inds[i]
-				self.global_crn_state[spec_ind] = self.global_species[i]
+				self.global_crn_state[spec_ind] = self.c_global_species[i]
 
 			#Simulate
 			self.global_interface.set_initial_state(np.asarray(self.global_crn_state))
@@ -2416,7 +2329,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			#reset self.global_species after simulation
 			for i in range(self.num_global_species):
 				spec_ind = self.global_species_global_crn_inds[i]
-				self.global_species[i] = self.global_crn_state[spec_ind]
+				self.c_global_species[i] = self.global_crn_state[spec_ind]
 
 
 	#Helper function to simulate one sync-period of an interacting lineage
@@ -2566,9 +2479,9 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 		self.new_schnitz_list = []
 
 
-		self.global_species_array = np.zeros((timepoints.shape[0], self.num_global_species)) #stores the global species at each timepoint
+		self.c_global_species_array = np.zeros((timepoints.shape[0], self.num_global_species)) #stores the global species at each timepoint
 		self.global_species_inds = global_species_inds #stores global_species_inds[i, j] --> species index of interface j for global species i
-		self.global_species = np.zeros(self.num_global_species) #stores the global species vector
+		self.c_global_species = np.zeros(self.num_global_species) #stores the global species vector
 
 
 		#These parameters are global because they are used by helper functions
@@ -2657,7 +2570,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 					self,np.concatenate((self.global_crn_result.get_volume(),self.r.get_volume())), 0)
 
 			while timepoints[current_time_index]<=period_time:
-				self.global_species_array[current_time_index, :] = self.global_species
+				self.c_global_species_array[current_time_index, :] = self.c_global_species[:]
 				current_time_index += 1
 
 
@@ -2720,8 +2633,8 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 		#These parameters are global because they are used by helper functions
 		self.total_cell_volume = 0 #stores sum_i volume(cell_i)
 		self.num_global_species = global_species_inds.shape[0]
-		self.global_species = np.zeros(self.num_global_species) #stores the global species vector
-		self.global_species_array = np.zeros((num_samples, self.num_global_species))#stores the global species at each sample time
+		self.c_global_species = np.zeros(self.num_global_species) #stores the global species vector
+		self.c_global_species_array = np.zeros((num_samples, self.num_global_species))#stores the global species at each sample time
 		self.leftover_global_volume = 0 #stores global_volume - total_cell_volume
 		self.global_volume = 0 #stores global_volume_param OR total_cell_volume if global_volume_param == 0.
 		self.global_volume_param = global_volume_param
@@ -2753,7 +2666,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 		#If the first sample is just the start of the simulation, append the initial condition
 		if sample_times[0] <= timepoints[0]+self.dt:
 			samples.append(list(initial_cell_states))
-			self.global_species_array[0, :] = self.global_species
+			self.c_global_species_array[0, :] = self.c_global_species
 			sample_ind += 1
 			next_sample_time = sample_times[sample_ind]
 
@@ -2797,17 +2710,18 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 				print("adding samples", sample_ind, "@", final_time, "len(samples) before update", len(samples))
 				samples.append(list(self.old_cell_state_list))
 				print("after update len samples", len(samples))
-				print("len(self.old_cell_state_list)", len(self.old_cell_state_list), "len sublists 0, 1", len(self.old_cell_state_list[0]), len(self.old_cell_state_list[1]))
-				
-				print("updating global species array", "self.global_species_array.shape", self.global_species_array.shape[0], self.global_species_array.shape[1], "self.global_species.shape", self.global_species.shape[0])
-				self.global_species_array[sample_ind, :] = self.global_species
+				print("len(self.old_cell_state_list)", len(self.old_cell_state_list))
+				print("len sublists 0, 1", len(self.old_cell_state_list[0]))
+				print("self.global_species.shape", self.c_global_species.shape[0])
+				print("updating global species array", "self.c_global_species_array.shape", self.c_global_species_array.shape[0], self.c_global_species_array.shape[1])
+				self.c_global_species_array[sample_ind, :] = self.c_global_species
 
 				#If global CRN simulation, update the results
-				if self.global_ssa_simulator is not None or self.global_deterministic_simulator is not None:
+				if self.global_crn_initialized == 1:
 					print("updating global crn result")
 					self.global_crn_result = VolumeSSAResult(
 						np.concatenate((self.global_crn_result.get_timepoints(), np.ndarray(final_time))),
-						np.concatenate((self.global_crn_result.get_result(), np.ndarray(self.global_species))),
+						np.concatenate((self.global_crn_result.get_result(), np.ndarray(self.c_global_species))),
 						np.concatenate((self.global_crn_result.get_volume(), np.ndarray(self.leftover_global_volume))), 0)
 
 			#Choose timepoints for next simulation
@@ -2817,8 +2731,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 				final_time = next_sample_time
 			if period_time <= next_sample_time:
 				final_time = period_time
-				
-				
+
 			print("times updated in loop:", sample_ind, "final_time", final_time, "period_time", period_time, "next_sample_time", next_sample_time)
 
 			self.c_timepoints = self.truncate_timepoints_greater_than(timepoints, final_time+1E-10)
@@ -2903,8 +2816,8 @@ def py_PropagateInteractingCells(timepoints, global_sync_period, global_species 
 		sample_times = np.array(sample_times, dtype = np.double) #convert sample_times into doubles
 
 	final_cell_state_samples = simulator.py_PropagateInteractingCells(timepoints, interface_list, initial_cell_states, sample_times, global_sync_period, global_species_inds.astype(int), global_volume, average_dist_threshold)
-	global_species_array = simulator.get_global_species_array()
-	global_crn_result =  simulator.get_global_crn_results(Model = global_volume_model)
+	#global_species_array = simulator.get_global_species_array()
+	#global_crn_result =  simulator.get_global_crn_results(Model = global_volume_model)
 
 	return_data = None
 	if return_dataframes:#Converts list of cell states into a Pandas dataframe

@@ -57,7 +57,7 @@ for i in [1]:
 	#cell_state_samples, sample_times = py_PropagateCells(timepoints, Model = M, initial_cell_states = N, sample_times = 10)
 	#single_cell_states = py_SingleCellLineage(timepoints, Model = M)
 	#lineage_list = py_SimulateInteractingCellLineage(timepoints, global_sync_period, model_list = [M],initial_cell_states = [N], global_species = ["S"], global_volume = 100, average_dist_threshold = 10.0)
-	cell_state_sample_list, sample_times = py_PropagateInteractingCells(timepoints, global_sync_period, sample_times = 5, model_list = [M],initial_cell_states = [N], global_species = ["S"], global_volume = 0, average_dist_threshold = 10.0)
+	#cell_state_sample_list, sample_times = py_PropagateInteractingCells(timepoints, global_sync_period, sample_times = 5, model_list = [M],initial_cell_states = [N], global_species = ["S"], global_volume = 0, average_dist_threshold = 10.0)
 	#result = py_SimulateSingleCell(timepoints[10:], Model = M)
 
 	e = pytime.clock()
