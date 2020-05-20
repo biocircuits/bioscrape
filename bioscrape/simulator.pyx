@@ -433,6 +433,12 @@ cdef class ModelCSimInterface(CSimInterface):
         self.num_species = self.update_array.shape[0]
         self.dt = 0.01
 
+    cdef unsigned get_number_of_species(self):
+        return self.num_species
+
+    cdef unsigned get_number_of_reactions(self):
+        return self.num_reactions
+        
     cdef void check_interface(self):
         if not self.model.initialized:
             raise RuntimeError("Model has been changed since CSimInterface instantiation. CSimInterface no longer valid.")
