@@ -1146,6 +1146,7 @@ cdef class SingleCellSSAResult(VolumeSSAResult):
 
 cdef class LineageVolumeSplitter(VolumeSplitter):
 	cdef unsigned how_to_split_v
+	cdef unsigned how_to_split_default
 	cdef vector[int] binomial_indices
 	cdef vector[int] perfect_indices
 	cdef vector[int] duplicate_indices
@@ -1161,23 +1162,49 @@ cdef class LineageVolumeSplitter(VolumeSplitter):
 			raise ValueError("Partition Noise must be between 0 and 1")
 		self.partition_noise = partition_noise
 
+		#Check if the default has been changed
+		if "default" not in options or options["default"] == "binomial":
+			default = "binomial"
+		elif options["default"] == "duplicate":
+			default = "duplicate"
+		elif options["default"] == "perfect":
+			default = "perfect"
+		elif options["default"] in custom_partition_functions:
+			default = "custom"
+			self.ind2customsplitter["default"] = options["default"]
+		else:
+			raise ValueError("Custom partition function key, "+str(options["default"])+", for 'default' not in custom_partition_functions")
+
 		#Figure out how volume will be split
-		if "volume" not in options or options["volume"] == "binomial":
+		if ("volume" not in options and default == "binomial") or options["volume"] == "binomial":
 			self.how_to_split_v = 0
-		elif options["volume"] == "duplicate":
+		elif ("volume" not in options and default == "duplicate") or options["volume"] == "duplicate":
 			self.how_to_split_v = 1
-		elif options["volume"] == "perfect":
+		elif ("volume" not in options and default == "perfect") or options["volume"] == "perfect":
 			self.how_to_split_v = 2
-		elif options["volume"] in custom_partition_functions:
+		elif ("volume" not in options and default == "custom") or options["volume"] in custom_partition_functions:
 			self.how_to_split_v = 3
-			self.ind2customsplitter["volume"] = options["volume"]
+			if "volume" in options:
+				self.ind2customsplitter["volume"] = options["volume"]
+			else:
+				self.ind2customsplitter["volume"] = options["default"]
 		else:
 			raise ValueError("Custom partition function key, "+str(options["volume"])+", for 'volume' not in custom_partition_functions")
 
 		#Figure out how other species are split
 		for s in M.get_species2index():
 			index = M.get_species_index(s)
-			if s not in options or options[s] == "binomial":
+			if s not in options:
+				if default == "binomial":
+					self.binomial_indices.push_back(index)
+				elif default == "duplicate":
+					self.duplicate_indices.push_back(index)
+				elif default == "perfect":
+					self.perfect_indices.push_back(index)
+				elif default == "custom":
+					self.custom_indices.push_back(index)
+					self.ind2customsplitter[index] = options["default"]
+			elif options[s] == "binomial":
 				self.binomial_indices.push_back(index)
 			elif options[s] == "duplicate":
 				self.duplicate_indices.push_back(index)
