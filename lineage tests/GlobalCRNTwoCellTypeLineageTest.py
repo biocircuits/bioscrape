@@ -7,22 +7,31 @@ from bioscrape.lineage import py_SimulateSingleCell
 from bioscrape.lineage import LineageCSimInterface
 from bioscrape.lineage import py_PropagateCells
 from bioscrape.lineage import py_SingleCellLineage, py_PropagateInteractingCells
-
-
+from bioscrape.types import Model
 
 import time as pytime
-
-
 
 
 lineage_list = None
 cell_state_sample_list = None
 
+
+species = ["X1", "X2"]
+
+
+kd = .01
+rxng1 = [["X1"], [], "massaction", {"k":kd}]
+rxng2 = [["X2"], [], "massaction", {"k":kd}]
+x0g = {"X1":100, "X2":100}
+Mglobal = Model(species = species, reactions = [rxng1, rxng2], initial_condition_dict = x0g)
+global_simulator = "stochastic"
+
+
 #M1 create X1 which is global
 #M2 create X2 at a rate proprotional to X1
 #As X2 accumulate, M1 stops growing
 
-species = ["X1", "X2", "Y"]
+
 x0 = {"X1": 0, "X2":0, "Y":100}
 
 
@@ -61,10 +70,9 @@ model_list = [M1, M2]
 initial_cell_counts = [5, 5]
 print("starting simulation")
 
-if True:
-	cell_state_sample_list, sample_times = py_PropagateInteractingCells(timepoints, global_sync_period, sample_times = 5, model_list = model_list,initial_cell_states = initial_cell_counts, global_species = global_species, global_volume = global_volume, average_dist_threshold = average_dist_threshold)
-	#lineage_list = py_SimulateInteractingCellLineage(timepoints, global_sync_period, model_list = model_list,initial_cell_states = initial_cell_counts, global_species = global_species, global_volume = global_volume, average_dist_threshold = average_dist_threshold)
-	#print("lineage_list", lineage_list)
+
+cell_state_sample_list, sample_times = py_PropagateInteractingCells(timepoints, global_sync_period, sample_times = 5, model_list = model_list,initial_cell_states = initial_cell_counts, global_species = global_species, global_volume = global_volume, average_dist_threshold = average_dist_threshold, global_volume_model = Mglobal, global_volume_simulator = global_simulator)
+#lineage_list = py_SimulateInteractingCellLineage(timepoints, global_sync_period, model_list = model_list,initial_cell_states = initial_cell_counts, global_species = global_species, global_volume = global_volume, average_dist_threshold = average_dist_threshold, global_volume_model = Mglobal, global_volume_simulator = global_simulator)
 
 print("simulation complete")
 
@@ -101,8 +109,9 @@ if cell_state_sample_list is not None:
 			plt.hist(x2, log = True, label = "Sample Time = "+str(i)+" Cells="+str(len(x2)))
 			if i == 0: plt.legend()
 
+print("lineage_list is not None", lineage_list is not None)
 if lineage_list is not None:
-	print("lineage_list", lineage_list, [l.py_size() for l in lineage_list])
+	print("lineage_list", lineage_list)
 	plt.figure(figsize = (10, 10))
 	axes = [plt.subplot(4, 2, 1), plt.subplot(4, 2, 3), plt.subplot(4, 2, 5), plt.subplot(4, 2, 7), 
 		plt.subplot(4, 2, 2), plt.subplot(4, 2, 4), plt.subplot(4, 2, 6), plt.subplot(4, 2, 8)]

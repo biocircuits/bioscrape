@@ -1769,7 +1769,7 @@ cdef class LineageSSASimulator:
 		cdef unsigned sample_ind
 		cdef double dt = timepoints[1]-timepoints[0]
 
-		cdef list samples = []
+		samples = []
 		if self.c_results is None or self.c_volume_trace is None:
 			raise RuntimeError("Must call LineageSSASimulator.initialize_single_cell_results_arrays(num_timepoints) before calling PropagateCells. py_PropagateCells does this for you automatically but may be slower.")
 		if self.old_cell_states is None:
@@ -2029,13 +2029,13 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 	#Used for Simulating Interacting lineages
 	cdef int spec_ind, global_crn_initialized
-	cdef unsigned num_global_species, num_interfaces, total_cell_count
-	cdef double[:] c_global_species, c_period_timepoints, active_lineages
+	cdef unsigned num_global_species, num_interfaces, total_cell_count, num_global_crn_species
+	cdef double[:] c_global_species, c_period_timepoints, active_lineages, sample_times
 	cdef int[:, :] global_species_inds #stores global_species_inds[i, j] --> species index of interface j for global species i
 
 	cdef double total_cell_volume, global_volume, leftover_global_volume, temp_volume, global_volume_param, average_dist_threshold, global_sync_period, dt
 
-	cdef list interface_list, new_schnitzes, new_cell_states, lineage_list, old_cell_state_list, new_cell_state_list, old_schnitz_list, new_schnitz_list
+	cdef list interface_list, new_schnitzes, new_cell_states, lineage_list, samples, old_cell_state_list, new_cell_state_list, old_schnitz_list, new_schnitz_list
 	cdef SingleCellSSAResult new_r, merge_r
 	cdef LineageVolumeCellState new_cs
 	cdef Schnitz new_s
@@ -2048,11 +2048,10 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 	cdef int[:] global_species_global_crn_inds #stores global_species_global_crn_inds[i] --> species index of global_crn interface for global species i
 	cdef double[:] global_crn_state
 	cdef Volume global_volume_object
-	cdef VolumeSSAResult global_crn_result
+	cdef VolumeSSAResult global_crn_result, period_global_crn_result
 
 	def __init__(self):
 		self.global_crn_initialized = 0
-
 
 	def get_global_species_array(self):
 		print("get_global_species_array")
@@ -2072,21 +2071,39 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 		else:
 			return self.global_crn_result
 
+	def get_lineage_list(self):
+		if self.lineage_list is not None:
+			return self.lineage_list
+		else:
+			warnings.warn("There is no lineage_list - for Propogation results use get_samples(). Returning None.")
+			return None
+
+	def get_samples(self):
+		if self.samples is not None:
+			return self.samples, self.sample_times
+		else:
+			warnings.warn("There are no samples - for Lineage results use get_lineage_list(). Returning None.")
+			return None
+
 	#Functions to set up Global simulation
 	def setup_global_volume_simulation(self, simulator, interface, global_species_global_crn_inds):
+		cdef np.ndarray results
+		cdef np.ndarray time = np.zeros(1)
+		cdef np.ndarray volume = np.zeros(1)
 		if isinstance(simulator, VolumeSSASimulator):
 			self.global_ssa_simulator = simulator
 			self.global_deterministic_simulator = None
+			self.global_volume_object = Volume()
 		elif isinstance(simulator, DeterministicSimulator):
 			self.global_deterministic_simulator = simulator
 			self.global_ssa_simulator = None
-			self.global_volume_object = Volume()
 		else:
 			raise ValueError("set_global_simulator requires a VolumeSSASimulator or DeterministicSimulator")
 
 		if isinstance(interface, ModelCSimInterface):
 			self.global_interface = interface
 			self.global_crn_state = self.global_interface.get_initial_state()
+			print("global_crn_state", self.global_crn_state)
 
 			if self.global_deterministic_simulator is not None:
 				self.global_interface.py_prep_deterministic_simulation()
@@ -2096,7 +2113,13 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 		self.global_species_global_crn_inds = global_species_global_crn_inds.astype(int)
 
 		#instantiate VSR to store results
-		self.global_crn_result = VolumeSSAResult(np.ndarray(), np.ndarray(), np.ndarray(), 0)
+		self.num_global_crn_species = self.global_interface.get_number_of_species()
+		results = np.zeros((1, self.num_global_crn_species))
+		results[0, :] = self.global_crn_state[:]
+		volume[0] = 1
+		time[0] = 0
+
+		self.global_crn_result = VolumeSSAResult(time, results, volume, 0)
 		self.global_crn_initialized = 1
 
 
@@ -2288,11 +2311,13 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 		
 	#Helper function to simulate the global CRN, if there is one
 	#This CRN can be Stochastic or Deterministic
-	cdef void simulate_global_volume_crn(self, double[:] timepoints):
+	cdef void simulate_global_volume_crn(self, np.ndarray timepoints):
+		print("Simulating Global CRN")
 		cdef unsigned i = 0
 		cdef unsigned spec_ind = 0
 		cdef unsigned num_timepoints = timepoints.shape[0]
 		cdef double final_time = timepoints[num_timepoints - 1]
+		cdef unsigned num_global_crn_Species = self.global_interface.get_number_of_species()
 
 		self.global_interface.set_initial_time(timepoints[0])
 		self.global_interface.set_dt(timepoints[1]-timepoints[0])
@@ -2306,8 +2331,9 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 			#Simulate
 			self.global_interface.set_initial_state(np.asarray(self.global_crn_state))
-			self.r = self.global_deterministic_simulator.simulate(self.global_interface, timepoints)
-			self.global_crn_state = self.r.get_result()[num_timepoints, :] #Set global crn state
+			self.period_global_crn_result = self.global_deterministic_simulator.simulate(self.global_interface, timepoints)
+			for i in range(self.num_global_crn_species):
+				self.global_crn_state[i] = self.period_global_crn_result.get_result()[num_timepoints-1, i] #Set global crn state
 
 			#reset self.global_species after simulation count = volume*concentration
 			for i in range(self.num_global_species):
@@ -2317,17 +2343,26 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 		#Stochastic Simulation
 		elif self.global_ssa_simulator is not None:
+			print("Stochastic Simulation")
 			#Set the global species
+			print("Setting global species")
 			for i in range(self.num_global_species):
 				spec_ind = self.global_species_global_crn_inds[i]
 				self.global_crn_state[spec_ind] = self.c_global_species[i]
 
 			#Simulate
+			print("Simulate")
 			self.global_interface.set_initial_state(np.asarray(self.global_crn_state))
+			print("here?", np.asarray(self.global_crn_state))
 			self.global_volume_object.set_volume(self.leftover_global_volume) #set the global volume
-			self.r = self.global_ssa_simulator.volume_simulate(self.global_interface, self.global_volume_object, timepoints)
-			self.global_crn_state = self.r.get_result()[num_timepoints, :] #Set global crn state
+			print("here??", timepoints)
+			print("self.global_interface", self.global_interface, "self.global_volume_object", self.global_volume_object)
+			self.period_global_crn_result = self.global_ssa_simulator.volume_simulate(self.global_interface, self.global_volume_object, timepoints)
+			print("updating crn_state")
+			for i in range(self.num_global_crn_species):
+				self.global_crn_state[i] = self.period_global_crn_result.get_result()[num_timepoints-1, i] #Set global crn state
 
+			print("updating global species")
 			#reset self.global_species after simulation
 			for i in range(self.num_global_species):
 				spec_ind = self.global_species_global_crn_inds[i]
@@ -2456,7 +2491,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 			
 
-	cdef list SimulateInteractingCellLineage(self, list interface_list, list initial_cell_states, double[:] timepoints, double global_sync_period, np.ndarray global_species_inds, double global_volume_param, double average_dist_threshold):
+	cdef list SimulateInteractingCellLineage(self, list interface_list, list initial_cell_states, np.ndarray timepoints, double global_sync_period, np.ndarray global_species_inds, double global_volume_param, double average_dist_threshold):
 		#print("Starting Interacting Lineage Simulation")
 
 		cdef unsigned i = 0
@@ -2468,7 +2503,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 		
 		cdef double final_time = timepoints[timepoints.shape[0]-1] #when the entire simulation ends (adding dt onto the end for rounding reasons)
 		cdef double current_time = timepoints[0] #current time
-		
+
 		self.dt = timepoints[1] - timepoints[0]
 		self.global_sync_period = global_sync_period #How often global species are synchronized
 		cdef double period_time = timepoints[0]+self.global_sync_period #When the next sync period happens
@@ -2565,14 +2600,16 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 			#If a simulator is set, do the global CRN simulation
 			if self.global_ssa_simulator is not None or self.global_deterministic_simulator is not None:
-				self.simulate_global_volume_crn(self.c_period_timepoints) #results are stored in self.r
+				self.simulate_global_volume_crn(timepoints[(current_time<=timepoints)*(timepoints<=period_time)]) #results are stored in self.r
 				#Save final results via concatenation with previous results
+				print("self.global_crn_result.get_result().shape", self.global_crn_result.get_result().shape[0], self.global_crn_result.get_result().shape[1])
+				print("self.period_global_crn_result.get_result().shape", self.period_global_crn_result.get_result().shape[0], self.period_global_crn_result.get_result().shape[1])
 				self.global_crn_result = VolumeSSAResult(
-					self,np.concatenate((self.global_crn_result.get_timepoints(), self.r.get_timepoints())),
-					self,np.concatenate((self.global_crn_result.get_result(), self.r.get_result())),
-					self,np.concatenate((self.global_crn_result.get_volume(),self.r.get_volume())), 0)
+					np.concatenate((self.global_crn_result.get_timepoints(), self.period_global_crn_result.get_timepoints()[1:])),
+					np.concatenate((self.global_crn_result.get_result(), self.period_global_crn_result.get_result()[1:, :])),
+					np.concatenate((self.global_crn_result.get_volume(), self.period_global_crn_result.get_volume()[1:])), 0)
 
-			while timepoints[current_time_index]<=period_time:
+			while current_time_index < timepoints.shape[0] and timepoints[current_time_index]<=period_time:
 				self.c_global_species_array[current_time_index, :] = self.c_global_species[:]
 				current_time_index += 1
 
@@ -2602,10 +2639,11 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 	#Simulates an ensemble of interacting cells over some amount of time.
 	#Returns the existing cell states at all times in the array sample_times
 	#  dead cells are included based upon the include_dead_cells parameter (1 = included, otherwise = excluded)
-	cdef list PropagateInteractingCells(self, list interface_list, list initial_cell_states, double[:] timepoints, double[:] sample_times, double global_sync_period, np.ndarray global_species_inds, double global_volume_param, double average_dist_threshold):
+	cdef list PropagateInteractingCells(self, list interface_list, list initial_cell_states, np.ndarray timepoints, double[:] sample_times, double global_sync_period, np.ndarray global_species_inds, double global_volume_param, double average_dist_threshold):
 		#print("Starting PropagateInteractingCells")
 		#Final result will be returned here as a list of lists
-		cdef list samples = []
+		self.samples = []
+		self.sample_times = sample_times
 
 		cdef unsigned sample_ind = 0
 		cdef unsigned i = 0
@@ -2617,9 +2655,9 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 		cdef unsigned num_timepoints = timepoints.shape[0]
 		cdef double final_time = timepoints[timepoints.shape[0]-1] #when the entire simulation ends (adding dt onto the end for rounding reasons)
 		cdef double current_time = timepoints[0] #current time
-		cdef double next_sample_time = sample_times[0] #when the next sample is taken
+		cdef double next_sample_time = self.sample_times[0] #when the next sample is taken
 		 
-		cdef unsigned num_samples = sample_times.shape[0]
+		cdef unsigned num_samples = self.sample_times.shape[0]
 		cdef unsigned first_simulation = 0
 
 		self.dt = timepoints[1] - timepoints[0]
@@ -2654,7 +2692,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 		if self.global_sync_period >= final_time:
 			raise ValueError("global sync period must be smaller than the entire length of the timepoints passed in for simulation.")
 		#Check that sample_times and timepoints are compatable
-		if len(timepoints) < sample_times.shape[0] or timepoints[timepoints.shape[0]-1] < sample_times[sample_times.shape[0]-1] or timepoints[0] > sample_times[0]:
+		if len(timepoints) < self.sample_times.shape[0] or timepoints[timepoints.shape[0]-1] < self.sample_times[self.sample_times.shape[0]-1] or timepoints[0] > self.sample_times[0]:
 			raise ValueError("sample_times must be a subset of the timepoints array.")
 
 		#Calculate global volume
@@ -2667,11 +2705,11 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			self.old_cell_state_list.append([])
 
 		#If the first sample is just the start of the simulation, append the initial condition
-		if sample_times[0] <= timepoints[0]+self.dt:
-			samples.append(list(initial_cell_states))
+		if self.sample_times[0] <= timepoints[0]+self.dt:
+			self.samples.append(list(initial_cell_states))
 			self.c_global_species_array[0, :] = self.c_global_species
 			sample_ind += 1
-			next_sample_time = sample_times[sample_ind]
+			next_sample_time = self.sample_times[sample_ind]
 
 		if next_sample_time < period_time:
 			final_time = next_sample_time
@@ -2680,9 +2718,6 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 		#Timepoints for the first set of simulations
 		#print("start of popagating: final time", final_time, "period_time", period_time, "next_sample_time", next_sample_time)
-
-		
-
 
 		self.c_period_timepoints = self.truncate_timepoints_greater_than(timepoints, final_time)
 
@@ -2710,24 +2745,38 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			#Add samples to list to return if at sample_time
 			if next_sample_time == final_time:
 				sample_ind += 1
-				next_sample_time = sample_times[sample_ind]
+				next_sample_time = self.sample_times[sample_ind]
 
 				print("adding samples", sample_ind, "@", final_time, "len(samples being added)", len(self.old_cell_state_list), len(self.old_cell_state_list[0]), len(self.old_cell_state_list[1]))
 				
-				samples.append(list(self.old_cell_state_list))
+				self.samples.append(list(self.old_cell_state_list))
 				self.c_global_species_array[sample_ind, :] = self.c_global_species
 
 				#If global CRN simulation, update the results
 				if self.global_crn_initialized == 1:
 					print("updating global crn result")
+					print("self.global_crn_result.get_timepoints()", self.global_crn_result.get_timepoints())
+					print("np.ndarray(final_time)", np.array(final_time))
 					self.global_crn_result = VolumeSSAResult(
-						np.concatenate((self.global_crn_result.get_timepoints(), np.ndarray(final_time))),
-						np.concatenate((self.global_crn_result.get_result(), np.ndarray(self.c_global_species))),
-						np.concatenate((self.global_crn_result.get_volume(), np.ndarray(self.leftover_global_volume))), 0)
+						np.append(self.global_crn_result.get_timepoints(), np.array(final_time)),
+						np.append(self.global_crn_result.get_result(), np.array(self.global_crn_state)),
+						np.append(self.global_crn_result.get_volume(), np.array(self.leftover_global_volume)), 0)
 
+
+			#If a simulator is set, do the global CRN simulation
+			if self.global_crn_initialized == 1:
+				self.simulate_global_volume_crn(timepoints[(current_time<=timepoints)*(timepoints<=final_time)]) #results are stored in self.r
+				#Save final results via concatenation with previous results
+				#print("self.global_crn_result.get_result().shape", self.global_crn_result.get_result().shape[0], self.global_crn_result.get_result().shape[1])
+				#print("self.r.get_result().shape", self.period_global_crn_result.get_result().shape[0], self.period_global_crn_result.get_result().shape[1])
+				#self.global_crn_result = VolumeSSAResult(
+				#	np.concatenate((self.global_crn_result.get_timepoints(), self.period_global_crn_result.get_timepoints())),
+				#	np.concatenate((self.global_crn_result.get_result(), self.period_global_crn_result.get_result())),
+				#	np.concatenate((self.global_crn_result.get_volume(),self.period_global_crn_result.get_volume())), 0)
 			#Choose timepoints for next simulation
 			
 			#Go to the first of next_sample_time and period_time and update appropriately
+			current_time = final_time
 			if next_sample_time <= period_time:
 				final_time = next_sample_time
 			if period_time <= next_sample_time:
@@ -2740,26 +2789,15 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			#Enter Simulation Queue
 			self.simulate_interacting_lineage_period(self.c_timepoints, 0) #create_schnitzes toggled to off
 
-#			If a simulator is set, do the global CRN simulation
-			if self.global_ssa_simulator is not None or self.global_deterministic_simulator is not None:
-				self.simulate_global_volume_crn(self.c_period_timepoints) #results are stored in self.r
-				#Save final results via concatenation with previous results
-				self.global_crn_result = VolumeSSAResult(
-					self,np.concatenate((self.global_crn_result.get_timepoints(), self.r.get_timepoints())),
-					self,np.concatenate((self.global_crn_result.get_result(), self.r.get_result())),
-					self,np.concatenate((self.global_crn_result.get_volume(),self.r.get_volume())), 0)
+#			
 
-		print("about to return samples", "len samples, len samples[0], len samples[1]", len(samples), len(samples[0]), len(samples[1]))
-		return samples
+		print("about to return samples", "len samples, len samples[0], len samples[1]", len(self.samples), len(self.samples[0]), len(self.samples[1]))
+		return self.samples
 	#Python Accessor
 	def py_PropagateInteractingCells(self, np.ndarray timepoints, list interface_list, list initial_cell_states, sample_times, double global_sync_period, np.ndarray global_species_inds, double global_volume_param, double average_dist_threshold):
 		self.set_c_timepoints(timepoints)
 		cell_sample_list =  self.PropagateInteractingCells(interface_list, initial_cell_states, timepoints,sample_times, global_sync_period, global_species_inds, global_volume_param, average_dist_threshold)
 		return cell_sample_list
-		#if self.global_crn_result is None:
-		#	return cell_sample_list, self.global_species_array, None
-		#else:
-		#		, self.global_crn_result
 
 
 
@@ -2767,9 +2805,40 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 def py_set_up_InteractingLineage(global_species = [], interface_list = [], model_list = [], initial_cell_states = [], t0 = 0,
 	simulator = None, global_species_inds = None, global_volume_simulator = "stochastic", global_volume_model = None):
-
+	#Set up main simulator if needed
 	if simulator == None:
 		simulator = InteractingLineageSSASimulator()
+
+	#set up global simulator
+	if global_volume_model is not None:
+		
+
+		if len(global_species) == 0:
+			warnings.warn("Attemping InteractingCellL Simulation without global species defined. Consider a different simulator for increased efficiency.")
+
+		global_species_global_crn_inds = np.zeros(len(global_species))
+
+		for i in range(len(global_species)):
+			s = global_species[i]
+			ind = global_volume_model.get_species_index(s)
+			if ind == None:
+				warnings.warn(f"Global Species {s} not in global_volume_model. Species is being added to Model with initial condition 0.")
+				global_volume_model._add_species(s)
+				global_volume_model.set_species_value({s: 0})
+				global_volume_model.py_initialize()
+				ind = global_volume_model.get_species_index(s)
+			global_species_global_crn_inds[int(i)] = int(ind)
+
+		global_interface = ModelCSimInterface(global_volume_model)
+
+		if global_volume_simulator == "stochastic":
+			global_volume_simulator = VolumeSSASimulator()
+		elif global_volume_simulator == "deterministic":
+			global_volume_simulator = DeterministicSimulator
+
+		simulator.setup_global_volume_simulation(global_volume_simulator, global_interface, global_species_global_crn_inds)
+
+	#Set up interface list from models and ensure compatability with global species
 	if len(model_list) == 0 and len(interface_list) == 0:
 		raise ValueError("Missing Required Keyword Arguments:models = [LineageModel] or interface_list = [LineageCSimInterface]")
 	elif len(interface_list) == 0:
@@ -2792,6 +2861,7 @@ def py_set_up_InteractingLineage(global_species = [], interface_list = [], model
 		warnings.warn('Calling SimulateInteractintCellLineage without any global species defined. Use the global_species or global_species_inds keywords.')
 		global_species_inds = np.array()
 
+	#Set up initial cell states
 	if len(initial_cell_states) == len(interface_list) and  isinstance(initial_cell_states[0], int):
 		initial_cell_counts = initial_cell_states
 		initial_cell_states = []
@@ -2803,14 +2873,13 @@ def py_set_up_InteractingLineage(global_species = [], interface_list = [], model
 			for j in range(initial_cell_counts[i]):
 				lvcs = LineageVolumeCellState(v0 = 1.0, t0 = t0, state = initial_state.copy())
 				initial_cell_states[i].append(lvcs)
-
 	elif len(initial_cell_states) == 0 and len(interface_list) > 0:
 		warnings.warn("Calling py_SimulateInteractintCellLineage without any initial_cell_states. Defaulting to creating one initial cell for each interface.")
 		initial_cell_states = [LineageVolumeCellState(v0 = 1, t0 = 0, state = i.py_get_initial_state()) for i in interface_list]
-
 	elif len(initial_cell_states) > len(interface_list):
 		raise ValueError("When passing in more initial_cell_states than models, the keyword argument interface_inds is also required where interface_inds[i] corresponds to the index of the interface/model beloning to initial_cell_state[i].")
 	
+
 	return interface_list, simulator, initial_cell_states, global_species_inds
 
 #Auxilary Python Function
@@ -2828,58 +2897,15 @@ def py_PropagateInteractingCells(timepoints, global_sync_period, sample_times = 
 		else:
 			sample_times = timepoints[::-int(len(timepoints)/(sample_times-1))]
 			sample_times = np.flip(sample_times) #reverse the order
-		print("****SAMPLE TIMES*****", sample_times)
 	else:
 		sample_times = np.array(sample_times, dtype = np.double) #convert sample_times into doubles
 
 	final_cell_state_samples = simulator.py_PropagateInteractingCells(timepoints, interface_list, initial_cell_states, sample_times, global_sync_period, global_species_inds.astype(int), global_volume, average_dist_threshold)
 	
-	#global_species_array = simulator.get_global_species_array()
-	#global_crn_result =  simulator.get_global_crn_results(Model = global_volume_model)
-
-	return_data = None
-	if return_dataframes:#Converts list of cell states into a Pandas dataframe
-		print("Producing dataframes")
-		
-		return_data = []
-
-		#global_speces_df = pandas.DataFrame(global_species_array, columns = global_species)
-		#print("len(final_cell_state_samples)", len(final_cell_state_samples), [len(s) for s in final_cell_state_samples], [[len(ss) for ss in s] for s in final_cell_state_samples])
-		for sample_ind in range(len(final_cell_state_samples)):
-			print("sample_ind", sample_ind)
-			sampleL = final_cell_state_samples[sample_ind]
-			return_data.append([])
-			for Lind in range(len(sampleL)):
-				print("Lind", Lind)
-				L = sampleL[Lind]
-				if len(L) > 0:
-					temp_list = []
-					for cs_ind in range(len(L)):
-						cs = L[cs_ind]
-						temp_list.append(np.append(cs.py_get_state(), cs.py_get_volume()))
-					darray = np.array(temp_list)
-					np.squeeze(darray)
-					if model_list == None:
-						warnings.warn("Without passing in a model, the data frame will not be indexable by species name.")
-						df = pandas.DataFrame(darray)
-					else:
-						Model = model_list[Lind]
-						columns = Model.get_species_list()+["volume"]
-						df = pandas.DataFrame(darray, columns = columns)
-					return_data[sample_ind].append(df)
-				else:
-					print("are empty arrays the problem?")
-					return_data[sample_ind].append(pandas.DataFrame([], columns = columns))
-		#except ModuleNotFoundError:
-		#	warnings.warn("return_dataframes=True requires that pandas be installed. Instead a numpy array is being returned (each column is a species, the last column is volume, and rows are cell states)")
-	else:
-		return_data = final_cell_state_samples
-	
-
 	if return_sample_times:
-		return return_data, sample_times
+		return final_cell_state_samples, sample_times
 	else:
-		return return_data
+		return final_cell_state_samples
 
 
 #Auxilary Python Function
@@ -2892,7 +2918,5 @@ def py_SimulateInteractingCellLineage(timepoints, global_sync_period,
 		simulator = simulator, global_species_inds = global_species_inds, global_volume_simulator = global_volume_simulator, global_volume_model = global_volume_model, t0 = timepoints[0])
 
 	lineage_list = simulator.py_SimulateInteractingCellLineage(timepoints, interface_list, initial_cell_states, global_sync_period, global_species_inds.astype(int), global_volume, average_dist_threshold)
-	global_species_array = simulator.get_global_species_array()
 	
-	print("lineage list in auxilary wrapper", lineage_list)
 	return lineage_list
