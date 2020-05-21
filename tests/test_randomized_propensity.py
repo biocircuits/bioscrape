@@ -22,40 +22,40 @@ debug = False
 param_min = -4
 param_max = 4
 
-# parameter names required for each propensity (general will be treated by 
+# parameter names required for each propensity (general will be treated by
 # itself)
 propensity_param_requirements = {
-	'massaction':['k'], 
-	'hillpositive':['k', 'K', 'n'], 
+	'massaction':['k'],
+	'hillpositive':['k', 'K', 'n'],
 	'hillnegative':['k', 'K', 'n'],
-	'proportionalhillpositive':["k", "K", "n"], 
+	'proportionalhillpositive':["k", "K", "n"],
 	'proportionalhillnegative':["k", "K", "n"]
 }
-# species (passed in as parameters) requires for each propensity (general 
+# species (passed in as parameters) requires for each propensity (general
 # will be treated by itself)
 propensity_species_requirements = {
-	'hillpositive':['s1'], 
-	'hillnegative':['s1'], 
-	'proportionalhillpositive':['s1', 'd'], 
-	'proportionalhillnegative':['s1', 'd'], 
+	'hillpositive':['s1'],
+	'hillnegative':['s1'],
+	'proportionalhillpositive':['s1', 'd'],
+	'proportionalhillnegative':['s1', 'd'],
 	"massaction":[]
 }
 
-all_prop_types = ['hillpositive', 
-				  'proportionalhillpositive', 
-				  'hillnegative', 
-				  'proportionalhillnegative', 
-				  'massaction']#, 'general']
+all_prop_types = ['hillpositive',
+				  'proportionalhillpositive',
+				  'hillnegative',
+				  'proportionalhillnegative',
+				  'massaction', 'general']
 
 TEST_NAME = "random_propensities"
 
 def random_prop_model(prop_type):
 	'''
-	Returns a randomish model with a specified propensity type. Set to always 
+	Returns a randomish model with a specified propensity type. Set to always
 	return the same model, for any particular propensity type.
 
 	WARNING: To produce consistent Models, this function resets the random seeds
-	used during Model construction. This may have unexpected effects on random 
+	used during Model construction. This may have unexpected effects on random
 	number generation outside this function as a side-effect.
 	'''
 
@@ -72,12 +72,12 @@ def random_prop_model(prop_type):
 
 	param_dict = {}
 	# Here we will use a random(ish) rational function
-	if prop_type == 'general': 
+	if prop_type == 'general':
 		rate_str = "(1+"
 		numerator_terms = np.random.randint(0, 5)
 		denominator_terms = np.random.randint(0, 5)
 		for i in range(numerator_terms):
-			coef = str(round(np.exp(np.random.uniform(low = param_min, 
+			coef = str(round(np.exp(np.random.uniform(low = param_min,
 													 high = param_max)), 3))
 			exp = str(round(np.random.uniform(low = 0,high = param_max), 3))
 			species = all_species[np.random.randint(len(all_species))]
@@ -85,7 +85,7 @@ def random_prop_model(prop_type):
 		rate_str = rate_str[:-1] + ")"
 		rate_str += "/(1+"
 		for i in range(denominator_terms):
-			coef =str(round(np.exp(np.random.uniform(low = param_min, 
+			coef =str(round(np.exp(np.random.uniform(low = param_min,
 													 high = param_max)), 3))
 			exp = str(round(np.random.uniform(low = 0,high = param_max), 3))
 			species = all_species[np.random.randint(len(all_species))]
@@ -98,7 +98,7 @@ def random_prop_model(prop_type):
 		param_dict = {}
 		for p in required_params:
 			param_dict[p] = \
-					round(np.exp(np.random.uniform(low = param_min, 
+					round(np.exp(np.random.uniform(low = param_min,
 												   high = param_max)), 3)
 		for i in range(len(required_species)):
 			k = required_species[i]
@@ -117,14 +117,14 @@ def random_prop_model(prop_type):
 # 	bioscrape.sbmlutil.import_sbml("frozen_sbml_outputs/random_propensities/hillnegative.sbml.tmp")
 
 @pytest.mark.parametrize('prop_type', all_prop_types)
-def test_random_propensities(prop_type):
+def test_random_propensity_outputs(prop_type):
 	test_results = dict()
 	model = random_prop_model(prop_type)
+	print("model type: " + str(type(model)))
 
 	timepoints = np.arange(0, 50, .01)
-	results_d = py_simulate_model(timepoints, Model = model)
-	results_s = py_simulate_model(timepoints, Model = model, 
-								  stochastic = True)
+	results_d = py_simulate_model(timepoints, Model = model, stochastic = False)
+	results_s = py_simulate_model(timepoints, Model = model, stochastic = True)
 
 	test_results[prop_type + "_deterministic"] = results_d
 	test_results[prop_type + "_stochastic"]    = results_s
@@ -144,16 +144,16 @@ def debug_random_prop_tests():
 
 	Plot frozen results for debugging purposes.
 	'''
-	propensity_types = ['hillpositive', 'proportionalhillpositive', 
-					    'hillnegative', 'proportionalhillnegative', 
+	propensity_types = ['hillpositive', 'proportionalhillpositive',
+					    'hillnegative', 'proportionalhillnegative',
 					    'massaction', 'general']
 	colors = {
 		'massaction':'blue',
-		'hillpositive': 'cyan', 
-		'hillnegative': 'red', 
-		'proportionalhillpositive': 'orange', 
+		'hillpositive': 'cyan',
+		'hillnegative': 'red',
+		'proportionalhillpositive': 'orange',
 		'proportionalhillnegative': 'purple'
-		}				   					    
+		}
 	test_loc = os.path.join(test_utils.frozen_results_loc, TEST_NAME)
 
 	plt.figure()
@@ -161,11 +161,11 @@ def debug_random_prop_tests():
 
 		results_d = np.load(os.path.join(test_loc, prop_type))
 
-		plt.plot(timepoints, results_d["C"], 
+		plt.plot(timepoints, results_d["C"],
 				label = "deterministic "+str(prop_type)\
-						+"params = "+str(param_dict), 
+						+"params = "+str(param_dict),
 				color = colors[prop_type])
-		plt.plot(timepoints, results_s["C"], ":", 
+		plt.plot(timepoints, results_s["C"], ":",
 			       label = "stochastic "+str(prop_type)+"params = "\
 			       		   +str(param_dict),
 			       color = colors[prop_type])

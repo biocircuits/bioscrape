@@ -868,18 +868,21 @@ cdef class Delay:
         """
         self.delay_type = DelayType.unset_delay
 
-    def py_get_delay(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params):
+    def py_get_delay(self, np.ndarray[np.double_t,ndim=1] state,
+                     np.ndarray[np.double_t,ndim=1] params):
         """
         Return the delay given the state and parameter vector
         :param state: (np.ndarray) the state vector
         :param params: (np.ndarray) the parameters vector
         :return: (double) the computed delay
 
-        This function should NOT be overridden by subclases. It is just a Python wrapped of the cython delay function.
+        This function should NOT be overridden by subclases. It is just a Python
+        wrapped of the cython delay function.
         """
         return self.get_delay(<double*> state.data, <double*> params.data)
 
-
+    def __eq__(self, Delay other):
+        return self.delay_type == other.delay_type
 
     cdef double get_delay(self, double* state, double* params):
         """
@@ -893,14 +896,19 @@ cdef class Delay:
 
         return -1.0
 
-    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+    def initialize(self, dict param_dictionary, dict species_indices,
+                   dict parameter_indices):
 
         """
-        Initializes the parameters and species to look at the right indices in the state
-        :param dictionary: (dict:str--> str) the fields for the propensity 'k','s1' etc map to the actual parameter
+        Initializes the parameters and species to look at the right indices in
+            the state
+        :param dictionary: (dict:str--> str) the fields for the propensity 'k',
+                                            's1' etc map to the actual parameter
                                              and species names
-        :param species_indices: (dict:str-->int) map species names to entry in species vector
-        :param parameter_indices: (dict:str-->int) map param names to entry in param vector
+        :param species_indices: (dict:str-->int) map species names to entry in
+                                species vector
+        :param parameter_indices: (dict:str-->int) map param names to entry in
+                                  param vector
         :return: nothing
         """
         pass
@@ -908,8 +916,9 @@ cdef class Delay:
     def get_species_and_parameters(self, dict fields):
         """
         get which fields are species and which are parameters
-        :return: (list(string), list(string)) First entry is the fields that are species, second entry is the fields
-                                              that are parameters
+        :return: (list(string), list(string)) First entry is the fields that are
+                                            species, second entry is the fields
+                                            that are parameters
         """
         return [],[]
 
@@ -929,7 +938,8 @@ cdef class FixedDelay(Delay):
     cdef double get_delay(self, double* state, double* params):
         return params[self.delay_index]
 
-    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+    def initialize(self, dict param_dictionary, dict species_indices,
+                   dict parameter_indices):
 
         for key,value in param_dictionary.items():
             if key == 'delay':
@@ -949,7 +959,8 @@ cdef class GaussianDelay(Delay):
         return cyrandom.normal_rv(params[self.mean_index],params[self.std_index])
 
 
-    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+    def initialize(self, dict param_dictionary, dict species_indices,
+                   dict parameter_indices):
 
         for key,value in param_dictionary.items():
             if key == 'mean':
@@ -969,11 +980,11 @@ cdef class GammaDelay(Delay):
     def __init__(self):
         self.delay_type = DelayType.gamma
 
-
     cdef double get_delay(self, double* state, double* params):
         return cyrandom.gamma_rv(params[self.k_index],params[self.theta_index])
 
-    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+    def initialize(self, dict param_dictionary, dict species_indices,
+                   dict parameter_indices):
 
         for key,value in param_dictionary.items():
             if key == 'k':
@@ -1384,10 +1395,10 @@ cdef class Model:
             else:
                 raise ValueError("Reaction Tuple of the wrong length! Must be of length 4 (no delay) or 8 (with delays). See BioSCRAPE Model API for details.")
             self.create_reaction(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict, input_printout = input_printout)
-            
+
         if isinstance(parameters, dict):
             parameters = parameters.items()
-            
+
         for param, param_val in parameters:
                 self._add_param(param)
                 self.set_parameter(param, param_val)
@@ -1446,6 +1457,14 @@ cdef class Model:
 
     def py_initialize(self):
         self._initialize()
+
+    def __eq__(self, Model other):
+        if other is None:
+            return False
+        return True
+
+    def __neq__(self, Model other):
+        return not self.__eq__(other)
 
     def _add_species(self, species):
         """
@@ -1692,7 +1711,7 @@ cdef class Model:
         self._add_reaction(reaction_update_dict, prop_object, propensity_param_dict, delay_reaction_update_dict, delay_object, delay_param_dict)
         self.write_rxn_txt(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict)
         self.reaction_definitions.append((reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict))
-    
+
 
     def write_rxn_txt(self, reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict):
         #Write bioscrape XML and save it to the xml dictionary
@@ -1794,7 +1813,7 @@ cdef class Model:
             self.repeat_rules.append(rule_object)
         else:
             raise SyntaxError('Invalid Rule Frequency: ' + str(rule_frequency))
- 
+
 
         self.write_rule_txt(rule_type, rule_attributes, rule_frequency)
         self.rule_definitions.append((rule_type, rule_attributes, rule_frequency))
@@ -2191,6 +2210,7 @@ cdef class Model:
         else:
             raise LookupError('No species with name '+ species_name)
 
+
     def parse_general_expression(self, instring):
         return parse_expression(instring,self.species2index,self.params2index)
 
@@ -2227,24 +2247,30 @@ cdef class Model:
         # Create an empty SBMLDocument object to hold the bioscrape model
         document, model = create_sbml_model(**keywords)
 
-        for p in self.get_param_list():
+        sorted_params = list(self.get_param_list())
+        sorted_params.sort()
+        for p in sorted_params:
             val = self.get_param_value(p)
             if p[0] == '_':
                 # Remove the underscore at the beginning of the parameter name
                 p = p.replace('_','',1)
             add_parameter(model = model, param_name=p, param_value = val)
 
-        for s in self.get_species():
-            add_species(model = model, compartment=model.getCompartment(0), species=s, initial_concentration=self.get_species_value(s))
+        sorted_species = list(self.get_species())
+        sorted_species.sort()
+        for s in sorted_species:
+            add_species(model = model, compartment=model.getCompartment(0),
+                        species=s, initial_concentration=self.get_species_value(s))
 
         rxn_count = 0
         for rxn_tuple in self.reaction_definitions:
             rxn_id = "r" + str(rxn_count)
 
-            (reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict) = rxn_tuple
-            
-            add_reaction(model, reactants, products, rxn_id, propensity_type, propensity_param_dict,
-                         stochastic = stochastic_model)
+            (reactants, products, propensity_type, propensity_param_dict,
+             delay_type, delay_reactants, delay_products, delay_param_dict) = rxn_tuple
+
+            add_reaction(model, reactants, products, rxn_id, propensity_type,
+                         propensity_param_dict, stochastic = stochastic_model)
             rxn_count += 1
 
         rule_count = 0
