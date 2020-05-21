@@ -22,30 +22,34 @@ def check_priors(param_dict, prior):
             mu = prior[key][1]
             sig = prior[key][2]
             prob_threshold = prior[key][3]
-            distrib = scipy.stats.norm(mu, sig)
-            # Check if value lies is a valid sample of (mu, sigma) Gaussian distribution
-            if distrib.pdf(value) < prob_threshold:
+            # Check if value lies is a valid sample of (mu, sigma) normal distribution
+            # Using probability density function for normal distribution
+            prob = 1/(np.sqrt(2*np.pi) * sig) * np.exp(-0.5*(value - mu)**2/sig**2)
+            if prob < prob_threshold:
                 return False
-
     return True
 
-
-
+class PIDInterface(object):
+    def __init__(self, params_to_estimate, M, priors):
+        self.params_to_estimate = params_to_estimate
+        self.M = M
+        self.priors = priors
+        return
 # Add a new class similar to this to create new interfaces.
 class StochasticInference(object):
     def __init__(self, params_to_estimate, M, priors):
-        self.params = params_to_estimate
+        self.params_to_estimate = params_to_estimate
         self.M = M
         self.priors = priors
         return
 
-    def get_likelihood_function(self, params, data, timepoints, measurements, initial_conditions, norm_order = 2, N_simulations = 3, debug = False):
+    def get_likelihood_function(self, params_values, data, timepoints, measurements, initial_conditions, norm_order = 2, N_simulations = 3, debug = False):
         M = self.M
         params_dict = {}
         # params_exp = np.exp(log_params)
-        if debug:
-            print(params)
-        for key, p in zip(M.get_params2index().keys(), params):
+        # if debug:
+        #     print(params)
+        for key, p in zip(self.params_to_estimate, params_values):
             params_dict[key] = p
         # Priors
         priors = self.priors
@@ -78,16 +82,16 @@ class StochasticInference(object):
 # Add a new class similar to this to create new interfaces.
 class DeterministicInference(object):
     def __init__(self, params_to_estimate, M, priors):
-        self.params = params_to_estimate
+        self.params_to_estimate = params_to_estimate
         self.M = M
         self.priors = priors
         return
 
-    def get_likelihood_function(self, params, data, timepoints, measurements, initial_conditions, norm_order = 2, debug = False ):
+    def get_likelihood_function(self, params_values, data, timepoints, measurements, initial_conditions, norm_order = 2, debug = False):
         M = self.M
         params_dict = {}
         # params_exp = np.exp(log_params)
-        for key, p in zip(M.get_params2index().keys(),params):
+        for key, p in zip(self.params_to_estimate, params_values):
             params_dict[key] = p
         priors = self.priors
         # Check prior
@@ -109,7 +113,7 @@ class DeterministicInference(object):
             print('The measurmenets is {0}'.format(measurements))
             print('The N is {0}'.format(N))
         # TODO: Initial conditions not going through correctly?
-        # TODO: priors needs all parameters of the models when it should only need those that are being identified.
+        # TODO: priors needs all parameters of the models when it should only need those that are being identified. Attempted a fix.
         # TODO: Need to fix how multiple initial conditions will be handled because in pid_interfaces only one at a time can go through.
         LL_det = DLL(model = M, init_state = initial_conditions,
         data = dataDet, norm_order = norm_order)

@@ -235,6 +235,8 @@ class MCMC(object):
             self.params_to_estimate = params
         if isinstance(prior, dict):
             self.prior = prior
+        if len(list(self.prior.keys())) != len(self.params_to_estimate):
+            raise ValueError('Prior keys length must be equal to the length of params_to_estimate.')
         if nwalkers:
             self.nwalkers = nwalkers
         if init_seed:
@@ -352,24 +354,11 @@ class MCMC(object):
         except:
             print('emcee package not installed')
         ndim = len(self.params_to_estimate)
-        # p0 = []
-        # for walker in range(self.nwalkers):
-        #     plist = []
-        #     for p in self.params_to_estimate:
-        #         value = self.M.get_parameter_dictionary()[p]
-        #         # pinit = value + self.init_seed * np.random.randn(self.nwalkers, ndim)
-        #         plist.append(pinit)
-        #     p0.append(np.array(plist))   
-        #     if kwargs.get('debug'):
-        #         print('Sample log-like: {0}'.format(self.cost_function(np.array(plist))))
         params_values = []
         for p in self.params_to_estimate:
             value = self.M.get_parameter_dictionary()[p]
             params_values.append(value)
         p0 = np.array(params_values) + self.init_seed * np.random.randn(self.nwalkers, ndim)
-        # if p0 is None:
-        #     p0 = np.random.randn(ndim*self.nwalkers).reshape((self.nwalkers,self.dimension)) / 20.0
-        # p0 = np.array(p0)
         assert p0.shape == (self.nwalkers, ndim)
         sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function)
         sampler.run_mcmc(p0, self.nsteps, progress = progress)
@@ -415,11 +404,17 @@ class MCMC(object):
         else:
             alpha = 0.3 
         for i in range(ndim):
-            ax = axes[i]
+            if type(axes) is np.ndarray:
+                ax = axes[i]
+            else:
+                ax = axes
             ax.plot(samples[:, :, i], "k", alpha=alpha)
             ax.set_xlim(0, len(samples))
             ax.set_ylabel(labels[i])
-        axes[-1].set_xlabel("step number")
+        if type(axes) is np.ndarray:
+            axes[-1].set_xlabel("step number")
+        else:
+            axes.set_xlabel("step number")
 
         if 'discard' in kwargs.keys():
             discard = kwargs.get('discard')
