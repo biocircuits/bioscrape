@@ -1545,8 +1545,8 @@ cdef class LineageSSASimulator:
 		if mode == 1: #default behavior to return the entire cell trajectory
 			print("SRC Instantiated in SimulateSingleCell")
 			SCR = SingleCellSSAResult(np.asarray(timepoints), np.asarray(self.c_results), np.asarray(self.c_volume_trace), <unsigned>(cell_divided >= 0))
-			SCR.set_divided(<unsigned>(cell_divided >= 0))
-			SCR.set_dead(<unsigned>(cell_dead >= 0))
+			SCR.set_divided(cell_divided)
+			SCR.set_dead(cell_dead)
 			SCR.set_volume_object(v.get_volume_object())
 			SCR.set_initial_volume(self.c_volume_trace[0])
 			SCR.set_initial_time(timepoints[0])
@@ -1558,8 +1558,8 @@ cdef class LineageSSASimulator:
 			for species_index in range(self.num_species):
 				dummy_r[0, species_index] = self.c_current_state[species_index]
 			SCR = SingleCellSSAResult(dummy_t, dummy_r, dummy_v, <unsigned>(cell_divided >= 0))
-			SCR.set_divided(<unsigned>(cell_divided >= 0))
-			SCR.set_dead(<unsigned>(cell_dead >= 0))
+			SCR.set_divided(cell_divided)
+			SCR.set_dead(cell_dead)
 			SCR.set_initial_volume(self.c_volume_trace[0])
 			SCR.set_initial_time(timepoints[0])
 
@@ -2744,7 +2744,6 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			self.simulate_cell_list(initial_cell_states[interface_ind], self.c_period_timepoints, 0, 0)
 
 
-		print("after initial simulation:", len(self.old_cell_state_list), len(self.old_cell_state_list[0]), len(self.old_cell_state_list[1]))
 
 		#Main Simulation loop
 		while sample_ind < num_samples:
@@ -2760,8 +2759,6 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			if next_sample_time == final_time:
 				sample_ind += 1
 				next_sample_time = self.sample_times[sample_ind]
-
-				print("adding samples", sample_ind, "@", final_time, "len(samples being added)", len(self.old_cell_state_list), len(self.old_cell_state_list[0]), len(self.old_cell_state_list[1]))
 				
 				self.samples.append(list(self.old_cell_state_list))
 				self.c_global_species_array[sample_ind, :] = self.c_global_species
@@ -2930,9 +2927,9 @@ def py_PropagateInteractingCells(timepoints, global_sync_period, sample_times = 
 
 
 	if return_sample_times:
-		return final_cell_state_samples, sample_times, global_results
+		return final_cell_state_samples, sample_times, global_results, simulator
 	else:
-		return final_cell_state_samples, global_results
+		return final_cell_state_samples, global_results, simulator
 
 
 #Auxilary Python Function
@@ -2961,37 +2958,4 @@ def py_SimulateInteractingCellLineage(timepoints, global_sync_period,
 	sch_tree = lineage_list[0].get_schnitzes_by_generation()
 	sch_tree_length= len(sch_tree)
 
-	for rand in randlist:
-		if rand == 0:
-			print("Schnitzes time")
-			for Lind in range(sch_tree_length):
-				L = sch_tree[Lind]
-				for sch_ind in range(len(L)):
-					sch = L[sch_ind]
-					print("accessing time", Lind, sch_ind, sch)
-					print(sch.py_get_time())
-			print("global results timepoints")
-			print(global_results.py_get_timepoints())
-
-		elif rand == 1:
-			print("Schnitzes data")
-			for Lind in range(sch_tree_length):
-				L = sch_tree[Lind]
-				for sch_ind in range(len(L)):
-					sch = L[sch_ind]
-					print("accessing data", Lind, sch_ind, sch)
-					print(sch.py_get_data())
-			print("global results result")
-			print(global_results.py_get_result())
-		elif rand == 2:
-			print("Schnitzes volume")
-			for Lind in range(sch_tree_length):
-				L = sch_tree[Lind]
-				for sch_ind in range(len(L)):
-					sch = L[sch_ind]
-					print("accessing volume", Lind, sch_ind, sch)
-					print(sch.py_get_volume())
-			print("global results volume")
-			print(global_results.py_get_volume())
-	print("access test complete")
-	return simulator
+	return lineage_list, global_results, simulator

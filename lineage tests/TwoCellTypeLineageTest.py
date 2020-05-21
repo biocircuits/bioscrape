@@ -58,9 +58,8 @@ model_list = [M1, M2]
 initial_cell_counts = [5, 5]
 print("starting simulation")
 
-if True:
-	cell_state_sample_list, sample_times = py_PropagateInteractingCells(timepoints, global_sync_period, sample_times = 5, model_list = model_list,initial_cell_states = initial_cell_counts, global_species = global_species, global_volume = global_volume, average_dist_threshold = average_dist_threshold)
-	#lineage_list = py_SimulateInteractingCellLineage(timepoints, global_sync_period, model_list = model_list,initial_cell_states = initial_cell_counts, global_species = global_species, global_volume = global_volume, average_dist_threshold = average_dist_threshold)
+#cell_state_sample_list, global_species_results, sample_times, simulator = py_PropagateInteractingCells(timepoints, global_sync_period, sample_times = 5, model_list = model_list,initial_cell_states = initial_cell_counts, global_species = global_species, global_volume = global_volume, average_dist_threshold = average_dist_threshold)
+lineage_list, global_results, simulator = py_SimulateInteractingCellLineage(timepoints, global_sync_period, model_list = model_list,initial_cell_states = initial_cell_counts, global_species = global_species, global_volume = global_volume, average_dist_threshold = average_dist_threshold)
 	#print("lineage_list", lineage_list)
 
 print("simulation complete")
@@ -68,7 +67,7 @@ print("simulation complete")
 print("plotting")
 import pylab as plt
 if cell_state_sample_list is not None:
-	print("cell state sample list", [(len(s[0]), len(s[1])) for s in cell_state_sample_list])
+	print("cell state sample list", cell_state_sample_list)
 	ax1, ax2, ax3 = plt.subplot(231), plt.subplot(232), plt.subplot(233)
 	ax4, ax5, ax6 = plt.subplot(234), plt.subplot(235), plt.subplot(236)
 	axes = [ax1, ax2, ax3, ax4, ax5, ax6]

@@ -9,7 +9,7 @@ from bioscrape.lineage import py_PropagateCells
 from bioscrape.lineage import py_SingleCellLineage, py_PropagateInteractingCells
 from bioscrape.types import Model
 import pandas as pd
-
+import pylab as plt
 import time as pytime
 
 
@@ -34,7 +34,7 @@ Mcell.create_division_rule("deltaV", {"threshold":1.0}, vsplit)
 Mcell.create_volume_event("linear volume", {"growth_rate":g}, "hillpositive", {"k":kgrow, "s1":"F", "n":2, "K":Kgrow})
 Mcell.create_death_event("death", {}, "hillpositive", {"k":kdeath, "s1":"W", "n":2, "K":Kdeath})
 
-maxtime = 10
+maxtime = 15
 dt = 0.01
 global_sync_period = .5
 global_volume = 100
@@ -47,45 +47,18 @@ model_list = [Mcell]
 initial_cell_counts = [1]
 
 
-while True:
-	sim = py_SimulateInteractingCellLineage(timepoints, global_sync_period, global_volume = global_volume,
+if True:
+	lineage_list, global_results, simulator = py_SimulateInteractingCellLineage(timepoints, global_sync_period, global_volume = global_volume,
 	                                                 model_list = model_list, global_volume_model = Mglobal,
 	                                                 initial_cell_states = initial_cell_counts, 
 	                                                 global_species = global_species, 
 	                                                 average_dist_threshold = average_dist_threshold)
-	print("getting global results")
-	global_results = sim.get_global_crn_results()
-	print("getting lineage list")
-	lineage_list = sim.get_lineage_list()
+
 
 	print("results returned")
 	rand = np.random.randint(0, 3)
 	sch_tree = lineage_list[0].get_schnitzes_by_generation()
 	sch_tree_length= len(sch_tree)
-
-	if rand == 0:
-		for Lind in range(sch_tree_length):
-			L = sch_tree[Lind]
-			for sch_ind in range(len(L)):
-				sch = L[sch_ind]
-				print("accessing time", Lind, sch_ind, sch)
-				print(sch.py_get_time())
-
-	elif rand == 1:
-		for Lind in range(sch_tree_length):
-			L = sch_tree[Lind]
-			for sch_ind in range(len(L)):
-				sch = L[sch_ind]
-				print("accessing data", Lind, sch_ind, sch)
-				print(sch.py_get_data())
-	elif rand == 2:
-		print("accessing volume")
-		for Lind in range(sch_tree_length):
-			L = sch_tree[Lind]
-			for sch_ind in range(len(L)):
-				sch = L[sch_ind]
-				print("accessing volume", Lind, sch_ind, sch)
-				print(sch.py_get_volume())
 
 
 color_list = [(i/sch_tree_length, 0, 1.-i/sch_tree_length) for i in range(sch_tree_length)] 
@@ -94,7 +67,7 @@ print("global_results", global_results)
 print("global_results.py_get_timepoints()", type(global_results.py_get_timepoints()))
 #print("global_results.py_get_result()", type(global_results.py_get_result()))
 print("Did it work?")
-import pylab as plt
+
 plt.figure(figsize = (10, 10))
 
 plt.subplot(511)

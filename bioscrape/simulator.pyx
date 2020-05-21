@@ -568,9 +568,7 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
 
 cdef class SSAResult:
     def __init__(self, np.ndarray timepoints, np.ndarray result):
-        print("SSAResult setting timepoints")
         self.timepoints = timepoints
-        print("SSAResult setting result")
         self.simulation_result = result
 
     def py_get_timepoints(self):
@@ -611,9 +609,7 @@ cdef class DelaySSAResult(SSAResult):
 cdef class VolumeSSAResult(SSAResult):
     def __init__(self,np.ndarray timepoints,np.ndarray result,np.ndarray volume,unsigned divided):
         super().__init__(timepoints, result)
-        print("VSSAR setting volume", volume)
         self.volume = volume
-        print("setting divided", divided)
         self.cell_divided_flag = divided
 
     def py_cell_divided(self):

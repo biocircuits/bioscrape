@@ -56,8 +56,8 @@ for i in [1]:
 	#lineage = py_SimulateCellLineage(timepoints, Model = M, initial_cell_states = N)
 	#cell_state_samples, sample_times = py_PropagateCells(timepoints, Model = M, initial_cell_states = N, sample_times = 10)
 	#single_cell_states = py_SingleCellLineage(timepoints, Model = M)
-	#lineage_list = py_SimulateInteractingCellLineage(timepoints, global_sync_period, model_list = [M],initial_cell_states = [N], global_species = ["S"], global_volume = 100, average_dist_threshold = 10.0)
-	#cell_state_sample_list, sample_times = py_PropagateInteractingCells(timepoints, global_sync_period, sample_times = 5, model_list = [M],initial_cell_states = [N], global_species = ["S"], global_volume = 0, average_dist_threshold = 10.0)
+	#lineage_list, global_results, simulator = py_SimulateInteractingCellLineage(timepoints, global_sync_period, model_list = [M],initial_cell_states = [N], global_species = ["S"], global_volume = 100, average_dist_threshold = 10.0)
+	cell_state_sample_list, global_species_results, sample_times, simulator = py_PropagateInteractingCells(timepoints, global_sync_period, sample_times = 5, model_list = [M],initial_cell_states = [N], global_species = ["S"], global_volume = 0, average_dist_threshold = 10.0)
 	#result = py_SimulateSingleCell(timepoints[10:], Model = M)
 
 	e = pytime.clock()
@@ -136,22 +136,25 @@ if cell_state_samples is not None:
 
 	for i in range(len(sample_times)-1, -1, -1):
 
-		df = cell_state_samples[i]
+		volume = [cs.py_get_volume() for cs in cell_state_samples[i]]
+		S = [cs.py_get_state()[0] for cs in cell_state_samples[i]]
+		X = [cs.py_get_state()[1] for cs in cell_state_samples[i]]
+
 		time = sample_times[i]
 
 		plt.sca(ax1)
 		plt.title("volume histogram")
-		plt.hist(df["volume"], log = True, label = "Sample Time = "+str(i)+" Cells="+str(len(df["volume"])))
+		plt.hist(volume, log = True, label = "Sample Time = "+str(i)+" Cells="+str(len(volume)))
 		if i == 0: plt.legend()
 
 		plt.sca(ax2)
 		plt.title("X histogram")
-		plt.hist(df["X"], log = True, label = "Sample Time = "+str(i)+" Cells="+str(len(df["volume"])))
+		plt.hist(X, log = True, label = "Sample Time = "+str(i)+" Cells="+str(len(X)))
 		if i == 0: plt.legend()
 
 		plt.sca(ax3)
 		plt.title("S histogram")
-		plt.hist(df["S"], log = True, label = "Sample Time = "+str(i)+" Cells="+str(len(df["volume"])))
+		plt.hist(S, log = True, label = "Sample Time = "+str(i)+" Cells="+str(len(S)))
 		if i == 0: plt.legend()
 
 if lineage is not None:
