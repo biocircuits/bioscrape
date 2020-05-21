@@ -2455,7 +2455,7 @@ cdef class Lineage:
 
     #Returns the same tree as above
     def get_schnitzes_by_generation(self):
-        print("Creating Schnitz Tree")
+        #print("Creating Schnitz Tree")
         sch_tree = [[]]
         sch_tree_length = 1
         for i in range(self.py_size()):
