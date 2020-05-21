@@ -2801,8 +2801,6 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 
 
-
-
 def py_set_up_InteractingLineage(global_species = [], interface_list = [], model_list = [], initial_cell_states = [], t0 = 0,
 	simulator = None, global_species_inds = None, global_volume_simulator = "stochastic", global_volume_model = None):
 	#Set up main simulator if needed
@@ -2821,10 +2819,11 @@ def py_set_up_InteractingLineage(global_species = [], interface_list = [], model
 		for i in range(len(global_species)):
 			s = global_species[i]
 			ind = global_volume_model.get_species_index(s)
-			if ind == None:
+			print("s", ind)
+			if ind in [None, -1]:
 				warnings.warn(f"Global Species {s} not in global_volume_model. Species is being added to Model with initial condition 0.")
 				global_volume_model._add_species(s)
-				global_volume_model.set_species_value({s: 0})
+				global_volume_model.set_species({s: 0})
 				global_volume_model.py_initialize()
 				ind = global_volume_model.get_species_index(s)
 			global_species_global_crn_inds[int(i)] = int(ind)
@@ -2843,6 +2842,8 @@ def py_set_up_InteractingLineage(global_species = [], interface_list = [], model
 		raise ValueError("Missing Required Keyword Arguments:models = [LineageModel] or interface_list = [LineageCSimInterface]")
 	elif len(interface_list) == 0:
 		interface_list = [LineageCSimInterface(m) for m in model_list]
+		for m in model_list: #Initialize models
+			m.py_initialize()
 		global_species_inds = np.zeros((len(global_species), len(model_list)))
 		for i in range(len(global_species)):
 			for j in range(len(model_list)):
@@ -2902,10 +2903,21 @@ def py_PropagateInteractingCells(timepoints, global_sync_period, sample_times = 
 
 	final_cell_state_samples = simulator.py_PropagateInteractingCells(timepoints, interface_list, initial_cell_states, sample_times, global_sync_period, global_species_inds.astype(int), global_volume, average_dist_threshold)
 	
-	if return_sample_times:
-		return final_cell_state_samples, sample_times
+	if global_volume_model is not None:
+		global_results = simulator.get_global_crn_results(Model = global_volume_model, as_data_frame = return_dataframes)
 	else:
-		return final_cell_state_samples
+		global_species_array = simulator.get_global_species_array()
+		if return_dataframes:
+			global_results = pandas.DataFrame(data = global_species_array, columns = global_species)
+		else:
+			global_results = global_species_array
+
+
+
+	if return_sample_times:
+		return final_cell_state_samples, sample_times, global_results
+	else:
+		return final_cell_state_samples, global_results
 
 
 #Auxilary Python Function
@@ -2919,4 +2931,14 @@ def py_SimulateInteractingCellLineage(timepoints, global_sync_period,
 
 	lineage_list = simulator.py_SimulateInteractingCellLineage(timepoints, interface_list, initial_cell_states, global_sync_period, global_species_inds.astype(int), global_volume, average_dist_threshold)
 	
-	return lineage_list
+	if global_volume_model is not None:
+		global_results = simulator.get_global_crn_results(Model = global_volume_model, as_data_frame = return_dataframes)
+	else:
+		global_species_array = simulator.get_global_species_array()
+		if return_dataframes:
+			global_results = pandas.DataFrame(data = global_species_array, columns = global_species)
+		else:
+			global_results = global_species_array
+
+
+	return lineage_list, global_results

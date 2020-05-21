@@ -8,10 +8,110 @@ from bioscrape.lineage import LineageCSimInterface
 from bioscrape.lineage import py_PropagateCells
 from bioscrape.lineage import py_SingleCellLineage, py_PropagateInteractingCells
 from bioscrape.types import Model
+import pandas as pd
 
 import time as pytime
 
 
+kf = 10.
+rxng = [[], ["F"], "massaction", {"k":kf}]
+x0g = {"F":0}
+Mglobal = Model(species = ["F"], reactions = [rxng], initial_condition_dict = x0g)
+
+ke = 1.
+species = ["F","W"]
+rxn1 = [["F"], ["W"], "massaction", {"k":ke}]
+x0 = {"E":10}
+Mcell = LineageModel(species = species, reactions = [rxn1], initial_condition_dict = x0)
+
+g = .01
+kgrow = 100
+Kgrow = 10
+kdeath = 1.0
+Kdeath = 100
+vsplit = LineageVolumeSplitter(Mcell)
+Mcell.create_division_rule("deltaV", {"threshold":1.0}, vsplit)
+Mcell.create_volume_event("linear volume", {"growth_rate":g}, "hillpositive", {"k":kgrow, "s1":"F", "n":2, "K":Kgrow})
+Mcell.create_death_event("death", {}, "hillpositive", {"k":kdeath, "s1":"W", "n":2, "K":Kdeath})
+
+maxtime = 50
+dt = 0.01
+global_sync_period = .5
+global_volume = 100
+
+timepoints = np.arange(0, maxtime+dt, dt)
+
+average_dist_threshold = 2.
+global_species = ["F", "W"]
+model_list = [Mcell]
+initial_cell_counts = [1]
+
+lineage_list, global_results = py_SimulateInteractingCellLineage(timepoints, global_sync_period, global_volume = global_volume,
+                                                 model_list = model_list, global_volume_model = Mglobal,
+                                                 initial_cell_states = initial_cell_counts, 
+                                                 global_species = global_species, 
+                                                 average_dist_threshold = average_dist_threshold)
+
+
+
+sch_tree = lineage_list[0].get_schnitzes_by_generation()
+sch_tree_length= len(sch_tree)
+color_list = [(i/sch_tree_length, 0, 1.-i/sch_tree_length) for i in range(sch_tree_length)] 
+print("sch_tree length", [len(L) for L in sch_tree])
+print("global_results", global_results)
+print("global_results.py_get_timepoints()", type(global_results.py_get_timepoints()))
+print("global_results.py_get_result()", type(global_results.py_get_result()))
+print("plotting")
+import pylab as plt
+plt.figure(figsize = (10, 10))
+
+plt.subplot(511)
+plt.title("Global Amounts")
+plt.plot(global_results.py_get_timepoints(), global_results.py_get_result()[:, 0], label = "F")
+plt.plot(global_results.py_get_timepoints(), global_results.py_get_result()[:, 1], label = "W")
+plt.legend()
+
+plt.subplot(512)
+plt.title("F")
+for Lind in range(sch_tree_length):
+	L = sch_tree[Lind]
+	for sch_ind in range(len(L)):
+		sch = L[sch_ind]
+		print(Lind, sch_ind, sch)
+		plt.plot(sch.py_get_time(), sch.py_get_data()[:, 0], color = color_list[Lind])
+
+
+
+plt.subplot(513)
+#plt.title("E")
+
+#for Lind in range(sch_tree_length):
+#	L = sch_tree[Lind]
+#	for sch_ind in range(len(L)):
+#		sch = L[sch_ind]
+#		print(Lind, sch_ind, sch)
+#		plt.plot(sch.py_get_time(), sch.py_get_data()[:, 1], color = color_list[Lind])
+
+plt.subplot(514)
+plt.title("W")
+for Lind in range(sch_tree_length):
+	L = sch_tree[Lind]
+	for sch_ind in range(len(L)):
+		sch = L[sch_ind]
+		print(Lind, sch_ind, sch)
+		plt.plot(sch.py_get_time(), sch.py_get_data()[:, 2], color = color_list[Lind])
+
+plt.subplot(515)
+plt.title("Volume")
+for Lind in range(sch_tree_length):
+	L = sch_tree[Lind]
+	for sch_ind in range(len(L)):
+		sch = L[sch_ind]
+		print(Lind, sch_ind, sch)
+		plt.plot(sch.py_get_time(), sch.py_get_volume(), color = color_list[Lind])
+plt.show()
+"""
+Two cell type example down here
 lineage_list = None
 cell_state_sample_list = None
 
@@ -55,7 +155,6 @@ vsplit2 = LineageVolumeSplitter(M2)
 M2.create_division_rule("deltaV", {"threshold":1.0}, vsplit2)
 M2.create_volume_event("linear volume", {"growth_rate":g/10}, "massaction", {"k":kgrow, "species":""})
 M2.py_initialize()
-
 
 maxtime = 10
 dt = 0.01
@@ -176,4 +275,4 @@ if lineage_list is not None:
 		        plt.plot(df["time"], df["volume"], color = color_list[i])
 	axes = []
 
-plt.show()
+plt.show()"""
