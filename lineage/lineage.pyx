@@ -2761,13 +2761,15 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 		#else:
 		#		, self.global_crn_result
 
-#Auxilary Python Function
-def py_PropagateInteractingCells(timepoints, global_sync_period, global_species = [], interface_list = [], model_list = [], sample_times = 1, initial_cell_states = [],
-	simulator = None, global_species_inds = None, global_volume = 0, average_dist_threshold = 1.0, return_dataframes = False, return_sample_times = True,
-	global_volume_model = None):
+
+
+
+
+def py_set_up_InteractingLineage(global_species = [], interface_list = [], model_list = [], initial_cell_states = [], t0 = 0,
+	simulator = None, global_species_inds = None, global_volume_simulator = "stochastic", global_volume_model = None):
+
 	if simulator == None:
 		simulator = InteractingLineageSSASimulator()
-	
 	if len(model_list) == 0 and len(interface_list) == 0:
 		raise ValueError("Missing Required Keyword Arguments:models = [LineageModel] or interface_list = [LineageCSimInterface]")
 	elif len(interface_list) == 0:
@@ -2799,7 +2801,7 @@ def py_PropagateInteractingCells(timepoints, global_sync_period, global_species 
 			interface = interface_list[i]
 			initial_state = interface.py_get_initial_state()
 			for j in range(initial_cell_counts[i]):
-				lvcs = LineageVolumeCellState(v0 = 1.0, t0 = timepoints[0], state = initial_state.copy())
+				lvcs = LineageVolumeCellState(v0 = 1.0, t0 = t0, state = initial_state.copy())
 				initial_cell_states[i].append(lvcs)
 
 	elif len(initial_cell_states) == 0 and len(interface_list) > 0:
@@ -2809,6 +2811,16 @@ def py_PropagateInteractingCells(timepoints, global_sync_period, global_species 
 	elif len(initial_cell_states) > len(interface_list):
 		raise ValueError("When passing in more initial_cell_states than models, the keyword argument interface_inds is also required where interface_inds[i] corresponds to the index of the interface/model beloning to initial_cell_state[i].")
 	
+	return interface_list, simulator, initial_cell_states, global_species_inds
+
+#Auxilary Python Function
+def py_PropagateInteractingCells(timepoints, global_sync_period, sample_times = 1,
+	simulator = None, global_volume_simulator = "stochastic", global_volume_model = None,
+	global_volume = 0, global_species = [], global_species_inds = None, average_dist_threshold = 1.0,
+	interface_list = [], model_list = [], initial_cell_states = [], return_dataframes = False, return_sample_times = True):
+	
+	interface_list, simulator, initial_cell_states, global_species_inds = py_set_up_InteractingLineage(global_species = global_species, interface_list = interface_list, model_list = model_list, initial_cell_states = initial_cell_states,
+		simulator = simulator, global_species_inds = global_species_inds, global_volume_simulator = global_volume_simulator, global_volume_model = global_volume_model, t0 = timepoints[0])
 
 	if isinstance(sample_times, int): #Return N=sample_times evenly spaced samples starting at the end of the simulation
 		if sample_times == 1:
@@ -2871,55 +2883,16 @@ def py_PropagateInteractingCells(timepoints, global_sync_period, global_species 
 
 
 #Auxilary Python Function
-def py_SimulateInteractingCellLineage(timepoints, global_sync_period, global_species = [], interface_list = [], model_list = [], initial_cell_states = [], 
-	simulator = None, global_species_inds = None, global_volume = 0, average_dist_threshold = 1.0, global_volume_model = None):
-	if simulator == None:
-		simulator = InteractingLineageSSASimulator()
+def py_SimulateInteractingCellLineage(timepoints, global_sync_period,
+	simulator = None, global_volume_simulator = "stochastic", global_volume_model = None,
+	global_volume = 0, global_species = [], global_species_inds = None, average_dist_threshold = 1.0,
+	interface_list = [], model_list = [], initial_cell_states = [], return_dataframes = False):
 	
-	if len(model_list) == 0 and len(interface_list) == 0:
-		raise ValueError("Missing Required Keyword Arguments:models = [LineageModel] or interface_list = [LineageCSimInterface]")
-	elif len(interface_list) == 0:
-		interface_list = [LineageCSimInterface(m) for m in model_list]
-		global_species_inds = np.zeros((len(global_species), len(model_list)))
-		for i in range(len(global_species)):
-			for j in range(len(model_list)):
-				m = model_list[j]
-				s = global_species[i]
-				ind = m.get_species_index(s)
-				if ind != None:
-					global_species_inds[i, j] = ind
-				else:
-					global_species_inds[i, j] = -1
-	elif len(model_list) != 0 and len(interface_list) != 0:
-		raise ValueError("Must call py_SimulateInteractingCellLineage with either the keyword argument model_list or the keyword argument interface_list, not both.")
-	elif len(model_list) == 0 and (global_species_inds == None or global_species_inds.shape[1] != len(interface_list)):
-		raise ValueError("When calling py_SimulateInteractingCellLineage with the keyword argument interface_list, the argument global_species_inds is required where global_species_inds[i, j] corresponds the species index of the ith global species in the jth interface.")
-	elif len(global_species) == 0 and global_species_inds == None:
-		warnings.warn('Calling SimulateInteractintCellLineage without any global species defined. Use the global_species or global_species_inds keywords.')
-		global_species_inds = np.array()
+	interface_list, simulator, initial_cell_states, global_species_inds = py_set_up_InteractingLineage(global_species = global_species, interface_list = interface_list, model_list = model_list, initial_cell_states = initial_cell_states,
+		simulator = simulator, global_species_inds = global_species_inds, global_volume_simulator = global_volume_simulator, global_volume_model = global_volume_model, t0 = timepoints[0])
 
-
-	if len(initial_cell_states) == len(interface_list) and  isinstance(initial_cell_states[0], int):
-		initial_cell_counts = initial_cell_states
-		initial_cell_states = []
-
-		for i in range(len(interface_list)):
-			initial_cell_states.append([])
-			interface = interface_list[i]
-			initial_state = interface.py_get_initial_state()
-			for j in range(initial_cell_counts[i]):
-				lvcs = LineageVolumeCellState(v0 = 1.0, t0 = timepoints[0], state = initial_state.copy())
-				initial_cell_states[i].append(lvcs)
-
-	elif len(initial_cell_states) == 0 and len(interface_list) > 0:
-		warnings.warn("Calling py_SimulateInteractintCellLineage without any initial_cell_states. Defaulting to creating one initial cell for each interface.")
-		initial_cell_states = [LineageVolumeCellState(v0 = 1, t0 = 0, state = i.py_get_initial_state()) for i in interface_list]
-
-	elif len(initial_cell_states) > len(interface_list):
-		raise ValueError("When passing in more initial_cell_states than models, the keyword argument interface_inds is also required where interface_inds[i] corresponds to the index of the interface/model beloning to initial_cell_state[i].")
-	
 	lineage_list = simulator.py_SimulateInteractingCellLineage(timepoints, interface_list, initial_cell_states, global_sync_period, global_species_inds.astype(int), global_volume, average_dist_threshold)
 	global_species_array = simulator.get_global_species_array()
-	#global_crn_result =  simulator.get_global_crn_results(Model = global_volume_model)
+	
 	print("lineage list in auxilary wrapper", lineage_list)
 	return lineage_list
