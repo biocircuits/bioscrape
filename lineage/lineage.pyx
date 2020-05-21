@@ -2789,7 +2789,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 					#print("np.ndarray(final_time)", np.array(final_time))
 					self.global_crn_result = VolumeSSAResult(
 						np.append(self.global_crn_result.get_timepoints(), np.array(final_time)),
-						np.append(self.global_crn_result.get_result(), np.array(self.global_crn_state)),
+						np.concatenate((self.global_crn_result.get_result(), np.array(self.global_crn_state)[None, ...])),
 						np.append(self.global_crn_result.get_volume(), np.array(self.leftover_global_volume)), 0)
 
 
