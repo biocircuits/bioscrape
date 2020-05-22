@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Cython stuff
+cython_debug
+
 # C extensions
 *.so
 *.cpp
