@@ -24,7 +24,7 @@ class MCMC(object):
         self.params_to_estimate = []
         if 'params_to_estimate' in kwargs:
             self.set_params_to_estimate(kwargs.get('params_to_estimate'))
-        self.init_seed = 0.1 
+        self.init_seed = 0.01 
         if 'init_seed' in kwargs:
             self.set_init_seed(kwargs.get('init_seed'))
         self.prior = None

@@ -1,5 +1,5 @@
 <model>
-<species name="X" value="3.0" />
+<species name="X" value="0.0" />
 
 <parameter name="d1" value="0.2" />
 <parameter name="k1" value="10.0" />
