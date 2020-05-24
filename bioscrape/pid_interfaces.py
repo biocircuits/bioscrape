@@ -157,8 +157,6 @@ class DeterministicInference(PIDInterface):
             print('The data shape is {0}'.format(np.shape(data)))
             print('The measurmenets is {0}'.format(measurements))
             print('The N is {0}'.format(N))
-        # TODO: Initial conditions not going through correctly?
-        # TODO: Need to fix how multiple initial conditions will be handled because in pid_interfaces only one at a time can go through.
         LL_det = DLL(model = M, init_state = initial_conditions,
         data = dataDet, norm_order = norm_order)
         #Multiple samples with a single initial only require a single initial condition.

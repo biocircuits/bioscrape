@@ -437,14 +437,13 @@ class MCMC(object):
         truth_list = [] 
         uncertainty_list = [] 
         # Percentiles to compute for numpy.percentile
-        if 'q' in kwargs.keys():
-            q = kwargs.get('q')
+        if 'percentiles' in kwargs.keys():
+            percentiles = kwargs.get('percentiles')
         else:
-            q = [16, 50, 84] # Set percentiles to compute by default to q
+            percentiles = [16, 50, 84] # Set percentiles to compute by default to q
         for i in range(ndim):
-            mcmc = np.percentile(flat_samples[:, i], q = q)
+            mcmc = np.percentile(flat_samples[:, i], q = percentiles)
             q = np.diff(mcmc)
-            # print(q)
             truth_list.append(mcmc[1])
             # uncertainty_list.append([-1.0*q[0], q[1]])
             uncertainty_list.append(q)
@@ -456,52 +455,6 @@ class MCMC(object):
         except:
             warnings.warn('corner package not found - cannot plot parameter distributions.')
         return truth_list, uncertainty_list
-        # best_p = []
-        # for i in range(len(self.params_to_estimate)):
-        #     my_list = [tup[i] for tup in sampler.flatchain]
-        #     new_list = []
-        #     for x in my_list:
-        #         if x > 0:
-        #             new_list.append(x)
-        #     if plot_show:
-        #         n, bins, patches = plt.hist(new_list, density = True, histtype = "bar")
-        #         plt.title('Parameter inference distribution for parameter #{0}'.format(i))
-        #     else:
-        #         fig = plt.figure()
-        #         n, bins, patches = plt.hist(new_list, density = True, histtype = "bar")
-        #         plt.close(fig)
-        #     # n, bins, patches = plt.hist(new_list, density = True, bins = 80, histtype = "bar")
-        #     # Find best p
-        #     best_p_ind = np.where(n == np.max(n))
-        #     if np.shape(best_p_ind)[-1] != 1:
-        #         warnings.warn('Multiple parameter values for {0} found with max distribution, choosing the first one. The results might be misleadig.'.format(params_to_estimate[i]))
-        #         best_p_ind = np.array(best_p_ind[0].tolist()[0])
-        #     assert len(best_p_ind) == 1
-        #     best_p.append(bins[best_p_ind])
-        #     # Plot
-        #     if plot_show:
-        #         plt.savefig('parameter - ' + str(self.params_to_estimate[i]) +' .svg')
-        #         plt.show()
-
-        # # Write fitted model
-        # best_p = list(best_p)
-        # import copy
-        # fitted_model = copy.copy(self)
-        # params_names = fitted_model.params_to_estimate
-        # params = {}
-        # for i in range(len(params_names)):
-        #     p_name = params_names[i]
-        #     p_sampled_value = best_p[i]
-        #     params[p_name] = p_sampled_value
-        # fitted_model.M.set_params(params)
-        # if len(self.cost_progress) and plot_show:
-        #     plt.plot(self.cost_progress, linewidth = 3)
-        #     plt.title('Cost function progress')
-        #     plt.xlabel('MCMC samples')
-        #     plt.ylabel('Cost function')
-        #     plt.savefig('Cost function progress')
-        #     plt.show()
-        # return fitted_model, params
     
     def simulate(self, timepoints, **kwargs):
         ''' 
