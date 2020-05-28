@@ -42,7 +42,7 @@ class MCMC(object):
         self.exp_data = None # Pandas DataFrame object
         if 'exp_data' in kwargs:
             self.set_exp_data(kwargs.get('exp_data'))
-        self.sim_type = 'stochastic'
+        self.sim_type = 'deterministic'
         if 'sim_type' in kwargs:
             self.set_sim_type(kwargs.get('sim_type'))
         self.timepoints = None
@@ -294,9 +294,9 @@ class MCMC(object):
             T = len(timepoints_list[0])
             data = np.reshape(data, (N,T,M))
             if self.debug:
-                print('N = {0}'.format(N))
-                print('T = {0}'.format(T))
-                print('M = {0}'.format(M))
+                print('N (Number of trajectories) = {0}'.format(N))
+                print('T (Length of timepoints) = {0}'.format(T))
+                print('M (Number of measured species) = {0}'.format(M))
                 # print('The shape of data is {0}'.format(np.shape(data)))
             assert np.shape(data) == (N,T,M)
         elif type(exp_data) is pd.DataFrame:
@@ -317,11 +317,6 @@ class MCMC(object):
             N = 1 # Number of trajectories
             T = len(self.timepoints) # Number of timepoints
             M = len(self.measurements)# Number of measurements
-            # if self.debug:
-                # print('timepoints in extract_data : {0}'.format(self.timepoints))
-                # print('N = {0}'.format(N))
-                # print('T= {0}'.format(T))
-                # print('M = {0}'.format(M))
             data = np.reshape(data, (N,T,M))
         else:
             raise TypeError('exp_data attribute of MCMC object must be a list of Pandas DataFrames or a single Pandas DataFrame. ')
@@ -343,16 +338,16 @@ class MCMC(object):
             return cost_value
 
     def run_emcee(self, **kwargs):
-        plot_show = kwargs.get('plot_show')
         progress = kwargs.get('progress')
+        convergence_check = kwargs.get('convergence_check')
+        if not 'convergence_check' in kwargs:
+            convergence_check = True
         if not 'progress' in kwargs:
             progress = True
-        if not plot_show:
-            plot_show = False
         try:
             import emcee
         except:
-            print('emcee package not installed')
+            raise ImportError('emcee package not installed.')
         ndim = len(self.params_to_estimate)
         params_values = []
         for p in self.params_to_estimate:
@@ -362,28 +357,28 @@ class MCMC(object):
         assert p0.shape == (self.nwalkers, ndim)
         sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function)
         sampler.run_mcmc(p0, self.nsteps, progress = progress)
-        self.autocorrelation_time = sampler.get_autocorr_time()
-        # for iteration, (pos,lnp,state) in enumerate(sampler.sample(p0,iterations=self.nsteps)):
-            # if progress:
-                # l = self.nsteps
-                # printProgressBar(float(iteration), l, prefix = 'Progress:', suffix = 'Complete', length = 50)
+        if convergence_check:
+            self.autocorrelation_time = sampler.get_autocorr_time()
         # Write results
         import csv
         with open('mcmc_results.csv','w', newline = "") as f:
             writer = csv.writer(f)
             writer.writerows(sampler.flatchain)
-            writer.writerow('\nAutocorrelation times\n')
-            writer.writerow(self.autocorrelation_time)
+            if convergence_check:
+                writer.writerow('\nAutocorrelation times\n')
+                writer.writerow(self.autocorrelation_time)
             writer.writerow('\nCost function progress\n')
             writer.writerow(self.cost_progress)
             f.close()
         print('Successfully completed MCMC parameter identification procedure. Parameter distribution data written to mcmc_results.csv file')
-        # fitted_model, params = self.plot_mcmc_results(sampler, plot_show, **kwargs)
         return sampler
     
     def plot_mcmc_results(self, sampler, plot_show = True, **kwargs):
         print('Parameter posterior distribution convergence plots:')
         ndim = sampler.ndim
+        convergence_check = kwargs.get('convergence_check')
+        if not 'convergence_check' in kwargs:
+            convergence_check = True
         if 'figsize' in kwargs:
             figsize = kwargs.get('figsize')
         else:
@@ -423,7 +418,10 @@ class MCMC(object):
         if 'thin' in kwargs.keys():
             thin = kwargs.get('thin')
         else:
-            thin = np.mean(np.array(self.autocorrelation_time)) / 2 #thin by half the autocorrelation time
+            if convergence_check:
+                thin = np.mean(np.array(self.autocorrelation_time)) / 2 #thin by half the autocorrelation time
+            else:
+                thin = 1
             if not np.isfinite(thin):
                 thin = 1
             else:

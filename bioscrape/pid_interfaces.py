@@ -112,10 +112,13 @@ class StochasticInference(PIDInterface):
             return -np.inf
         N = np.shape(data)[0]
         if debug:
+            print('Stochastic inference attributes:')
             print('The timepoints shape is {0}'.format(np.shape(timepoints)))
             print('The data shape is {0}'.format(np.shape(data)))
             print('The measurmenets is {0}'.format(measurements))
             print('The N is {0}'.format(N))
+            print('Using the initial conditions: {0}'.format(initial_conditions))
+            print('The current parameters are : {0}'.format(params_dict))
         dataStoch = StochasticTrajectories(np.array(timepoints), data, measurements, N)
         #If there are multiple initial conditions in a data-set, should correspond to multiple initial conditions for inference.
         #Note len(initial_conditions) must be equal to the number of trajectories N
@@ -153,10 +156,13 @@ class DeterministicInference(PIDInterface):
         #If there are multiple initial conditions in a data-set, should correspond to multiple initial conditions for inference.
         #Note len(initial_conditions) must be equal to the number of trajectories N
         if debug:
+            print('The deterministic inference attributes:')
             print('The timepoints shape is {0}'.format(np.shape(timepoints)))
             print('The data shape is {0}'.format(np.shape(data)))
             print('The measurmenets is {0}'.format(measurements))
             print('The N is {0}'.format(N))
+            print('Using the initial conditions: {0}'.format(initial_conditions))
+            print('The current parameters are : {0}'.format(params_dict))
         LL_det = DLL(model = M, init_state = initial_conditions,
         data = dataDet, norm_order = norm_order)
         #Multiple samples with a single initial only require a single initial condition.
