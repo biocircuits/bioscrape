@@ -43,11 +43,30 @@ class PIDInterface():
         '''
         lp = 0.0
         for key,value in params_dict.items():
+            if 'positive' in self.prior[key] and value  < 0:
+                return np.inf
             prior_type = self.prior[key][0]
             if prior_type == 'uniform':
                 lp += self.uniform_prior(key, value)
             elif prior_type == 'gaussian':
                 lp += self.gaussian_prior(key, value)
+            elif prior_type == 'exponential':
+                lp += self.exponential_prior(key, value)
+            elif prior_type == 'gamma':
+                lp += self.gamma_prior(key, value)
+            elif prior_type == 'log uniform':
+                lp += self.log_uniform_prior(key, value)
+            elif prior_type == 'log gaussian':
+                lp += self.log_gaussian_prior(key, value)
+            elif prior_type == 'beta':
+                lp += self.beta_prior(key, value)
+            elif prior_type == 'custom':
+                # The last element in the prior dictionary must be a callable function
+                # The callable function shoud have the following signature :
+                # Arguments: param_name (str), param_value(float) 
+                # Returns: log prior probability (float or numpy inf)
+                custom_fuction = self.prior[key][-1]
+                lp += custom_fuction(key, value)
             else:
                 raise ValueError('Prior type undefined.')
         return lp
@@ -55,8 +74,8 @@ class PIDInterface():
     def uniform_prior(self, param_name, param_value):
         '''
         Check if given param_value is valid according to the prior distribution.
-        Returns False if the param_value is invalid. param_name is used to look for 
-        the parameter in the prior dictionary.
+        Returns np.Inf if the param_value is outside the prior range and 0.0 if it is inside. 
+        param_name is used to look for the parameter in the prior dictionary.
         '''
         prior_dict = self.prior
         if prior_dict is None:
@@ -71,10 +90,9 @@ class PIDInterface():
             return 0.0
 
     def gaussian_prior(self, param_name, param_value):
-    # def gaussian_prior(self, params_dict):
         '''
         Check if given param_value is valid according to the prior distribution.
-        Returns False if the param_value is invalid. 
+        Returns the log prior probability or np.Inf if the param_value is invalid. 
         '''
         prior_dict = self.prior
         if prior_dict is None:
@@ -91,7 +109,6 @@ class PIDInterface():
             raise ValueError('Prior dictionary does not have the correct syntax. For Gaussian prior, each parameter key must have' +
                             'a list of ["gaussian", mean, variance, threshold(optional)] attached to it.')
 
-        # Check if value lies is a valid sample of (mu, sigma) normal distribution
         # Using probability density function for normal distribution
         # Using scipy.stats.norm has overhead that affects speed up to 2x
         prob = 1/(np.sqrt(2*np.pi) * sigma) * np.exp((-0.5*param_value - mu)**2/sigma**2)
@@ -102,18 +119,55 @@ class PIDInterface():
         else:
             return np.log(prob)
 
+    def exponential_prior(self, param_name, param_value):
+        '''
+        Check if given param_value is valid according to the prior distribution.
+        Returns the log prior probability or np.inf if the param_value is invalid. 
+        '''
+        raise NotImplementedError
+    
+    def gamma_prior(self, param_name, param_value):
+        '''
+        Check if given param_value is valid according to the prior distribution.
+        Returns the log prior probability or np.inf if the param_value is invalid. 
+        '''
+        raise NotImplementedError
+
+    def beta_prior(self, param_name, param_value):
+        '''
+        Check if given param_value is valid according to the prior distribution.
+        Returns the log prior probability or np.inf if the param_value is invalid. 
+        '''
+        raise NotImplementedError
+
+    def log_uniform_prior(self, param_name, param_value):
+        '''
+        Check if given param_value is valid according to the prior distribution.
+        Returns the log prior probability or np.inf if the param_value is invalid. 
+        '''
+        raise NotImplementedError
+
+    def log_gaussian_prior(self, param_name, param_value):
+        '''
+        Check if given param_value is valid according to the prior distribution.
+        Returns the log prior probability or np.inf if the param_value is invalid. 
+        '''
+        raise NotImplementedError
+        
 # Add a new class similar to this to create new interfaces.
 class StochasticInference(PIDInterface):
     def __init__(self, params_to_estimate, M, prior):
         super().__init__(params_to_estimate, M, prior)
         return
 
-    def get_likelihood_function(self, params_values, data, timepoints, measurements, initial_conditions, norm_order = 2, N_simulations = 3, debug = False):
+    def get_likelihood_function(self, params_values, data, timepoints, measurements, initial_conditions, norm_order = 2, N_simulations = 3, debug = False, **kwargs):
         M = self.M
         params_dict = {}
         for key, p in zip(self.params_to_estimate, params_values):
             params_dict[key] = p
         # Check prior
+        else:
+            positivity = False
         lp = self.check_prior(params_dict)
         if not np.isfinite(lp):
             return -np.inf
@@ -144,10 +198,9 @@ class DeterministicInference(PIDInterface):
         super().__init__(params_to_estimate, M, prior)
         return
 
-    def get_likelihood_function(self, params_values, data, timepoints, measurements, initial_conditions, norm_order = 2, debug = False):
+    def get_likelihood_function(self, params_values, data, timepoints, measurements, initial_conditions, norm_order = 2, debug = False, **kwargs):
         M = self.M
         params_dict = {}
-        # params_exp = np.exp(log_params)
         for key, p in zip(self.params_to_estimate, params_values):
             params_dict[key] = p
         # Check prior
