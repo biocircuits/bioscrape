@@ -330,7 +330,6 @@ def create_sbml_model(compartment_id="default", time_units='second', extent_unit
 # Creates an SBML id from a chemical_reaction_network.species object
 def species_sbml_id(species_name, document=None):
     # Construct the species ID
-    # species_id = repr(species).replace(" ", "_").replace(":", "_").replace("--", "_").replace("-", "_").replace("'", "")
     all_ids = []
     if document:
         all_ids = getAllIds(document.getListOfAllElements())
