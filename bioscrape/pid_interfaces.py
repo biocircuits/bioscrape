@@ -80,8 +80,6 @@ class PIDInterface():
         prior_dict = self.prior
         if prior_dict is None:
             raise ValueError('No prior found')
-        if len(prior_dict[param_name]) != 3:
-            raise ValueError('For uniform distribution, the prior dictionary entry must be : [prior_type, lower_bound, upper_bound]')
         lower_bound = prior_dict[param_name][1]
         upper_bound = prior_dict[param_name][2]
         if param_value > upper_bound or param_value < lower_bound:
@@ -97,24 +95,17 @@ class PIDInterface():
         prior_dict = self.prior
         if prior_dict is None:
             raise ValueError('No prior found')
-        if len(prior_dict[param_name]) == 4:
-            mu = prior_dict[param_name][1]
-            sigma = prior_dict[param_name][2]
-            prob_threshold = prior_dict[param_name][3]
-        elif len(prior_dict[param_name]) == 3:
-            mu = prior_dict[param_name][1]
-            sigma = prior_dict[param_name][2]
-            prob_threshold = 0
-        else:
-            raise ValueError('Prior dictionary does not have the correct syntax. For Gaussian prior, each parameter key must have' +
-                            'a list of ["gaussian", mean, variance, threshold(optional)] attached to it.')
+        mu = prior_dict[param_name][1]
+        sigma = prior_dict[param_name][2]
+        # else:
+        #     raise ValueError('Prior dictionary does not have the correct syntax. For Gaussian prior, each parameter key must have' +
+        #                     'a list of ["gaussian", mean, variance] attached to it.')
 
         # Using probability density function for normal distribution
         # Using scipy.stats.norm has overhead that affects speed up to 2x
         prob = 1/(np.sqrt(2*np.pi) * sigma) * np.exp((-0.5*param_value - mu)**2/sigma**2)
         if prob > 1 or prob < 0:
             warnings.warn('Probability greater than 1 or less than 0 while checking Gaussian prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
-        if prob < prob_threshold:
             return np.inf
         else:
             return np.log(prob)
