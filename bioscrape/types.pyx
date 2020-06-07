@@ -1459,7 +1459,21 @@ cdef class Model:
         self._initialize()
 
     def __eq__(self, Model other):
-        if other is None:
+        if other is None or not isinstance(other, Model):
+            return False
+        # Casting as a set means order doesn't matter.
+        # Sets can only hold an element once, so this could give weird results
+        # if the same reaction or rule definition appears multiple times.
+        # 
+        # If reaction/rule definitions are the same, that implies that many of 
+        # the other attributes of the Model must be the same. 
+        if sorted(self.reaction_definitions) != sorted(other.reaction_definitions):
+            return False
+        if sorted(self.rule_definitions) != sorted(other.rule_definitions):
+            return False
+        if self.species2index != other.species2index:
+            return False
+        if not np.array_equal(self.species_values, other.species_values):
             return False
         return True
 

@@ -4,6 +4,7 @@ from sympy.abc import _clash1
 import warnings
 from bioscrape.types import Model
 import libsbml
+from collections import OrderedDict # Need this to remove duplicates from lists
 
 def read_model_from_sbml(sbml_file):
     return import_sbml(sbml_file)
@@ -424,10 +425,12 @@ def add_reaction(model, inputs_list, outputs_list,
                  stochastic = False, propensity_annotation = True):
 
     # Create the reaction
-    inputs = list(set(inputs_list))
-    inputs.sort()
+    # We cast to an OrderedDict and back to remove duplicates.
+    # We could cast to a regular dict instead, but only in Python 3.7 or higher.
+    inputs = list(OrderedDict.fromkeys(inputs_list))
+    #inputs.sort()
     input_coefs = [inputs_list.count(i) for i in inputs]
-    outputs = list(set(outputs_list))
+    outputs = list(OrderedDict.fromkeys(outputs_list))
     output_coefs = [outputs_list.count(o) for o in outputs]
 
     reaction = model.createReaction()
