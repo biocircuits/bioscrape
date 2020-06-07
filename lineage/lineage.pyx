@@ -2917,7 +2917,7 @@ def py_set_up_InteractingLineage(global_species = [], interface_list = [],
 		raise ValueError("When calling py_SimulateInteractingCellLineage with the keyword argument interface_list, the argument global_species_inds is required where global_species_inds[i, j] corresponds the species index of the ith global species in the jth interface.")
 	elif len(global_species) == 0 and global_species_inds == None:
 		warnings.warn('Calling SimulateInteractintCellLineage without any global species defined. Use the global_species or global_species_inds keywords.')
-		global_species_inds = np.array()
+		global_species_inds = np.array(dtype = np.int32)
 
 	#Set up initial cell states
 	if len(initial_cell_states) == len(interface_list) and  isinstance(initial_cell_states[0], int):
@@ -3014,7 +3014,7 @@ def py_SimulateInteractingCellLineage(timepoints, global_sync_period,
 	interface_list, simulator, initial_cell_states, global_species_inds = py_set_up_InteractingLineage(global_species = global_species, interface_list = interface_list, model_list = model_list, initial_cell_states = initial_cell_states,
 		simulator = simulator, global_species_inds = global_species_inds, global_volume_simulator = global_volume_simulator, global_volume_model = global_volume_model, t0 = timepoints[0])
 
-	lineage_list = simulator.py_SimulateInteractingCellLineage(timepoints, interface_list, initial_cell_states, global_sync_period, global_species_inds.astype(int), global_volume, average_dist_threshold)
+	lineage_list = simulator.py_SimulateInteractingCellLineage(timepoints, interface_list, initial_cell_states, global_sync_period, global_species_inds, global_volume, average_dist_threshold)
 	#print("lineage_list returned")
 	if global_volume_model is not None:
 		global_results = simulator.get_global_crn_results()
