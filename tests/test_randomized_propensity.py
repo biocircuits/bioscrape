@@ -1,4 +1,4 @@
-import warnings
+import warnings, os
 
 # We don't want warnings in dependencies to show up in bioscrape's tests.
 with warnings.catch_warnings():
@@ -48,6 +48,7 @@ all_prop_types = ['hillpositive',
 				  'massaction', 'general']
 
 TEST_NAME = "random_propensities"
+
 
 def random_prop_model(prop_type):
 	'''
@@ -120,9 +121,9 @@ def random_prop_model(prop_type):
 def test_random_propensity_outputs(prop_type):
 	test_results = dict()
 	model = random_prop_model(prop_type)
-	print("model type: " + str(type(model)))
 
 	timepoints = np.arange(0, 50, .01)
+
 	results_d = py_simulate_model(timepoints, Model = model, stochastic = False)
 	results_s = py_simulate_model(timepoints, Model = model, stochastic = True)
 
@@ -152,25 +153,29 @@ def debug_random_prop_tests():
 		'hillpositive': 'cyan',
 		'hillnegative': 'red',
 		'proportionalhillpositive': 'orange',
-		'proportionalhillnegative': 'purple'
+		'proportionalhillnegative': 'purple',
+		'general': 'black'
 		}
 	test_loc = os.path.join(test_utils.frozen_results_loc, TEST_NAME)
 
 	plt.figure()
 	for prop_type in propensity_types:
-
-		results_d = np.load(os.path.join(test_loc, prop_type))
-
-		plt.plot(timepoints, results_d["C"],
-				label = "deterministic "+str(prop_type)\
-						+"params = "+str(param_dict),
+		results_d = np.load(os.path.join(test_loc, 
+										 prop_type + "_deterministic.npy"))
+		plt.plot(results_d[:,0], results_d[:,3],
+				label = "deterministic "+str(prop_type),
+						# +"params = "+str(param_dict),
 				color = colors[prop_type])
-		plt.plot(timepoints, results_s["C"], ":",
-			       label = "stochastic "+str(prop_type)+"params = "\
-			       		   +str(param_dict),
+
+		results_s = np.load(os.path.join(test_loc, 
+										 prop_type + "_stochastic.npy"))
+		plt.plot(results_s[:,0], results_s[:,3], ":",
+			       label = "stochastic "+str(prop_type),
+			       		   # +"params = "+str(param_dict),
 			       color = colors[prop_type])
 
 	# plt.legend()
 	plt.xlabel("time")
 	plt.ylabel("C")
+	plt.legend()
 	plt.show()
