@@ -1340,12 +1340,15 @@ cdef class StateDependentVolume(Volume):
         return sv
 
 
-##################################################                ####################################################
-######################################              MODEL   TYPES                       ##############################
-#################################################                     ################################################
+###############################                #################################
+###################              MODEL   TYPES                       ###########
+##############################                     #############################
 
 cdef class Model:
-    def __init__(self, filename = None, species = [], reactions = [], parameters = [], rules = [], initial_condition_dict = None, sbml_filename = None, input_printout = False, initialize_model = True):
+    def __init__(self, filename = None, species = [], reactions = [], 
+                 parameters = [], rules = [], initial_condition_dict = None, 
+                 sbml_filename = None, input_printout = False, 
+                 initialize_model = True):
         """
         Read in a model from a file using XML format for the model.
 
@@ -1355,7 +1358,8 @@ cdef class Model:
         self._next_params_index = 0
         self._dummy_param_counter = 0
 
-        self.has_delay = False #Does the Model contain any delay reactions? Updated in _add_reaction.
+        self.has_delay = False #Does the Model contain any delay reactions? 
+                               #Updated in _add_reaction.
 
         self.species2index = {}
         self.params2index = {}
@@ -1364,24 +1368,31 @@ cdef class Model:
         self.repeat_rules = []
         self.params_values = np.array([])
         self.species_values = np.array([])
-        self.txt_dict = {'reactions':"", 'rules':""} # A dictionary to store XML txt to write bioscrape xml
+        self.txt_dict = {'reactions':"", 'rules':""} # A dictionary to store XML 
+                                                     #txt to write bioscrape xml
         self.reaction_definitions = [] # List of reaction tuples useful for writing SBML
         self.rule_definitions = [] #A list of rule tuples useful for writing SBML
 
-        #These must be updated later
+        # These must be updated later
         self.update_array = None
         self.delay_update_array = None
         self.reaction_updates = []
         self.delay_reaction_updates = []
-        self.initialized = False #set to True when the stochiometric matrices are created and model checked by the initialize() function
-        self.reaction_list = [] # A list used to store tuples (propensity, delay, update_array, delay_update_array) for each reaction
+        # Set to True when the stochiometric matrices are created and model 
+        # checked by the initialize() function
+        self.initialized = False 
+        self.reaction_list = [] # A list used to store tuples (propensity, 
+                                # delay, update_array, delay_update_array) for 
+                                # each reaction
 
         if filename != None and sbml_filename != None:
-            raise ValueError("Cannot load both a bioSCRAPE xml file and an SBML file. Please choose just one.")
+            raise ValueError("Cannot load both a bioSCRAPE xml file and an " 
+                             "SBML file. Please choose just one.")
         elif filename != None:
             self.parse_model(filename, input_printout = input_printout)
         elif sbml_filename != None:
-            import_sbml(sbml_filename, bioscrape_model = self, input_printout = input_printout)
+            import_sbml(sbml_filename, bioscrape_model = self, 
+                        input_printout = input_printout)
 
         for species in species:
             self._add_species(species)
@@ -1389,12 +1400,20 @@ cdef class Model:
         for rxn in reactions:
             if len(rxn) == 4:
                 reactants, products, propensity_type, propensity_param_dict = rxn
-                delay_type, delay_reactants, delay_products, delay_param_dict = None, None,  None, None
+                delay_type, delay_reactants, delay_products, delay_param_dict =\
+                        None, None,  None, None
             elif len(rxn) == 8:
-                reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict = rxn
+                reactants, products, propensity_type, propensity_param_dict, \
+                delay_type, delay_reactants, delay_products, delay_param_dict = rxn
             else:
-                raise ValueError("Reaction Tuple of the wrong length! Must be of length 4 (no delay) or 8 (with delays). See BioSCRAPE Model API for details.")
-            self.create_reaction(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict, input_printout = input_printout)
+                raise ValueError("Reaction Tuple of the wrong length! Must be "
+                                 "of length 4 (no delay) or 8 (with delays). "
+                                 "See BioSCRAPE Model API for details.")
+            self.create_reaction(reactants, products, propensity_type, 
+                                 propensity_param_dict, delay_type, 
+                                 delay_reactants, delay_products, 
+                                 delay_param_dict, 
+                                 input_printout = input_printout)
 
         if isinstance(parameters, dict):
             parameters = parameters.items()
@@ -1407,12 +1426,17 @@ cdef class Model:
         for rule in rules:
             if len(rule) == 2:
                 rule_type, rule_attributes = rule
-                self.create_rule(rule_type, rule_attributes, input_printout = input_printout)
+                self.create_rule(rule_type, rule_attributes, 
+                                 input_printout = input_printout)
             elif len(rule) == 3:
                 rule_type, rule_attributes, rule_frequency = rule
-                self.create_rule(rule_type, rule_attributes, rule_frequency = rule_frequency, input_printout = input_printout)
+                self.create_rule(rule_type, rule_attributes, 
+                                 rule_frequency = rule_frequency, 
+                                 input_printout = input_printout)
             else:
-                raise ValueError("Rules must be a tuple: (rule_type (string), rule_attributes (dict), rule_frequency (optional))")
+                raise ValueError("Rules must be a tuple: (rule_type (string), "
+                                 "rule_attributes (dict), rule_frequency "
+                                 "(optional))")
 
         if initial_condition_dict != None:
             for specie in initial_condition_dict:
@@ -1627,8 +1651,10 @@ cdef class Model:
     #   delay_reactants (list): a list of delay reaction reactant specie names (strings)
     #   delay_products: a list of delay reaction products specie names (strings)
     #   delay_param_dict: a dictionary of the parameters for the delay distribution
-    def create_reaction(self, reactants, products, propensity_type, propensity_param_dict,
-                         delay_type = None, delay_reactants = None, delay_products = None, delay_param_dict = None, input_printout = False):
+    def create_reaction(self, reactants, products, propensity_type, 
+                        propensity_param_dict, delay_type = None, 
+                        delay_reactants = None, delay_products = None, 
+                        delay_param_dict = None, input_printout = False):
 
         if input_printout:
             warnings.warn("creating reaction with:"+
