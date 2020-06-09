@@ -4,4 +4,4 @@ numpy
 scipy
 Cython
 libsbml
-bs4
+beautifulsoup4
