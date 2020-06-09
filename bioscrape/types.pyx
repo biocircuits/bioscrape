@@ -2519,6 +2519,26 @@ cdef class Lineage:
 
         return new_lineage
 
+    #Returns the same tree as above
+    def get_schnitzes_by_generation(self):
+        #print("Creating Schnitz Tree")
+        sch_tree = [[]]
+        sch_tree_length = 1
+        for i in range(self.py_size()):
+            sch = self.get_schnitz(i)
+            if sch.py_get_parent() is None:
+                sch_tree[0].append(sch)
+            else:
+                for j in range(len(sch_tree)):
+                    parent = sch.py_get_parent()
+                    if parent in sch_tree[j]:
+                        if len(sch_tree) <= j+1:
+                            sch_tree.append([])
+                            sch_tree_length += 1
+                        sch_tree[j+1].append(sch)
+        return sch_tree
+
+
 cdef class ExperimentalLineage(Lineage):
     def __init__(self, dict species_indices={}):
         super().__init__()

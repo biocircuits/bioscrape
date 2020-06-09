@@ -133,6 +133,8 @@ cdef class ModelCSimInterface(CSimInterface):
 
     cdef void apply_repeated_rules(self, double *state,double time)
     cdef unsigned get_number_of_rules(self)
+    cdef unsigned get_number_of_species(self)
+    cdef unsigned get_number_of_reactions(self)
 
     cdef double* get_param_values(self)
     cdef unsigned get_num_parameters(self)
