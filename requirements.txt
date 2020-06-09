@@ -3,3 +3,5 @@ pytest
 numpy
 scipy
 Cython
+libsbml
+bs4
