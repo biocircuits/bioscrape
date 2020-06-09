@@ -80,7 +80,6 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
             allparams[pid] = 0.0
             if np.isfinite(p.getValue()):
                 allparams[pid] = p.getValue()
-
         # get the formula as a string and then add
         # a leading _ to parameter names
         kl_formula = libsbml.formulaToL3String(kl.getMath())
@@ -295,7 +294,8 @@ def _remove_underscore_from_parameters(formula, parameters):
 
 def create_sbml_model(compartment_id="default", time_units='second', extent_units='mole', substance_units='mole',
                       length_units='metre', area_units='square_metre', volume_units='litre', volume = 1e-6):
-    document = libsbml.SBMLDocument(3, 1)
+    # Create an empty SBML Document of Level 3 Version 2 of SBML
+    document = libsbml.SBMLDocument(3, 2) 
     model = document.createModel()
     model.setId('bioscrape_generated_model_' + str(np.random.randint(1e6)))
     # Define units for area (not used, but keeps COPASI from complaining)
@@ -435,7 +435,7 @@ def add_reaction(model, inputs_list, outputs_list,
 
     reaction = model.createReaction()
     reaction.setReversible(False)
-    reaction.setFast(False) # Deprecated in SBML
+    # reaction.setFast(False) # Deprecated in SBML
     all_ids = getAllIds(model.getSBMLDocument().getListOfAllElements())
     trans = SetIdFromNames(all_ids)
     reaction.setId(trans.getValidIdForName(reaction_id))
