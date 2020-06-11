@@ -2280,7 +2280,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 					spec_ind = self.global_species_inds[global_species_ind, interface_ind]
 					#Add the global species if they are in the model and not dead
-					if spec_ind >= 0 and self.cs.get_dead(): #Check if the cell contains that species and do not distribute to dead cells
+					if spec_ind >= 0 and self.cs.get_dead() < 0: #Check if the cell contains that species and do not distribute to dead cells
 						new_global_species -= temp_count
 						self.cs.set_state_comp(temp_count, spec_ind)
 
@@ -2303,7 +2303,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			rand = cyrandom.uniform_rv()
 			temp_volume = self.leftover_global_volume
 			#randomly add to the global volume first because it is more probable
-			if rand <= temp_volume/self.global_volume:
+			if rand <= temp_volume/self.global_volume and self.global_volume_param > 0:
 				#print("stuck here?",rand,  temp_volume, self.global_volume)
 				new_global_species += 1
 				global_count -= 1
@@ -2321,7 +2321,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 						if rand <= temp_volume/self.global_volume:
 
 							spec_ind = self.global_species_inds[global_species_ind, interface_ind]
-							if spec_ind >= 0 and self.cs.get_dead() == 0: #Check if the cell contains that species and do not distribute to dead cells
+							if spec_ind >= 0 and self.cs.get_dead() < 0: #Check if the cell contains that species and do not distribute to dead cells
 								#print("is this here the place?", spec_ind)
 								self.c_current_state = self.cs.get_state()
 								self.cs.set_state_comp(self.c_current_state[spec_ind]+1, spec_ind) #add one to the cell state
