@@ -5,3 +5,4 @@ scipy
 Cython
 python-libsbml
 beautifulsoup4
+sympy
