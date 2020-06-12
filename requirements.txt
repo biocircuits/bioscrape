@@ -3,5 +3,5 @@ pytest
 numpy
 scipy
 Cython
-libsbml
+python-libsbml
 beautifulsoup4
