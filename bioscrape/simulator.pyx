@@ -393,7 +393,7 @@ cdef class CSimInterface:
         self.prep_deterministic_simulation()
 
     # Compute deterministic derivative
-    cdef void calculate_determinstic_derivative(self, double *x, double *dxdt, double t):
+    cdef void calculate_deterministic_derivative(self, double *x, double *dxdt, double t):
         # Get propensities before doing anything else.
         cdef double *prop = <double*> (self.propensity_buffer.data)
         self.compute_propensities(x,  prop, t)
@@ -409,7 +409,7 @@ cdef class CSimInterface:
 
     def py_calculate_deterministic_derivative(self, np.ndarray[np.double_t,ndim=1] x, np.ndarray[np.double_t,ndim=1] dx,
                                               double t):
-        self.calculate_determinstic_derivative(<double*> x.data, <double*> dx.data, t)
+        self.calculate_deterministic_derivative(<double*> x.data, <double*> dx.data, t)
 
 
 
@@ -1253,7 +1253,7 @@ def rhs_global(np.ndarray[np.double_t,ndim=1] state, double t):
     global global_simulator
     global global_derivative_buffer
     (<CSimInterface>global_simulator).apply_repeated_rules(<double*> state.data,t)
-    (<CSimInterface>global_simulator).calculate_determinstic_derivative( <double*> state.data,
+    (<CSimInterface>global_simulator).calculate_deterministic_derivative( <double*> state.data,
                                                                          <double*> global_derivative_buffer.data, t)
     return global_derivative_buffer
 
@@ -2021,11 +2021,11 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
 #A wrapper function to allow easy simulation of Models
 def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = False, delay = None, safe = False, volume = False, return_dataframe = True):
     #Check model and interface
-    if Model == None and Interface == None:
+    if Model is None and Interface is None:
         raise ValueError("py_simulate_model requires either a Model or CSimInterface to be passed in.")
-    elif Model!=None and Interface!=None:
+    elif not Model is None and not Interface is None:
         raise ValueError("py_simulate_model requires either a Model OR a CSimInterface to be passed in. Not both.")
-    elif Interface == None:
+    elif Interface is None:
         if safe and stochastic:
             Interface = SafeModelCSimInterface(Model)
         elif safe:
@@ -2033,7 +2033,7 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
             Interface = ModelCSimInterface(Model)
         else:
             Interface = ModelCSimInterface(Model)
-    elif Interface != None and safe:
+    elif not Interface is None and safe:
         warnings.warn("Cannot gaurantee that the interface passed in is safe. Simulating anyway.")
 
     #Create Volume (if necessary)

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
+<sbml xmlns="http://www.sbml.org/sbml/level3/version2/core" level="3" version="2">
   <model id="bioscrape_generated_model_442905" substanceUnits="mole" timeUnits="second" volumeUnits="litre" areaUnits="square_metre" lengthUnits="metre" extentUnits="mole">
     <listOfUnitDefinitions>
       <unitDefinition id="square_metre" name="square_metre">
@@ -22,7 +22,7 @@
       <parameter id="DummyVar_PositiveHillPropensity_n_2" name="DummyVar_PositiveHillPropensity_n_2" value="2.053" constant="true"/>
     </listOfParameters>
     <listOfReactions>
-      <reaction id="r0" name="r0" reversible="false" fast="false">
+      <reaction id="r0" name="r0" reversible="false">
         <annotation>
           <PropensityType> type=hillpositive k=DummyVar_PositiveHillPropensity_k_0 K=DummyVar_PositiveHillPropensity_K_1 n=DummyVar_PositiveHillPropensity_n_2 s1=A</PropensityType>
         </annotation>

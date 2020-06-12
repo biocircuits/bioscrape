@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
+<sbml xmlns="http://www.sbml.org/sbml/level3/version2/core" level="3" version="2">
   <model id="bioscrape_generated_model_728823" substanceUnits="mole" timeUnits="second" volumeUnits="litre" areaUnits="square_metre" lengthUnits="metre" extentUnits="mole">
     <listOfUnitDefinitions>
       <unitDefinition id="square_metre" name="square_metre">
@@ -17,7 +17,7 @@
       <species id="C" name="C" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
     </listOfSpecies>
     <listOfReactions>
-      <reaction id="r0" name="r0" reversible="false" fast="false">
+      <reaction id="r0" name="r0" reversible="false">
         <annotation>
           <PropensityType> type=general rate=(1+1.894*A^3.524+0.303*A^3.817)/(1+0.884*B^1.809+0.037*A^3.577+2.274*A^1.37+0.619*C^2.916)</PropensityType>
         </annotation>

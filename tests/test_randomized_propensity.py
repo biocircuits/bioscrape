@@ -15,6 +15,9 @@ from bioscrape.types import *
 # Seed RNG value. All tests use this value.
 seed = 54173
 
+# Set true to get more diagnostic prints
+debug = False
+
 # Parameter ranges to randomly choose parameters (on a log scale)
 param_min = -4
 param_max = 4
