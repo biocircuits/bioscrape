@@ -138,6 +138,7 @@ def check_sim_results(test_name, results_dict):
             continue
 
         frozen_data = np.load(result_file)
+        assert sim_data.shape == frozen_data.shape
         assert np.allclose(sim_data, frozen_data), test_name + ":" + sim_name +\
                                                 " doesn't match frozen results"
 
