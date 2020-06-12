@@ -129,7 +129,7 @@ def check_sim_results(test_name, results_dict):
 
     for sim_name, sim_data in results_dict.items():
         result_file = os.path.join(frozen_results_loc,
-                                   test_name,sim_name + ".npy")
+                                   test_name, sim_name + ".npy")
 
         if not os.path.exists(result_file):
             np.save(result_file, sim_data)
