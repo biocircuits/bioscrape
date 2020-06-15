@@ -1334,7 +1334,9 @@ cdef class StateDependentVolume(Volume):
 #################################################                     ################################################
 
 cdef class Model:
-    def __init__(self, filename = None, species = [], reactions = [], parameters = [], rules = [], initial_condition_dict = None, sbml_filename = None, input_printout = False, initialize_model = True):
+    def __init__(self, filename = None, species = [], reactions = [], parameters = [], rules = [], 
+                initial_condition_dict = None, sbml_filename = None, input_printout = False, 
+                initialize_model = True, **kwargs):
         """
         Read in a model from a file using XML format for the model.
 
@@ -1370,7 +1372,7 @@ cdef class Model:
         elif filename != None:
             self.parse_model(filename, input_printout = input_printout)
         elif sbml_filename != None:
-            import_sbml(sbml_filename, bioscrape_model = self, input_printout = input_printout)
+            import_sbml(sbml_filename, bioscrape_model = self, input_printout = input_printout, **kwargs)
 
         for species in species:
             self._add_species(species)

@@ -8,7 +8,7 @@ import libsbml
 def read_model_from_sbml(sbml_file):
     return import_sbml(sbml_file)
 
-def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
+def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwargs):
     """
     Convert SBML document to bioscrape Model object. Note that events, compartments, non-standard function definitions,
     and some kinds of rules will be ignored. 
@@ -34,7 +34,10 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
     model = doc.getModel()
     if model is None:
         raise ValueError("SBML File {0} not found. Model could not be read.".format(sbml_file))
-
+    if 'sbml_warnings' in kwargs:
+        sbml_warnings = kwargs.get('sbml_warnings')
+    else:
+        sbml_warnings = True
     # Parse through species and parameters and keep a set of both along with their values.
     allspecies = {}
     allparams = {}
@@ -205,7 +208,8 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
 
     # Check and warn if there are any unrecognized components (function definitions, packages, etc.)
     if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0: 
-        warnings.warn('Compartments, UnitDefintions, Events, and some other SBML model components are not recognized by bioscrape. ' + 
+        if sbml_warnings:
+            warnings.warn('Compartments, UnitDefintions, Events, and some other SBML model components are not recognized by bioscrape. ' + 
                         'Refer to the bioscrape wiki for more information.')
     
     #If no Model is passed into the function, a Model is returned

@@ -453,7 +453,10 @@ class MCMC(object):
         except:
             warnings.warn('corner package not found - cannot plot parameter distributions.')
         return truth_list, uncertainty_list
-    
+
+    def py_inference():
+        raise NotImplemented
+     
     def simulate(self, timepoints, **kwargs):
         ''' 
         To simulate using bioscrape.
