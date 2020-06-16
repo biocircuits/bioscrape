@@ -2535,7 +2535,13 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 
 
-	cdef list SimulateInteractingCellLineage(self, list interface_list, list initial_cell_states, np.ndarray timepoints, double global_sync_period, np.ndarray global_species_inds, double global_volume_param, double average_dist_threshold):
+	cdef list SimulateInteractingCellLineage(self, list interface_list, 
+											 list initial_cell_states, 
+											 np.ndarray timepoints, 
+											 double global_sync_period, 
+											 np.ndarray global_species_inds, 
+											 double global_volume_param, 
+											 double average_dist_threshold):
 		#print("Starting Interacting Lineage Simulation")
 
 		cdef unsigned i = 0
@@ -2678,10 +2684,22 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 	#Python accessor
 
-	def py_SimulateInteractingCellLineage(self, np.ndarray timepoints, list interface_list, list initial_cell_states, double global_sync_period, np.ndarray global_species_inds, double global_volume_param, double average_dist_threshold):
+	def py_SimulateInteractingCellLineage(self, np.ndarray timepoints, 
+										  list interface_list, 
+										  list initial_cell_states, 
+										  double global_sync_period, 
+										  np.ndarray global_species_inds, 
+										  double global_volume_param, 
+										  double average_dist_threshold):
 		self.set_c_timepoints(timepoints)
 		#print("py_SimulateInteractingCellLineage 2: timepoints.shape",timepoints.shape, timepoints[0], timepoints[timepoints.shape[0]-1])
-		lineage_list = self.SimulateInteractingCellLineage(interface_list, initial_cell_states, timepoints, global_sync_period, global_species_inds, global_volume_param, average_dist_threshold)
+		lineage_list = self.SimulateInteractingCellLineage(interface_list, 
+														   initial_cell_states, 
+														   timepoints, 
+														   global_sync_period, 
+														   global_species_inds, 
+														   global_volume_param, 
+														   average_dist_threshold)
 		#print("lineage_list in py_Simulate...", lineage_list)
 		return lineage_list
 
