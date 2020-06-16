@@ -349,6 +349,11 @@ def add_species(model, compartment, species, debug=False, initial_concentration=
 
     # Construct the species ID
     species_id = species_sbml_id(species_name, model.getSBMLDocument())
+    if species_name != species_id:
+        raise ValueError('Species names used are invalid strings to write into an SBML file.' + 
+                        'Remove colons, semicolons, and other special characters.' + 
+                        'Duplicate species names are also not allowed.' + 
+                        'Starting species names with numbers is also not allowed')
 
     if debug: print("Adding species", species_name, species_id)
     sbml_species = model.createSpecies()
