@@ -34,5 +34,6 @@ setup(
     package_dir = {'bioscrape' : src_dir},
     package_data = {'lineage': ['*.pxd'], 'bioscrape': ['*.pxd']},
     ext_modules = cythonize(extensions),
+    version = '0.0.1'
 )
 

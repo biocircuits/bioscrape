@@ -2013,7 +2013,8 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
 
 
 #A wrapper function to allow easy simulation of Models
-def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = False, delay = None, safe = False, volume = False, return_dataframe = True):
+def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = False, 
+                    delay = None, safe = False, volume = False, return_dataframe = True):
     #Check model and interface
     if Model == None and Interface == None:
         raise ValueError("py_simulate_model requires either a Model or CSimInterface to be passed in.")
