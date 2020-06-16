@@ -314,6 +314,8 @@ class MCMC(object):
                 for m in self.measurements:
                     data_list.append(np.array(df.get(m)))
                 data = np.array(data_list)
+            else:
+                raise ValueError('Something wrong with experimental data input to inference.')
             N = 1 # Number of trajectories
             T = len(self.timepoints) # Number of timepoints
             M = len(self.measurements)# Number of measurements
