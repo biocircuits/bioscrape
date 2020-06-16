@@ -9,7 +9,7 @@ from collections import OrderedDict # Need this to remove duplicates from lists
 def read_model_from_sbml(sbml_file):
     return import_sbml(sbml_file)
 
-def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
+def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwargs):
     """
     Convert SBML document to bioscrape Model object. Note that events, compartments, non-standard function definitions,
     and some kinds of rules will be ignored.
@@ -35,7 +35,10 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
     model = doc.getModel()
     if model is None:
         raise ValueError("SBML File {0} not found. Model could not be read.".format(sbml_file))
-
+    if 'sbml_warnings' in kwargs:
+        sbml_warnings = kwargs.get('sbml_warnings')
+    else:
+        sbml_warnings = True
     # Parse through species and parameters and keep a set of both along with their values.
     allspecies = {}
     allparams = {}
@@ -85,7 +88,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
         kl_formula = libsbml.formulaToL3String(kl.getMath())
         rate_string = _add_underscore_to_parameters(kl_formula, allparams)
 
-        if reaction.getReversible():
+        if reaction.getReversible() and sbml_warnings:
             warnings.warn('SBML model contains reversible reaction!\n' +
                             'Please check rate expressions and ensure they are non-negative before doing '+
                             'stochastic simulations.')
@@ -198,15 +201,11 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
         rule_frequency = 'repeated'
         rule_tuple = (rule_type, rule_dict, rule_frequency)
         allrules.append(rule_tuple)
-
-    #print('allparams = {0}'.format(allparams))
-    #print('allspecies = {0}'.format(allspecies))
-    #print('allreactions = {0}'.format(allreactions))
-    #print(allrules)
-
+    
     # Check and warn if there are any unrecognized components (function definitions, packages, etc.)
-    if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0:
-        warnings.warn('Compartments, UnitDefintions, Events, and some other SBML model components are not recognized by bioscrape. ' +
+    if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0: 
+        if sbml_warnings:
+            warnings.warn('Compartments, UnitDefintions, Events, and some other SBML model components are not recognized by bioscrape. ' + 
                         'Refer to the bioscrape wiki for more information.')
 
     #If no Model is passed into the function, a Model is returned
@@ -331,7 +330,6 @@ def create_sbml_model(compartment_id="default", time_units='second', extent_unit
 # Creates an SBML id from a chemical_reaction_network.species object
 def species_sbml_id(species_name, document=None):
     # Construct the species ID
-    # species_id = repr(species).replace(" ", "_").replace(":", "_").replace("--", "_").replace("-", "_").replace("'", "")
     all_ids = []
     if document:
         all_ids = getAllIds(document.getListOfAllElements())
@@ -351,6 +349,11 @@ def add_species(model, compartment, species, debug=False, initial_concentration=
 
     # Construct the species ID
     species_id = species_sbml_id(species_name, model.getSBMLDocument())
+    if species_name != species_id:
+        raise ValueError('Species names used are invalid strings to write into an SBML file.' + 
+                        'Remove colons, semicolons, and other special characters.' + 
+                        'Duplicate species names are also not allowed.' + 
+                        'Starting species names with numbers is also not allowed')
 
     if debug: print("Adding species", species_name, species_id)
     sbml_species = model.createSpecies()

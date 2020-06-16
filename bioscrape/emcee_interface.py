@@ -314,6 +314,8 @@ class MCMC(object):
                 for m in self.measurements:
                     data_list.append(np.array(df.get(m)))
                 data = np.array(data_list)
+            else:
+                raise ValueError('Something wrong with experimental data input to inference.')
             N = 1 # Number of trajectories
             T = len(self.timepoints) # Number of timepoints
             M = len(self.measurements)# Number of measurements
@@ -453,7 +455,10 @@ class MCMC(object):
         except:
             warnings.warn('corner package not found - cannot plot parameter distributions.')
         return truth_list, uncertainty_list
-    
+
+    def py_inference():
+        raise NotImplemented
+     
     def simulate(self, timepoints, **kwargs):
         ''' 
         To simulate using bioscrape.
