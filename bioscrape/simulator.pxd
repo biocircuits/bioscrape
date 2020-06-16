@@ -81,7 +81,7 @@ cdef class CSimInterface:
     cdef vector[vector[int]] S_values
 
     cdef void prep_deterministic_simulation(self)
-    cdef void calculate_determinstic_derivative(self, double *x, double *dxdt, double t)
+    cdef void calculate_deterministic_derivative(self, double *x, double *dxdt, double t)
     # end of deterministic simulation stuff
 
     #method meant to be overwritten to check if interfaces/models are correct. called by simulators.
@@ -133,6 +133,8 @@ cdef class ModelCSimInterface(CSimInterface):
 
     cdef void apply_repeated_rules(self, double *state,double time)
     cdef unsigned get_number_of_rules(self)
+    cdef unsigned get_number_of_species(self)
+    cdef unsigned get_number_of_reactions(self)
 
     cdef double* get_param_values(self)
     cdef unsigned get_num_parameters(self)

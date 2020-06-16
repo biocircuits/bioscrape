@@ -868,18 +868,21 @@ cdef class Delay:
         """
         self.delay_type = DelayType.unset_delay
 
-    def py_get_delay(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params):
+    def py_get_delay(self, np.ndarray[np.double_t,ndim=1] state,
+                     np.ndarray[np.double_t,ndim=1] params):
         """
         Return the delay given the state and parameter vector
         :param state: (np.ndarray) the state vector
         :param params: (np.ndarray) the parameters vector
         :return: (double) the computed delay
 
-        This function should NOT be overridden by subclases. It is just a Python wrapped of the cython delay function.
+        This function should NOT be overridden by subclases. It is just a Python
+        wrapped of the cython delay function.
         """
         return self.get_delay(<double*> state.data, <double*> params.data)
 
-
+    def __eq__(self, Delay other):
+        return self.delay_type == other.delay_type
 
     cdef double get_delay(self, double* state, double* params):
         """
@@ -893,14 +896,19 @@ cdef class Delay:
 
         return -1.0
 
-    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+    def initialize(self, dict param_dictionary, dict species_indices,
+                   dict parameter_indices):
 
         """
-        Initializes the parameters and species to look at the right indices in the state
-        :param dictionary: (dict:str--> str) the fields for the propensity 'k','s1' etc map to the actual parameter
+        Initializes the parameters and species to look at the right indices in
+            the state
+        :param dictionary: (dict:str--> str) the fields for the propensity 'k',
+                                            's1' etc map to the actual parameter
                                              and species names
-        :param species_indices: (dict:str-->int) map species names to entry in species vector
-        :param parameter_indices: (dict:str-->int) map param names to entry in param vector
+        :param species_indices: (dict:str-->int) map species names to entry in
+                                species vector
+        :param parameter_indices: (dict:str-->int) map param names to entry in
+                                  param vector
         :return: nothing
         """
         pass
@@ -908,8 +916,9 @@ cdef class Delay:
     def get_species_and_parameters(self, dict fields):
         """
         get which fields are species and which are parameters
-        :return: (list(string), list(string)) First entry is the fields that are species, second entry is the fields
-                                              that are parameters
+        :return: (list(string), list(string)) First entry is the fields that are
+                                            species, second entry is the fields
+                                            that are parameters
         """
         return [],[]
 
@@ -929,7 +938,8 @@ cdef class FixedDelay(Delay):
     cdef double get_delay(self, double* state, double* params):
         return params[self.delay_index]
 
-    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+    def initialize(self, dict param_dictionary, dict species_indices,
+                   dict parameter_indices):
 
         for key,value in param_dictionary.items():
             if key == 'delay':
@@ -949,7 +959,8 @@ cdef class GaussianDelay(Delay):
         return cyrandom.normal_rv(params[self.mean_index],params[self.std_index])
 
 
-    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+    def initialize(self, dict param_dictionary, dict species_indices,
+                   dict parameter_indices):
 
         for key,value in param_dictionary.items():
             if key == 'mean':
@@ -969,11 +980,11 @@ cdef class GammaDelay(Delay):
     def __init__(self):
         self.delay_type = DelayType.gamma
 
-
     cdef double get_delay(self, double* state, double* params):
         return cyrandom.gamma_rv(params[self.k_index],params[self.theta_index])
 
-    def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+    def initialize(self, dict param_dictionary, dict species_indices,
+                   dict parameter_indices):
 
         for key,value in param_dictionary.items():
             if key == 'k':
@@ -1329,9 +1340,9 @@ cdef class StateDependentVolume(Volume):
         return sv
 
 
-##################################################                ####################################################
-######################################              MODEL   TYPES                       ##############################
-#################################################                     ################################################
+###############################                #################################
+###################              MODEL   TYPES                       ###########
+##############################                     #############################
 
 cdef class Model:
     def __init__(self, filename = None, species = [], reactions = [], parameters = [], rules = [], 
@@ -1346,7 +1357,8 @@ cdef class Model:
         self._next_params_index = 0
         self._dummy_param_counter = 0
 
-        self.has_delay = False #Does the Model contain any delay reactions? Updated in _add_reaction.
+        self.has_delay = False #Does the Model contain any delay reactions? 
+                               #Updated in _add_reaction.
 
         self.species2index = {}
         self.params2index = {}
@@ -1355,20 +1367,26 @@ cdef class Model:
         self.repeat_rules = []
         self.params_values = np.array([])
         self.species_values = np.array([])
-        self.txt_dict = {'reactions':"", 'rules':""} # A dictionary to store XML txt to write bioscrape xml
+        self.txt_dict = {'reactions':"", 'rules':""} # A dictionary to store XML 
+                                                     #txt to write bioscrape xml
         self.reaction_definitions = [] # List of reaction tuples useful for writing SBML
         self.rule_definitions = [] #A list of rule tuples useful for writing SBML
 
-        #These must be updated later
+        # These must be updated later
         self.update_array = None
         self.delay_update_array = None
         self.reaction_updates = []
         self.delay_reaction_updates = []
-        self.initialized = False #set to True when the stochiometric matrices are created and model checked by the initialize() function
-        self.reaction_list = [] # A list used to store tuples (propensity, delay, update_array, delay_update_array) for each reaction
+        # Set to True when the stochiometric matrices are created and model 
+        # checked by the initialize() function
+        self.initialized = False 
+        self.reaction_list = [] # A list used to store tuples (propensity, 
+                                # delay, update_array, delay_update_array) for 
+                                # each reaction
 
         if filename != None and sbml_filename != None:
-            raise ValueError("Cannot load both a bioSCRAPE xml file and an SBML file. Please choose just one.")
+            raise ValueError("Cannot load both a bioSCRAPE xml file and an " 
+                             "SBML file. Please choose just one.")
         elif filename != None:
             self.parse_model(filename, input_printout = input_printout)
         elif sbml_filename != None:
@@ -1380,16 +1398,24 @@ cdef class Model:
         for rxn in reactions:
             if len(rxn) == 4:
                 reactants, products, propensity_type, propensity_param_dict = rxn
-                delay_type, delay_reactants, delay_products, delay_param_dict = None, None,  None, None
+                delay_type, delay_reactants, delay_products, delay_param_dict =\
+                        None, None,  None, None
             elif len(rxn) == 8:
-                reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict = rxn
+                reactants, products, propensity_type, propensity_param_dict, \
+                delay_type, delay_reactants, delay_products, delay_param_dict = rxn
             else:
-                raise ValueError("Reaction Tuple of the wrong length! Must be of length 4 (no delay) or 8 (with delays). See BioSCRAPE Model API for details.")
-            self.create_reaction(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict, input_printout = input_printout)
-            
+                raise ValueError("Reaction Tuple of the wrong length! Must be "
+                                 "of length 4 (no delay) or 8 (with delays). "
+                                 "See BioSCRAPE Model API for details.")
+            self.create_reaction(reactants, products, propensity_type, 
+                                 propensity_param_dict, delay_type, 
+                                 delay_reactants, delay_products, 
+                                 delay_param_dict, 
+                                 input_printout = input_printout)
+
         if isinstance(parameters, dict):
             parameters = parameters.items()
-            
+
         for param, param_val in parameters:
                 self._add_param(param)
                 self.set_parameter(param, param_val)
@@ -1398,12 +1424,17 @@ cdef class Model:
         for rule in rules:
             if len(rule) == 2:
                 rule_type, rule_attributes = rule
-                self.create_rule(rule_type, rule_attributes, input_printout = input_printout)
+                self.create_rule(rule_type, rule_attributes, 
+                                 input_printout = input_printout)
             elif len(rule) == 3:
                 rule_type, rule_attributes, rule_frequency = rule
-                self.create_rule(rule_type, rule_attributes, rule_frequency = rule_frequency, input_printout = input_printout)
+                self.create_rule(rule_type, rule_attributes, 
+                                 rule_frequency = rule_frequency, 
+                                 input_printout = input_printout)
             else:
-                raise ValueError("Rules must be a tuple: (rule_type (string), rule_attributes (dict), rule_frequency (optional))")
+                raise ValueError("Rules must be a tuple: (rule_type (string), "
+                                 "rule_attributes (dict), rule_frequency "
+                                 "(optional))")
 
         if initial_condition_dict != None:
             for specie in initial_condition_dict:
@@ -1448,6 +1479,28 @@ cdef class Model:
 
     def py_initialize(self):
         self._initialize()
+
+    def __eq__(self, Model other):
+        if other is None or not isinstance(other, Model):
+            return False
+        # Casting as a set means order doesn't matter.
+        # Sets can only hold an element once, so this could give weird results
+        # if the same reaction or rule definition appears multiple times.
+        # 
+        # If reaction/rule definitions are the same, that implies that many of 
+        # the other attributes of the Model must be the same. 
+        if sorted(self.reaction_definitions) != sorted(other.reaction_definitions):
+            return False
+        if sorted(self.rule_definitions) != sorted(other.rule_definitions):
+            return False
+        if self.species2index != other.species2index:
+            return False
+        if not np.array_equal(self.species_values, other.species_values):
+            return False
+        return True
+
+    def __neq__(self, Model other):
+        return not self.__eq__(other)
 
     def _add_species(self, species):
         """
@@ -1596,8 +1649,10 @@ cdef class Model:
     #   delay_reactants (list): a list of delay reaction reactant specie names (strings)
     #   delay_products: a list of delay reaction products specie names (strings)
     #   delay_param_dict: a dictionary of the parameters for the delay distribution
-    def create_reaction(self, reactants, products, propensity_type, propensity_param_dict,
-                         delay_type = None, delay_reactants = None, delay_products = None, delay_param_dict = None, input_printout = False):
+    def create_reaction(self, reactants, products, propensity_type, 
+                        propensity_param_dict, delay_type = None, 
+                        delay_reactants = None, delay_products = None, 
+                        delay_param_dict = None, input_printout = False):
 
         if input_printout:
             warnings.warn("creating reaction with:"+
@@ -1795,7 +1850,7 @@ cdef class Model:
             self.repeat_rules.append(rule_object)
         else:
             raise SyntaxError('Invalid Rule Frequency: ' + str(rule_frequency))
- 
+
 
         self.write_rule_txt(rule_type, rule_attributes, rule_frequency)
         self.rule_definitions.append((rule_type, rule_attributes, rule_frequency))
@@ -2192,6 +2247,7 @@ cdef class Model:
         else:
             raise LookupError('No species with name '+ species_name)
 
+
     def parse_general_expression(self, instring):
         return parse_expression(instring,self.species2index,self.params2index)
 
@@ -2228,24 +2284,30 @@ cdef class Model:
         # Create an empty SBMLDocument object to hold the bioscrape model
         document, model = create_sbml_model(**keywords)
 
-        for p in self.get_param_list():
+        sorted_params = list(self.get_param_list())
+        sorted_params.sort()
+        for p in sorted_params:
             val = self.get_param_value(p)
             if p[0] == '_':
                 # Remove the underscore at the beginning of the parameter name
                 p = p.replace('_','',1)
             add_parameter(model = model, param_name=p, param_value = val)
 
-        for s in self.get_species():
-            add_species(model = model, compartment=model.getCompartment(0), species=s, initial_concentration=self.get_species_value(s))
+        sorted_species = list(self.get_species())
+        sorted_species.sort()
+        for s in sorted_species:
+            add_species(model = model, compartment=model.getCompartment(0),
+                        species=s, initial_concentration=self.get_species_value(s))
 
         rxn_count = 0
         for rxn_tuple in self.reaction_definitions:
             rxn_id = "r" + str(rxn_count)
 
-            (reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict) = rxn_tuple
-            
-            add_reaction(model, reactants, products, rxn_id, propensity_type, propensity_param_dict,
-                         stochastic = stochastic_model)
+            (reactants, products, propensity_type, propensity_param_dict,
+             delay_type, delay_reactants, delay_products, delay_param_dict) = rxn_tuple
+
+            add_reaction(model, reactants, products, rxn_id, propensity_type,
+                         propensity_param_dict, stochastic = stochastic_model)
             rxn_count += 1
 
         rule_count = 0
@@ -2454,6 +2516,26 @@ cdef class Lineage:
                 sch_dict[sch].py_set_daughters( sch_dict[sch.get_daughter_1()] , sch_dict[sch.get_daughter_2()] )
 
         return new_lineage
+
+    #Returns the same tree as above
+    def get_schnitzes_by_generation(self):
+        #print("Creating Schnitz Tree")
+        sch_tree = [[]]
+        sch_tree_length = 1
+        for i in range(self.py_size()):
+            sch = self.get_schnitz(i)
+            if sch.py_get_parent() is None:
+                sch_tree[0].append(sch)
+            else:
+                for j in range(len(sch_tree)):
+                    parent = sch.py_get_parent()
+                    if parent in sch_tree[j]:
+                        if len(sch_tree) <= j+1:
+                            sch_tree.append([])
+                            sch_tree_length += 1
+                        sch_tree[j+1].append(sch)
+        return sch_tree
+
 
 cdef class ExperimentalLineage(Lineage):
     def __init__(self, dict species_indices={}):
