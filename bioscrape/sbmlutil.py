@@ -87,7 +87,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         kl_formula = libsbml.formulaToL3String(kl.getMath())
         rate_string = _add_underscore_to_parameters(kl_formula, allparams)
 
-        if reaction.getReversible():
+        if reaction.getReversible() and sbml_warnings:
             warnings.warn('SBML model contains reversible reaction!\n' +
                             'Please check rate expressions and ensure they are non-negative before doing '+
                             'stochastic simulations.') 
@@ -201,11 +201,6 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         rule_tuple = (rule_type, rule_dict, rule_frequency)
         allrules.append(rule_tuple)
     
-    #print('allparams = {0}'.format(allparams))
-    #print('allspecies = {0}'.format(allspecies))
-    #print('allreactions = {0}'.format(allreactions))
-    #print(allrules)
-
     # Check and warn if there are any unrecognized components (function definitions, packages, etc.)
     if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0: 
         if sbml_warnings:
