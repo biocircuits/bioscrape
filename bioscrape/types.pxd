@@ -675,7 +675,7 @@ cdef class Lineage:
         schnitzes (list): A list of all the Schnitz's in the lineage.
         c_schnitzes (vector[void*]): A vector containing void pointers to all the Schnitz's in the lineage
     """
-    
+
     cdef list schnitzes
     cdef vector[void*] c_schnitzes
 

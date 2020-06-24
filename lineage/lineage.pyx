@@ -5,13 +5,24 @@
 import numpy as np
 from libc.math cimport round
 cimport numpy as np
-from bioscrape.simulator cimport DeterministicSimulator, VolumeCellState, VolumeSSAResult, DelayVolumeSSAResult, VolumeSplitter, CSimInterface, ModelCSimInterface, DelayVolumeSSASimulator, VolumeSSASimulator, DelayQueue, DelayVolumeCellState
-from bioscrape.simulator import DeterministicSimulator, VolumeCellState, VolumeSSAResult, DelayVolumeSSAResult, VolumeSplitter, CSimInterface, ModelCSimInterface, DelayVolumeSSASimulator, VolumeSSASimulator, DelayQueue, DelayVolumeCellState
+from bioscrape.simulator cimport DeterministicSimulator, VolumeCellState, \
+								 VolumeSSAResult, DelayVolumeSSAResult, \
+								 VolumeSplitter, CSimInterface, \
+								 ModelCSimInterface, DelayVolumeSSASimulator, \
+								 VolumeSSASimulator, DelayQueue, \
+								 DelayVolumeCellState
+from bioscrape.simulator import DeterministicSimulator, VolumeCellState, \
+								VolumeSSAResult, DelayVolumeSSAResult, \
+								VolumeSplitter, CSimInterface, \
+								ModelCSimInterface, DelayVolumeSSASimulator, \
+								VolumeSSASimulator, DelayQueue, \
+								DelayVolumeCellState
 
-from bioscrape.types cimport Model, Volume, Schnitz, Lineage, Propensity, Term, Rule, Volume
-#from bioscrape.types import Model, Volume, Schnitz, Lineage, Propensity, Term, Rule
+from bioscrape.types cimport Model, Volume, Schnitz, Lineage, Propensity, Term, \
+							 Rule
 
-from bioscrape.types import sympy_species_and_parameters, parse_expression, Volume
+from bioscrape.types import sympy_species_and_parameters, parse_expression, \
+							Volume
 from bioscrape.random cimport normal_rv
 
 cimport bioscrape.random as cyrandom
@@ -25,7 +36,8 @@ import warnings
 import pandas
 
 
-#Events are general objects that happen with some internal propensity but are not chemical reactions
+# Events are general objects that happen with some internal propensity but are 
+# not chemical reactions
 cdef class Event:
 
 	cdef initialize(self, dict event_params, dict species_indices, dict parameter_indices):
@@ -37,7 +49,7 @@ cdef class Event:
 	#cdef Propensity get_propensity(self):
 	#	return <Propensity>self.propensity
 
-	#Meant to be subclassed if an event is supposed to do something.
+	#Meant to be overwritten if an event is supposed to do something.
 	cdef double evaluate_event(self, double* state, double *params, double volume, double time):
 		return 0
 
@@ -686,11 +698,15 @@ cdef class LineageModel(Model):
 	def py_get_rule_counts(self):
 		return self.num_division_rules, self.num_volume_rules, self.num_death_rules
 
-	def add_event(self, Event event_object, dict event_param_dict, Propensity prop_object, dict propensity_param_dict, str event_type = None, VolumeSplitter volume_splitter = None):
+	def add_event(self, Event event_object, dict event_param_dict, 
+				  Propensity prop_object, dict propensity_param_dict, 
+				  str event_type = None, VolumeSplitter volume_splitter = None):
 		self.initialized = False
 
-		species_names_e, param_names_e = event_object.get_species_and_parameters(event_param_dict)
-		species_names_p, param_names_p = prop_object.get_species_and_parameters(propensity_param_dict)
+		species_names_e, param_names_e = \
+					event_object.get_species_and_parameters(event_param_dict)
+		species_names_p, param_names_p = \
+				prop_object.get_species_and_parameters(propensity_param_dict)
 
 		for species_name in species_names_e+species_names_p:
 			self._add_species(species_name)
@@ -717,7 +733,7 @@ cdef class LineageModel(Model):
 		event_params = dict(event_params)
 		propensity_params = dict(propensity_params)
 		prop_object = self.create_propensity(event_propensity_type, propensity_params, print_out = print_out)
-		if event_type in ["", "death", "DeathEvent", "death event", "Death Event", "default", "Default"]:
+		if event_type.lower() in ["", "death", "deathevent", "death event", "default"]:
 			event_object = DeathEvent()
 		else:
 			raise ValueError("Unknwown DeathEvent type"+str(event_type))
@@ -729,7 +745,7 @@ cdef class LineageModel(Model):
 		event_params = dict(event_params)
 		propensity_params = dict(propensity_params)
 		prop_object = self.create_propensity(event_propensity_type, propensity_params, print_out = print_out)
-		if event_type in ["", "division", "Division", "DivisionEvent", "division event", "Division Event", "default"]:
+		if event_type.lower() in ["", "division", "divisionevent", "division event", "default"]:
 			event_object = DivisionEvent()
 		else:
 			raise ValueError("Unknown DivisionEvent type"+str(event_type))
@@ -744,13 +760,13 @@ cdef class LineageModel(Model):
 			warnings.warn("Creating New Volume event\n\ttype="+event_type+"\n\tparams="+str(event_params)+"\n\tprop_type="+str(event_propensity_type)+"\n\tprop_params="+str(propensity_params))
 		prop_object = self.create_propensity(event_propensity_type, propensity_params, print_out = print_out)
 
-		if event_type in ["linear", "Linear", "Linear Volume", "linear volume", "LinearVolume" "LinearVolumeEvent", "linear volume event", "Linear Volume Event"]:
+		if event_type.lower() in ["linear", "linear volume", "linearvolume" "linearvolumeevent", "linear volume event"]:
 			self._param_dict_check(event_params, "growth_rate", "DummyVar_LinearVolumeEvent")
 			event_object = LinearVolumeEvent()
-		elif event_type in ["multiplicative", "multiplicative", "Multiplicative Volume", "multiplicative volume", "MultiplicativeVolume", "MultiplicativeVolumeEvent", "Multiplicative Volume Event", "multiplicative volume event"]:
+		elif event_type.lower() in ["multiplicative", "multiplicative volume", "multiplicativevolume", "multiplicativevolumeevent", "multiplicative volume event"]:
 			self._param_dict_check(event_params, "growth_rate", "DummyVar_MultiplicativeVolumeEvent")
 			event_object = MultiplicativeVolumeEvent()
-		elif event_type in ["general", "General", "General Volume", "general volume", "GeneralVolume", "GeneralVolumeEvent", "General Volume Event", "general volume event"]:
+		elif event_type.lower() in ["general", "general volume", "generalvolume", "generalvolumeevent", "general volume event"]:
 			event_object = GeneralVolumeEvent()
 		else:
 			raise ValueError("Unknown VolumeEvent Type: "+str(event_type))
@@ -764,34 +780,34 @@ cdef class LineageModel(Model):
 			self._add_species(species_name)
 		for param_name in param_names:
 			self._add_param(param_name)
-		if "division" in rule_type or "Division" in rule_type:
+		if "division" in rule_type.lower():
 			if volume_splitter == None:
 				raise ValueError("DivisionRules must be added with a volume splitter object in add_lineage_rule.")
 			rule_object.initialize(rule_param_dict, self.species2index,  self.params2index)
 			self.division_rules_list.append((rule_object, volume_splitter))
 		else:
 			rule_object.initialize(rule_param_dict, self.species2index,  self.params2index)
-			if "death" in rule_type or "Death" in rule_type:
+			if "death" in rule_type.lower():
 				self.death_rules.append(rule_object)
-			elif "volume" in rule_type or "Volume" in rule_type:
+			elif "volume" in rule_type.lower():
 				self.volume_rules.append(rule_object)
 			else:
 				raise ValueError("add_lineage_rule only takes rules of type 'DeathRule', 'DivisionRule', and 'VolumeRule'. For Other rule types, consider trying Model.add_rule.")
 
 	def create_death_rule(self, str rule_type, dict rule_param_dict):
-		if rule_type in ["species", "Species", "SpeciesDeathRule"]:
+		if rule_type.lower() in ["species", "speciesdeathrule"]:
 			self._param_dict_check(rule_param_dict, "specie", "DummyVar_SpeciesDeathRule")
 			self._param_dict_check(rule_param_dict, "threshold", "DummyVar_SpeciesDeathRule")
 			if "noise" in rule_param_dict:
 				self._param_dict_check(rule_param_dict, "noise", "DummyVar_SpeciesDeathRule")
 			rule_object = SpeciesDeathRule()
-		elif rule_type in ["param", "parameter", "Param", "Parameter", "ParamDeathRule"]:
+		elif rule_type.lower() in ["param", "parameter", "paramdeathrule"]:
 			self._param_dict_check(rule_param_dict, "param", "DummyVar_ParamDeathRule")
 			self._param_dict_check(rule_param_dict, "threshold", "DummyVar_ParamDeathRule")
 			if "noise" in rule_param_dict:
 				self._param_dict_check(rule_param_dict, "noise", "DummyVar_ParamDeathRule")
 			rule_object = ParamDeathRule()
-		elif rule_type in ["general", "General", "GeneralDeathRule"]:
+		elif rule_type.lower() in ["general" "generaldeathrule"]:
 			rule_object = GeneralDeathRule()
 		else:
 			raise ValueError("Unknown DeathRule type: "+str(rule_type))
@@ -799,41 +815,41 @@ cdef class LineageModel(Model):
 		self.add_lineage_rule(rule_object, rule_param_dict, rule_type = "death")
 
 	def create_division_rule(self, str rule_type, dict rule_param_dict, VolumeSplitter volume_splitter):
-		if rule_type in ["time", "Time", "TimeDivisionRule"]:
+		if rule_type.lower() in ["time", "timedivisionrule"]:
 			self._param_dict_check(rule_param_dict, "threshold", "DummyVar_TimeDeathRule")
 			if "noise" in rule_param_dict:
 				self._param_dict_check(rule_param_dict, "noise", "DummyVar_TimeDeathRule")
 			rule_object = TimeDivisionRule()
-		elif rule_type in ["volume", "Volume", "VolumeDivisionRule"]:
+		elif rule_type.lower() in ["volume", "volumedivisionrule"]:
 			self._param_dict_check(rule_param_dict, "threshold", "DummyVar_VolumeDeathRule")
 			if "noise" in rule_param_dict:
 				self._param_dict_check(rule_param_dict, "noise", "DummyVar_VolumeDeathRule")
 			rule_object = VolumeDivisionRule()
-		elif rule_type in ["delta", "Delta", "deltaV", "DeltaV", "DeltaVDivisionRule"]:
+		elif rule_type.lower() in ["delta", "deltav", "deltavdivisionrule"]:
 			self._param_dict_check(rule_param_dict, "threshold", "DummyVar_DeltaVDeathRule")
 			if "noise" in rule_param_dict:
 				self._param_dict_check(rule_param_dict, "noise", "DummyVar_DeltaVDeathRule")
 			rule_object = DeltaVDivisionRule()
-		elif rule_type in ["general", "General", "GeneralDivisionRule"]:
+		elif rule_type.lower() in ["general", "generaldivisionrule"]:
 			rule_object = GeneralDivisionRule()
 		else:
 			raise ValueError("Unknown DivisionRule type: "+str(rule_type))
 		self.add_lineage_rule(rule_object, rule_param_dict, rule_type = 'division', volume_splitter = volume_splitter)
 
 	def create_volume_rule(self, str rule_type, dict rule_param_dict):
-		if rule_type in ["linear", "Linear", "LinearVolumeRule"]:
+		if rule_type.lower() in ["linear", "linearvolumerule"]:
 			self._param_dict_check(rule_param_dict, "growth_rate", "DummyVar_LinearVolumeRule")
 			if "noise" in rule_param_dict:
 				self._param_dict_check(rule_param_dict, "noise", "DummyVar_LinearVolumeRule")
 			rule_object = LinearVolumeRule()
-		elif rule_type in ["multiplicative", "MultiplicativeVolume", "MultiplicativeVolumeRule"]:
+		elif rule_type.lower() in ["multiplicative", "multiplicativevolume", "multiplicativevolumerule"]:
 			self._param_dict_check(rule_param_dict, "growth_rate", "DummyVar_MultiplicativeVolumeRule")
 			if "noise" in rule_param_dict:
 				self._param_dict_check(rule_param_dict, "noise", "DummyVar_MultiplicativeVolumeRule")
 			rule_object = MultiplicativeVolumeRule()
-		elif rule_type in ["assignment", "Assignment", "AssignmentVolumeRule"]:
+		elif rule_type.lower() in ["assignment", "assignmentvolumerule"]:
 			rule_object = AssignmentVolumeRule()
-		elif rule_type in ["ode", "ODE", "ODEVolumeRule"]:
+		elif rule_type.lower() in ["ode", "odevolumerule"]:
 			rule_object = ODEVolumeRule()
 		else:
 			raise ValueError("Unknown VolumeRule type: "+str(rule_type))
@@ -2519,7 +2535,13 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 
 
-	cdef list SimulateInteractingCellLineage(self, list interface_list, list initial_cell_states, np.ndarray timepoints, double global_sync_period, np.ndarray global_species_inds, double global_volume_param, double average_dist_threshold):
+	cdef list SimulateInteractingCellLineage(self, list interface_list, 
+											 list initial_cell_states, 
+											 np.ndarray timepoints, 
+											 double global_sync_period, 
+											 np.ndarray global_species_inds, 
+											 double global_volume_param, 
+											 double average_dist_threshold):
 		#print("Starting Interacting Lineage Simulation")
 
 		cdef unsigned i = 0
@@ -2662,10 +2684,22 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 	#Python accessor
 
-	def py_SimulateInteractingCellLineage(self, np.ndarray timepoints, list interface_list, list initial_cell_states, double global_sync_period, np.ndarray global_species_inds, double global_volume_param, double average_dist_threshold):
+	def py_SimulateInteractingCellLineage(self, np.ndarray timepoints, 
+										  list interface_list, 
+										  list initial_cell_states, 
+										  double global_sync_period, 
+										  np.ndarray global_species_inds, 
+										  double global_volume_param, 
+										  double average_dist_threshold):
 		self.set_c_timepoints(timepoints)
 		#print("py_SimulateInteractingCellLineage 2: timepoints.shape",timepoints.shape, timepoints[0], timepoints[timepoints.shape[0]-1])
-		lineage_list = self.SimulateInteractingCellLineage(interface_list, initial_cell_states, timepoints, global_sync_period, global_species_inds, global_volume_param, average_dist_threshold)
+		lineage_list = self.SimulateInteractingCellLineage(interface_list, 
+														   initial_cell_states, 
+														   timepoints, 
+														   global_sync_period, 
+														   global_species_inds, 
+														   global_volume_param, 
+														   average_dist_threshold)
 		#print("lineage_list in py_Simulate...", lineage_list)
 		return lineage_list
 

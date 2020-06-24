@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version2/core" level="3" version="2">
+  <model id="bioscrape_generated_model_728823" substanceUnits="mole" timeUnits="second" volumeUnits="litre" areaUnits="square_metre" lengthUnits="metre" extentUnits="mole">
+    <listOfUnitDefinitions>
+      <unitDefinition id="square_metre" name="square_metre">
+        <listOfUnits>
+          <unit kind="metre" exponent="2" scale="0" multiplier="1"/>
+        </listOfUnits>
+      </unitDefinition>
+    </listOfUnitDefinitions>
+    <listOfCompartments>
+      <compartment id="default" name="default" spatialDimensions="3" size="1e-06" constant="true"/>
+    </listOfCompartments>
+    <listOfSpecies>
+      <species id="A" name="A" compartment="default" initialConcentration="25" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="B" name="B" compartment="default" initialConcentration="25" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="C" name="C" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+    </listOfSpecies>
+    <listOfReactions>
+      <reaction id="r0" name="r0" reversible="false">
+        <annotation>
+          <PropensityType> type=general rate=(1+1.894*A^3.524+0.303*A^3.817)/(1+0.884*B^1.809+0.037*A^3.577+2.274*A^1.37+0.619*C^2.916)</PropensityType>
+        </annotation>
+        <listOfReactants>
+          <speciesReference species="A" stoichiometry="1" constant="false"/>
+          <speciesReference species="B" stoichiometry="1" constant="false"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference species="C" stoichiometry="1" constant="false"/>
+        </listOfProducts>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <divide/>
+              <apply>
+                <plus/>
+                <apply>
+                  <times/>
+                  <cn> 1.894 </cn>
+                  <apply>
+                    <power/>
+                    <ci> A </ci>
+                    <cn> 3.524 </cn>
+                  </apply>
+                </apply>
+                <apply>
+                  <times/>
+                  <cn> 0.303 </cn>
+                  <apply>
+                    <power/>
+                    <ci> A </ci>
+                    <cn> 3.817 </cn>
+                  </apply>
+                </apply>
+                <cn type="integer"> 1 </cn>
+              </apply>
+              <apply>
+                <plus/>
+                <apply>
+                  <times/>
+                  <cn> 2.274 </cn>
+                  <apply>
+                    <power/>
+                    <ci> A </ci>
+                    <cn> 1.37 </cn>
+                  </apply>
+                </apply>
+                <apply>
+                  <times/>
+                  <cn> 0.037 </cn>
+                  <apply>
+                    <power/>
+                    <ci> A </ci>
+                    <cn> 3.577 </cn>
+                  </apply>
+                </apply>
+                <apply>
+                  <times/>
+                  <cn> 0.884 </cn>
+                  <apply>
+                    <power/>
+                    <ci> B </ci>
+                    <cn> 1.809 </cn>
+                  </apply>
+                </apply>
+                <apply>
+                  <times/>
+                  <cn> 0.619 </cn>
+                  <apply>
+                    <power/>
+                    <ci> C </ci>
+                    <cn> 2.916 </cn>
+                  </apply>
+                </apply>
+                <cn type="integer"> 1 </cn>
+              </apply>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+    </listOfReactions>
+  </model>
+</sbml>

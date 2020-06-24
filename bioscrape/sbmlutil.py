@@ -4,15 +4,16 @@ from sympy.abc import _clash1
 import warnings
 from bioscrape.types import Model
 import libsbml
+from collections import OrderedDict # Need this to remove duplicates from lists
 
 def read_model_from_sbml(sbml_file):
     return import_sbml(sbml_file)
 
-def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
+def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwargs):
     """
     Convert SBML document to bioscrape Model object. Note that events, compartments, non-standard function definitions,
-    and some kinds of rules will be ignored. 
-    Adds mass action kinetics based reactions with the appropriate mass action propensity in bioscrape. 
+    and some kinds of rules will be ignored.
+    Adds mass action kinetics based reactions with the appropriate mass action propensity in bioscrape.
     Propensities with the correct annotation are added as compiled propensity types.
     All other propensities are added as general propensity.
     Local parameters are renamed if there is a conflict since bioscrape does not have a local environment.
@@ -34,7 +35,10 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
     model = doc.getModel()
     if model is None:
         raise ValueError("SBML File {0} not found. Model could not be read.".format(sbml_file))
-
+    if 'sbml_warnings' in kwargs:
+        sbml_warnings = kwargs.get('sbml_warnings')
+    else:
+        sbml_warnings = True
     # Parse through species and parameters and keep a set of both along with their values.
     allspecies = {}
     allparams = {}
@@ -59,7 +63,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
 
     # Now go through reactions one at a time to get stoich and rates, then append to reaction_list.
     for reaction in model.getListOfReactions():
-        # get the propensity 
+        # get the propensity
         kl = reaction.getKineticLaw()
         # capture any local parameters
         for p in kl.getListOfParameters():
@@ -79,27 +83,26 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
             allparams[pid] = 0.0
             if np.isfinite(p.getValue()):
                 allparams[pid] = p.getValue()
-
         # get the formula as a string and then add
         # a leading _ to parameter names
         kl_formula = libsbml.formulaToL3String(kl.getMath())
         rate_string = _add_underscore_to_parameters(kl_formula, allparams)
 
-        if reaction.getReversible():
+        if reaction.getReversible() and sbml_warnings:
             warnings.warn('SBML model contains reversible reaction!\n' +
                             'Please check rate expressions and ensure they are non-negative before doing '+
-                            'stochastic simulations.') 
+                            'stochastic simulations.')
 
-        #Get Reactants and Products    
+        #Get Reactants and Products
         reactant_list = []
         product_list = []
         for reactant in reaction.getListOfReactants():
             reactantspecies = model.getSpecies(reactant.getSpecies())
             reactantspecies_id = reactantspecies.getId()
             if reactantspecies_id in allspecies:
-                if np.isfinite(reactant.getStoichiometry()): 
+                if np.isfinite(reactant.getStoichiometry()):
                     for i in range(int(reactant.getStoichiometry())):
-                        reactant_list.append(reactantspecies_id)    
+                        reactant_list.append(reactantspecies_id)
                 else:
                     reactant_list.append(reactantspecies_id)
             else:
@@ -121,7 +124,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
                 else:
                     product_list.append(productspecies_id)
             else:
-                warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.' + 
+                warnings.warn('Reactant in reaction {0} not found in the list of species in the SBML model.' +
                             ' The species will be added with zero initial amount'.format(reaction.getId()))
                 allspecies[productspecies_id] = 0.0
                 if np.isfinite(product.getStoichiometry()):
@@ -140,7 +143,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
                     print('Annotation could not be read properly, adding reaction with general propensity.')
                 propensity_type = 'general'
                 general_kl_formula = {}
-                general_kl_formula['rate'] = rate_string 
+                general_kl_formula['rate'] = rate_string
                 rxn = (reactant_list, product_list, propensity_type, general_kl_formula)
             else:
                 # propensity_definition = {}
@@ -160,13 +163,13 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
         else: #No annotation found
             propensity_type = 'general'
             general_kl_formula = {}
-            general_kl_formula['rate'] = rate_string 
+            general_kl_formula['rate'] = rate_string
             rxn = (reactant_list, product_list, propensity_type, general_kl_formula)
             if input_printout:
                 print("Reaction found:", reactant_list, "->", product_list)
                 print("Annotated propensity found with general ratestring:", rate_string)
         allreactions.append(rxn)
-            
+
     # Go through rules one at a time
     allrules = []
     #"Rules must be a tuple: (rule_type (string), rule_attributes (dict), rule_frequency (optional))")
@@ -199,16 +202,12 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
         rule_tuple = (rule_type, rule_dict, rule_frequency)
         allrules.append(rule_tuple)
     
-    #print('allparams = {0}'.format(allparams))
-    #print('allspecies = {0}'.format(allspecies))
-    #print('allreactions = {0}'.format(allreactions))
-    #print(allrules)
-
     # Check and warn if there are any unrecognized components (function definitions, packages, etc.)
     if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0: 
-        warnings.warn('Compartments, UnitDefintions, Events, and some other SBML model components are not recognized by bioscrape. ' + 
+        if sbml_warnings:
+            warnings.warn('Compartments, UnitDefintions, Events, and some other SBML model components are not recognized by bioscrape. ' + 
                         'Refer to the bioscrape wiki for more information.')
-    
+
     #If no Model is passed into the function, a Model is returned
     if bioscrape_model == None:
         bioscrape_model = Model()
@@ -230,7 +229,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
             elif len(rxn) == 8:
                 reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict = rxn
             bioscrape_model.create_reaction(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict, input_printout = input_printout)
-        
+
         for rule in allrules:
             if len(rule) == 2:
                 rule_type, rule_attributes = rule
@@ -244,9 +243,9 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False):
     else:
         raise ValueError("bioscrape_model keyword must be a Bioscrape Model object or None (in which case a Model object is returned).")
 
-     
 
-# Helpful utility functions start here 
+
+# Helpful utility functions start here
 def _add_underscore_to_parameters(formula, parameters):
     sympy_rate = sympy.sympify(formula, _clash1)
     nodes = [sympy_rate]
@@ -277,7 +276,7 @@ def _get_species_list_in_formula(formula, species):
             if node.name in species:
                 species_return.append(node.name)
     return species_return
-                
+
 def _remove_underscore_from_parameters(formula, parameters):
     sympy_rate = sympy.sympify(formula, _clash1)
     nodes = [sympy_rate]
@@ -294,7 +293,8 @@ def _remove_underscore_from_parameters(formula, parameters):
 
 def create_sbml_model(compartment_id="default", time_units='second', extent_units='mole', substance_units='mole',
                       length_units='metre', area_units='square_metre', volume_units='litre', volume = 1e-6):
-    document = libsbml.SBMLDocument(3, 1)
+    # Create an empty SBML Document of Level 3 Version 2 of SBML
+    document = libsbml.SBMLDocument(3, 2) 
     model = document.createModel()
     model.setId('bioscrape_generated_model_' + str(np.random.randint(1e6)))
     # Define units for area (not used, but keeps COPASI from complaining)
@@ -330,7 +330,6 @@ def create_sbml_model(compartment_id="default", time_units='second', extent_unit
 # Creates an SBML id from a chemical_reaction_network.species object
 def species_sbml_id(species_name, document=None):
     # Construct the species ID
-    # species_id = repr(species).replace(" ", "_").replace(":", "_").replace("--", "_").replace("-", "_").replace("'", "")
     all_ids = []
     if document:
         all_ids = getAllIds(document.getListOfAllElements())
@@ -348,8 +347,13 @@ def add_species(model, compartment, species, debug=False, initial_concentration=
     # Construct the species name
     species_name = species
 
-    # Construct the species ID 
+    # Construct the species ID
     species_id = species_sbml_id(species_name, model.getSBMLDocument())
+    if species_name != species_id:
+        raise ValueError('Species names used are invalid strings to write into an SBML file.' + 
+                        'Remove colons, semicolons, and other special characters.' + 
+                        'Duplicate species names are also not allowed.' + 
+                        'Starting species names with numbers is also not allowed')
 
     if debug: print("Adding species", species_name, species_id)
     sbml_species = model.createSpecies()
@@ -372,9 +376,9 @@ def add_parameter(model, param_name, param_value, debug=False):
     parameter = model.createParameter()
     # all_ids = getAllIds(model.getSBMLDocument().getListOfAllElements())
     # trans = SetIdFromNames(all_ids)
-    # parameter.setId(trans.getValidIdForName(param_name)) 
+    # parameter.setId(trans.getValidIdForName(param_name))
     if debug: print("Adding parameter", param_name)
-    # param_name might be an invalid SBML identifier. But, if we change the name here 
+    # param_name might be an invalid SBML identifier. But, if we change the name here
     # then we need to make sure the changes are propagated to KineticLaws etc. TODO.
     if param_name[0] == '_':
         param_name = param_name.replace('_','',1)
@@ -394,9 +398,9 @@ def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, **kwargs):
     if rule_type == 'algebraic':
         raise NotImplementedError
     if rule_type == 'assignment' or rule_type == 'additive':
-        # Simply create SBML assignment rule type. For additive rule type as well, 
-        # AssignmentRule type of SBML will work as $s_0$ is the artificial species that 
-        # exists in the bioscrape model. 
+        # Simply create SBML assignment rule type. For additive rule type as well,
+        # AssignmentRule type of SBML will work as $s_0$ is the artificial species that
+        # exists in the bioscrape model.
         if rule_variable[0] == '_':
             rule_variable = rule_variable.replace('_','',1)
         for param in model.getListOfParameters():
@@ -412,26 +416,29 @@ def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, **kwargs):
         rule.setId(rule_id)
         rule.setName(rule_id)
         rule.setVariable(rule_variable)
-        rule.setFormula(rule_formula)  
-    return rule 
+        rule.setFormula(rule_formula)
+    return rule
 
 
 # Helper function to add a reaction to an sbml model
 # propensity params is a dictionary of the parameters for non-massaction propensities.
 # propensity_params is a dictionary with keyword 'rate' for general propensity
 def add_reaction(model, inputs_list, outputs_list,
-                 reaction_id, propensity_type, propensity_params, 
+                 reaction_id, propensity_type, propensity_params,
                  stochastic = False, propensity_annotation = True):
 
     # Create the reaction
-    inputs = list(set(inputs_list))
+    # We cast to an OrderedDict and back to remove duplicates.
+    # We could cast to a regular dict instead, but only in Python 3.7 or higher.
+    inputs = list(OrderedDict.fromkeys(inputs_list))
+    #inputs.sort()
     input_coefs = [inputs_list.count(i) for i in inputs]
-    outputs = list(set(outputs_list))
+    outputs = list(OrderedDict.fromkeys(outputs_list))
     output_coefs = [outputs_list.count(o) for o in outputs]
 
     reaction = model.createReaction()
     reaction.setReversible(False)
-    reaction.setFast(False) # Deprecated in SBML
+    # reaction.setFast(False) # Deprecated in SBML
     all_ids = getAllIds(model.getSBMLDocument().getListOfAllElements())
     trans = SetIdFromNames(all_ids)
     reaction.setId(trans.getValidIdForName(reaction_id))
@@ -494,7 +501,7 @@ def add_reaction(model, inputs_list, outputs_list,
                 ratestring += f" * {species_id}^{stoichiometry}"
             else:
                 ratestring += f" * {species_id}"
-    
+
     # Create the products
     products_list = []
     for i in range(len(outputs)):
@@ -599,7 +606,7 @@ def add_reaction(model, inputs_list, outputs_list,
             if s not in reactants_list and s not in products_list:
                 modifier = reaction.createModifier()
                 modifier.setSpecies(s)
-                
+
     ratestring = _remove_underscore_from_parameters(ratestring, allparams)
     # Set the ratelaw to the ratestring
     math_ast = libsbml.parseL3Formula(ratestring)
@@ -696,7 +703,7 @@ def renameSIds(document, oldSIds, newSIds, debug = False):
 
         if not libsbml.SyntaxChecker.isValidInternalSId(newSId):
             warnings.warn("The new SId '{0}' does not represent a valid SId.".format(newSId))
-            
+
 
         element = document.getElementBySId(oldSId)
 

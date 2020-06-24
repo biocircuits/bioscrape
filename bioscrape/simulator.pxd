@@ -81,7 +81,7 @@ cdef class CSimInterface:
     cdef vector[vector[int]] S_values
 
     cdef void prep_deterministic_simulation(self)
-    cdef void calculate_determinstic_derivative(self, double *x, double *dxdt, double t)
+    cdef void calculate_deterministic_derivative(self, double *x, double *dxdt, double t)
     # end of deterministic simulation stuff
 
     #method meant to be overwritten to check if interfaces/models are correct. called by simulators.
