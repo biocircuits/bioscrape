@@ -1146,6 +1146,7 @@ cdef class SingleCellSSAResult(VolumeSSAResult):
 		#cdef unsigned final_index = (<np.ndarray[np.double_t,ndim=1]> self.timepoints).shape[0]-1
 		cdef unsigned final_index = self.timepoints.shape[0]-1
 
+
 		if self.t0 is None:
 			self.set_initial_time(self.timepoints[0])
 		if self.v0 is None:
@@ -1392,10 +1393,15 @@ cdef class LineageSSASimulator:
 		self.initialize_single_cell_interface(interface)
 
 	#Allocates buffer to store results from SimulateSingleCell
-	cdef void initialize_single_cell_results_arrays(self, int num_timepoints):
-		cdef np.ndarray[np.double_t,ndim=2] results = np.zeros((num_timepoints,self.num_species))
+	cdef void initialize_single_cell_results_arrays(self, unsigned num_timepoints):
+		cdef np.ndarray[np.double_t,ndim=2] results 
+		cdef np.ndarray[np.double_t,ndim=1] volume_trace
+
+		if num_timepoints == 0:
+			num_timepoints = 1 
+		results = np.zeros((num_timepoints,self.num_species))
 		self.c_results = results
-		cdef np.ndarray[np.double_t,ndim=1] volume_trace = np.zeros(num_timepoints,)
+		volume_trace = np.zeros(num_timepoints,)
 		self.c_volume_trace = volume_trace
 
 	#python accessible version
@@ -1575,9 +1581,16 @@ cdef class LineageSSASimulator:
 				current_index += 1
 
 			if mode == 1:
-				timepoints = timepoints[:current_index]
-				self.c_volume_trace = self.c_volume_trace[:current_index]
-				self.c_results = self.c_results[:current_index,:]
+				if current_index == 0: #Can't return an empty array!
+					timepoints = timepoints[:current_index+1]
+					self.c_volume_trace = self.c_volume_trace[:current_index+1]
+					self.c_results = self.c_results[:current_index+1,:]
+					timepoints = timepoints[:current_index+1]
+				else:
+					timepoints = timepoints[:current_index]
+					self.c_volume_trace = self.c_volume_trace[:current_index]
+					self.c_results = self.c_results[:current_index,:]
+					timepoints = timepoints[:current_index]
 
 
 		if current_time > final_time + 10e-8:
@@ -2477,16 +2490,15 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 				#If the cell isn't dead or divided or at period time simulate it more
 				else:
-					#If there is only one timepoint left, push to the next period.
+					#If there is only one or two timepoints left, push to the next period.
 					self.c_truncated_timepoints = self.truncate_timepoints_less_than(timepoints, self.cs.get_time())
 
 					if len(self.c_truncated_timepoints) <= 2:
 						self.new_cell_states.append(self.cs)
 						if create_schnitzes:
 							self.new_schnitzes.append(self.s)
-
 					else:
-						#print("Calling from Coninue", "cs.get_time", self.cs.get_time(),"volume", self.cs.get_volume(), "final time", final_time)
+						#print("Calling from Continue", "cs.get_time", self.cs.get_time(),"volume", self.cs.get_volume(), "final time", final_time, "mode", create_schnitzes)
 						self.new_r = self.SimulateSingleCell(self.cs, self.c_truncated_timepoints, create_schnitzes) #create_schnitzes toggles the mode of the SimulateSingleCell to save/not save the entire trajectory
 						self.new_cs = self.new_r.get_final_cell_state()
 						self.new_cs.set_initial_vars(self.cs.get_initial_volume(), self.cs.get_initial_time())
@@ -2495,28 +2507,33 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 						#After simulation, merge the two SSA results
 						if create_schnitzes:
+							#print("A")
 							self.merge_r = SingleCellSSAResult(np.concatenate((self.s.get_time(), self.new_r.get_timepoints())),
 								np.concatenate((self.s.get_data(), self.new_r.get_result())),
 								np.concatenate((self.s.get_volume(), self.new_r.get_volume())),
 								self.new_r.get_divided() >= 0)
-
+							#print("after merged")
 							self.merge_r.set_divided(self.new_r.get_divided())
 							self.merge_r.set_dead(self.new_r.get_dead())
 							self.new_s = self.merge_r.get_schnitz()
 							self.new_s.set_parent(self.s.get_parent())
+							#print("B")
 
 
 						#Add schnitzes to the next period if they are done simulating
 						if self.new_cs.get_time() > final_time - self.dt:
+							#print("C")
 							self.new_cell_states.append(self.new_cs)
 							if create_schnitzes:
 								self.new_schnitzes.append(self.new_s)
 
 						#stay in the same period (perhaps they have died or divided)
 						else:
+							#print("D")
 							self.old_cell_states.append(self.new_cs)
 							if create_schnitzes:
 								self.old_schnitzes.append(self.new_s)
+							#print("D2")
 
 			#print("end of period loop bfefor updating the lists")
 			#After going through all the old_cell_states, make new_cell_states old.
@@ -2524,6 +2541,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			#print("end of simulate interacting lineage period: len(old_cell_states) = ", len(self.old_cell_states), "len new cell states", len(self.new_cell_states))
 			#print("old_cell_state_list", self.old_cell_state_list)
 			#print("new_cell_state_list", self.new_cell_state_list)
+
 			self.old_cell_state_list[interface_ind] = list(self.new_cell_states)
 			self.new_cell_state_list[interface_ind] = list()
 
@@ -2650,11 +2668,11 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 			#If a simulator is set, do the global CRN simulation
 			if self.global_ssa_simulator is not None or self.global_deterministic_simulator is not None:
+				#print("global simulation")
 				self.simulate_global_volume_crn(timepoints[(current_time<=timepoints)*(timepoints<=period_time)]) #results are stored in self.r
 				#Save final results via concatenation with previous results
 
-				#Only concatenate one thing at a time to debug old code below:
-				#
+				#Only concatenate one thing at a time to debug old code below
 
 				self.global_crn_result = VolumeSSAResult(
 					np.concatenate((self.global_crn_result.get_timepoints(), self.period_global_crn_result.get_timepoints()[1:])),
@@ -2679,7 +2697,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 				self.s = self.old_schnitzes[list_index]
 				self.lineage.add_schnitz(self.s)
 
-		#print("about to return lineage list", self.lineage_list)
+		#print("about to return lineage list", len(self.lineage_list), (<Lineage>self.lineage_list[0]).py_size)
 		return self.lineage_list
 
 	#Python accessor
@@ -2692,7 +2710,6 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 										  double global_volume_param, 
 										  double average_dist_threshold):
 		self.set_c_timepoints(timepoints)
-		#print("py_SimulateInteractingCellLineage 2: timepoints.shape",timepoints.shape, timepoints[0], timepoints[timepoints.shape[0]-1])
 		lineage_list = self.SimulateInteractingCellLineage(interface_list, 
 														   initial_cell_states, 
 														   timepoints, 
@@ -2700,7 +2717,8 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 														   global_species_inds, 
 														   global_volume_param, 
 														   average_dist_threshold)
-		#print("lineage_list in py_Simulate...", lineage_list)
+
+		#print("lineage_list in py_Simulate...", len(lineage_list))
 		return lineage_list
 
 
@@ -3049,7 +3067,7 @@ def py_SimulateInteractingCellLineage(timepoints, global_sync_period,
 		simulator = simulator, global_species_inds = global_species_inds, global_volume_simulator = global_volume_simulator, global_volume_model = global_volume_model, t0 = timepoints[0])
 
 	lineage_list = simulator.py_SimulateInteractingCellLineage(timepoints, interface_list, initial_cell_states, global_sync_period, global_species_inds, global_volume, average_dist_threshold)
-	#print("lineage_list returned")
+	#print("auxilary func lineage_list returned")
 	if global_volume_model is not None:
 		global_results = simulator.get_global_crn_results()
 		#print("global_results_returned")
@@ -3059,10 +3077,5 @@ def py_SimulateInteractingCellLineage(timepoints, global_sync_period,
 			global_results = pandas.DataFrame(data = global_species_array, columns = global_species)
 		else:
 			global_results = global_species_array
-	#print("about to return lineage_list, global_results", lineage_list, global_results)
-	randlist = [0, 1, 2]
-	np.random.shuffle(randlist)
-	sch_tree = lineage_list[0].get_schnitzes_by_generation()
-	sch_tree_length= len(sch_tree)
 
 	return lineage_list, global_results, simulator
