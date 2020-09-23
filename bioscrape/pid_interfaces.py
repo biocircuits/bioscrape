@@ -54,9 +54,9 @@ class PIDInterface():
                 lp += self.exponential_prior(key, value)
             elif prior_type == 'gamma':
                 lp += self.gamma_prior(key, value)
-            elif prior_type == 'log uniform':
+            elif prior_type == 'log-uniform':
                 lp += self.log_uniform_prior(key, value)
-            elif prior_type == 'log gaussian':
+            elif prior_type == 'log-gaussian':
                 lp += self.log_gaussian_prior(key, value)
             elif prior_type == 'beta':
                 lp += self.beta_prior(key, value)
@@ -97,10 +97,8 @@ class PIDInterface():
             raise ValueError('No prior found')
         mu = prior_dict[param_name][1]
         sigma = prior_dict[param_name][2]
-        # else:
-        #     raise ValueError('Prior dictionary does not have the correct syntax. For Gaussian prior, each parameter key must have' +
-        #                     'a list of ["gaussian", mean, variance] attached to it.')
-
+        if sigma < 0:
+            raise ValueError('The standard deviation must be positive.')
         # Using probability density function for normal distribution
         # Using scipy.stats.norm has overhead that affects speed up to 2x
         prob = 1/(np.sqrt(2*np.pi) * sigma) * np.exp((-0.5*param_value - mu)**2/sigma**2)
@@ -115,7 +113,17 @@ class PIDInterface():
         Check if given param_value is valid according to the prior distribution.
         Returns the log prior probability or np.inf if the param_value is invalid. 
         '''
-        raise NotImplementedError
+        prior_dict = self.prior
+        if prior_dict is None:
+            raise ValueError('No prior found')
+        lambda_p = prior_dict[param_name][1]
+
+        prob = lambda_p * np.exp(-lambda_p * param_value)
+        if prob > 1 or prob < 0:
+            warnings.warn('Probability greater than 1 or less than 0 while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+            return np.inf
+        else:
+            return np.log(prob)
     
     def gamma_prior(self, param_name, param_value):
         '''
@@ -136,13 +144,47 @@ class PIDInterface():
         Check if given param_value is valid according to the prior distribution.
         Returns the log prior probability or np.inf if the param_value is invalid. 
         '''
-        raise NotImplementedError
+        prior_dict = self.prior
+        if prior_dict is None:
+            raise ValueError('No prior found')
+        lower_bound = prior_dict[param_name][1]
+        upper_bound = prior_dict[param_name][2]
+
+        if lower_bound < 0 or upper_bound < 0:
+            raise ValueError('Upper and lower bounds for log-uniform prior must be positive.')
+
+        if param_value > upper_bound or param_value < lower_bound:
+            return np.inf
+
+        prob = 1/(param_value* (np.log(b) - np.log(a)))
+
+        if prob > 1 or prob < 0:
+            warnings.warn('Probability greater than 1 or less than 0 while checking Log-Uniform prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+            return np.inf
+        else:
+            return np.log(prob)
 
     def log_gaussian_prior(self, param_name, param_value):
         '''
         Check if given param_value is valid according to the prior distribution.
         Returns the log prior probability or np.inf if the param_value is invalid. 
         '''
+        prior_dict = self.prior
+        if prior_dict is None:
+            raise ValueError('No prior found')
+        mu = prior_dict[param_name][1]
+        sigma = prior_dict[param_name][2]
+        if sigma < 0:
+            raise ValueError('The standard deviation must be positive.')
+        # Using probability density function for log-normal distribution
+        prob = 1/(param_value * np.sqrt(2*np.pi) * sigma) * np.exp((-0.5 * (np.log(param_value) - mu)**2)/sigma**2)
+        if prob > 1 or prob < 0:
+            warnings.warn('Probability greater than 1 or less than 0 while checking log-normal prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+            return np.inf
+        else:
+            return np.log(prob)
+
+
         raise NotImplementedError
         
 # Add a new class similar to this to create new interfaces.
