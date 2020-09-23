@@ -65,7 +65,11 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
     for reaction in model.getListOfReactions():
         # get the propensity
         kl = reaction.getKineticLaw()
+
+
         # capture any local parameters
+        # also must save renamed local parameters to rename annotations later
+        renamed_params = {}
         for p in kl.getListOfParameters():
             pid = p.getId()
             if pid in allparams:
@@ -75,6 +79,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
                 # Rename the ID everywhere it's used (such as in the Kinetic Law)
                 kl.renameSIdRefs(oldid, newid)
                 p.setId(newid)
+                renamed_params[oldid] = newid #save the oldid-->newid mapping
                 # Rename its usages
                 for element in reaction.getListOfAllElements():
                     element.renameSIdRefs(oldid, newid)
@@ -132,6 +137,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
                         product_list.append(productspecies_id)
                 else:
                     product_list.append(productspecies_id)
+
         #Identify propensities based upon annotations
         annotation_string = reaction.getAnnotationString()
         if "PropensityType" in annotation_string:
@@ -151,6 +157,9 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
                 key_vals = [(i.split("=")[0], i.split("=")[1]) for i in annotation_list if "=" in i]
                 propensity_params = {}
                 for (k, v) in key_vals:
+                    #Change the name of a parameter if it was renamed earlier
+                    if v in renamed_params:
+                        v = renamed_params[v]
                     try:
                         propensity_params[k] = float(v)
                     except ValueError:
