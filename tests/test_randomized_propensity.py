@@ -124,8 +124,8 @@ def test_random_propensity_outputs(prop_type):
 
 	timepoints = np.arange(0, 50, .01)
 
-	results_d = py_simulate_model(timepoints, Model = model, stochastic = False)
-	results_s = py_simulate_model(timepoints, Model = model, stochastic = True)
+	results_d = py_simulate_model(timepoints, Model = model, stochastic = False, return_dataframe = False).py_get_result()
+	results_s = py_simulate_model(timepoints, Model = model, stochastic = True, return_dataframe = False).py_get_result()
 
 	test_results[prop_type + "_deterministic"] = results_d
 	test_results[prop_type + "_stochastic"]    = results_s
