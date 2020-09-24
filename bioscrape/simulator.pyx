@@ -2053,11 +2053,8 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
     elif not Model is None and not Interface is None:
         raise ValueError("py_simulate_model requires either a Model OR a CSimInterface to be passed in. Not both.")
     elif Interface is None:
-        if safe and stochastic:
+        if safe:
             Interface = SafeModelCSimInterface(Model)
-        elif safe:
-            warnings.warn("Safe=True is only an option for stochastic simulation")
-            Interface = ModelCSimInterface(Model)
         else:
             Interface = ModelCSimInterface(Model)
     elif not Interface is None and safe:
