@@ -595,6 +595,54 @@ cdef class SSAResult:
             return self.py_get_result()
 
 
+    def py_empirical_distribution(self, burn_in, species = None, Model = None):
+        species_inds = []
+        if species is None:
+            species_inds = self.simulation_result.shape[1]
+        else:
+            for s in species:
+                if isinstance(s, int):
+                    species_inds.append(s)
+                elif isinstance(s, str) and Model is None:
+                    raise ValueError("Must pass in a Model along with species list if using species' names.")
+                elif isinstance(s, str) and s in Model.get_species2index():
+                    species_inds.append(Model.get_species2index()[s])
+                else:
+                    raise ValueError(f"Unknown species {s}.")
+
+            return self.empirical_distribution(burn_in, species_inds)
+
+    #calculates the empirical distribution of a trajectory over counts
+    #   burn_in: the time to begin the empirical calculation
+    #   species_inds: the list of species inds to calculate over. Marginalizes over non-included inds
+    cdef np.ndarray empirical_distribution(self, double burn_in, list species_inds):
+        cdef unsigned s, t, tstart, N_species, size
+        cdef double dP
+        cdef np.ndarray dist
+        cdef np.ndarray max_counts #max species counts
+        cdef np.ndarray[np.int_t, ndim=1] index_ar #index array
+
+        #print("A")
+        N_species = len(species_inds)
+        index_ar = np.zeros(N_species, dtype = np.int_)
+        tstart = len(self.timepoints[self.timepoints < burn_in])
+        #print("A2")
+        dP = 1./(len(self.timepoints) - tstart) #amount of probability to add per timepoint
+        max_counts = np.amax(self.simulation_result[tstart:, :], 0) #the maximum number of each species
+        #print("max_counts", max_counts)
+        dist = np.zeros(tuple(max_counts.astype(np.int_)+1)) #store the distribution here
+        #print("dist.shape", [dist.shape[i] for i in range(N_species)])
+
+        #print("B")
+        for t in range(tstart, len(self.timepoints), 1):
+            #ind = 0
+            for s in range(N_species):
+                index_ar[s] = <np.int_t>self.simulation_result[t, s]
+                #print("t, s", self.simulation_result[t, s], "index_ar", index_ar)
+            ind = tuple(index_ar)
+            dist[ind] = dist[ind] + dP
+
+        return dist
 
 cdef class DelaySSAResult(SSAResult):
     def __init__(self, np.ndarray timepoints, np.ndarray result, DelayQueue queue):
