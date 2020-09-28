@@ -595,11 +595,12 @@ cdef class SSAResult:
             return self.py_get_result()
 
 
-    def py_empirical_distribution(self, burn_in, species = None, Model = None):
-        species_inds = []
+    def py_empirical_distribution(self, start_time = None, species = None, Model = None, final_time = None):
+        
         if species is None:
             species_inds = self.simulation_result.shape[1]
         else:
+            species_inds = []
             for s in species:
                 if isinstance(s, int):
                     species_inds.append(s)
@@ -610,39 +611,50 @@ cdef class SSAResult:
                 else:
                     raise ValueError(f"Unknown species {s}.")
 
-            return self.empirical_distribution(burn_in, species_inds)
+        if start_time is None:
+            start_time = self.timepoints[0]
+        elif start_time < self.timepoints[0]:
+            raise ValueError(f"final_time={start_time} is greater than simulation_start={self.timepoints[0]}")
+
+        if final_time is None:
+            final_time = self.timepoints[-1]
+        elif final_time > self.timepoints[-1]:
+            raise ValueError(f"final_time={final_time} is greater than simulation_time={self.timepoints[-1]}")
+
+        return self.empirical_distribution(start_time, species_inds, final_time)
 
     #calculates the empirical distribution of a trajectory over counts
     #   burn_in: the time to begin the empirical calculation
     #   species_inds: the list of species inds to calculate over. Marginalizes over non-included inds
-    cdef np.ndarray empirical_distribution(self, double burn_in, list species_inds):
-        cdef unsigned s, t, tstart, N_species, size
-        cdef double dP
-        cdef np.ndarray dist
-        cdef np.ndarray max_counts #max species counts
-        cdef np.ndarray[np.int_t, ndim=1] index_ar #index array
+    cdef np.ndarray empirical_distribution(self, double start_time, list species_inds, double final_time):
+        cdef unsigned s, t, ind, prod
+        cdef unsigned tstart = len(self.timepoints[self.timepoints < start_time])
+        cdef unsigned tend = len(self.timepoints[self.timepoints <= final_time])
+        cdef unsigned N_species = len(species_inds)
+        cdef double dP = 1./(len(self.timepoints) - tstart)
+        cdef np.ndarray[np.int_t, ndim=1] index_ar = np.zeros(N_species, dtype = np.int_) #index array
+        cdef np.ndarray[np.double_t, ndim = 1] dist
+        cdef np.ndarray[np.int_t, ndim = 1] max_counts = np.zeros(N_species, dtype = np.int_) #max species counts
 
-        #print("A")
-        N_species = len(species_inds)
-        index_ar = np.zeros(N_species, dtype = np.int_)
-        tstart = len(self.timepoints[self.timepoints < burn_in])
-        #print("A2")
-        dP = 1./(len(self.timepoints) - tstart) #amount of probability to add per timepoint
-        max_counts = np.amax(self.simulation_result[tstart:, :], 0) #the maximum number of each species
-        #print("max_counts", max_counts)
-        dist = np.zeros(tuple(max_counts.astype(np.int_)+1)) #store the distribution here
-        #print("dist.shape", [dist.shape[i] for i in range(N_species)])
+        #Calculate max species counts
+        for i in range(N_species):
+            s = species_inds[i]
+            max_counts[i] = np.amax(self.simulation_result[tstart:, s], 0)+1 #the maximum number of each species
 
-        #print("B")
-        for t in range(tstart, len(self.timepoints), 1):
-            #ind = 0
-            for s in range(N_species):
-                index_ar[s] = <np.int_t>self.simulation_result[t, s]
-                #print("t, s", self.simulation_result[t, s], "index_ar", index_ar)
-            ind = tuple(index_ar)
+        #dist = np.zeros(tuple(max_counts.astype(np.int_)+1))#store the distribution here
+        dist = np.zeros(np.prod(max_counts)) #Flattened array
+
+        for t in range(tstart, tend, 1):
+            #Code for Flat dist arrays
+            prod = 1 #a product to represent the size of different dimensions of the flattened array
+            ind = 0
+            for i in range(N_species, 0, -1):#Go through species index backwards
+                s = species_inds[i-1] 
+                ind = ind + prod*<np.int_t>self.simulation_result[t, s]
+                prod = prod * max_counts[i-1] #update the product for the next index
             dist[ind] = dist[ind] + dP
 
-        return dist
+        return np.reshape(dist, tuple(max_counts))
 
 cdef class DelaySSAResult(SSAResult):
     def __init__(self, np.ndarray timepoints, np.ndarray result, DelayQueue queue):

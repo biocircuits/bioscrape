@@ -162,7 +162,7 @@ cdef class SSAResult:
     cdef np.ndarray timepoints
     cdef np.ndarray simulation_result
 
-    cdef np.ndarray empirical_distribution(self, double burn_in, list species_inds)
+    cdef np.ndarray empirical_distribution(self, double burn_in, list species_inds, double tend)
 
     cdef inline np.ndarray get_timepoints(self):
         return self.timepoints
