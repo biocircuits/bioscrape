@@ -12,7 +12,8 @@ def test_sbml_with_and_without_annotations():
     model_path    = os.path.join(os.path.dirname(__file__), "frozen_sbml_outputs")
 
     #an annotated SBML file with local parameters
-    sbml_annotated_local = model_path+"\\models\\sbml_annotated_local.xml"
+    #sbml_annotated_local = model_path+"\\models\\sbml_annotated_local.xml"
+    sbml_annotated_local = os.path.join(model_path,"models", "sbml_annotated_local.xml")
     CRN1 = Model(sbml_filename = sbml_annotated_local, sbml_warnings = False)
     R1 = py_simulate_model(Model = CRN1, timepoints = timepoints)
     #Check that the simulation results contain all relevant species
@@ -21,7 +22,9 @@ def test_sbml_with_and_without_annotations():
     assert "Z" in R1
 
     #an unnotated SBML file with local parameters
-    sbml_local = model_path+"\\models\\sbml_local.xml"
+    #sbml_local = model_path+"\\models\\sbml_local.xml"
+    sbml_local =  os.path.join(model_path,"models", "sbml_local.xml")
+
     CRN2 = Model(sbml_filename = sbml_local, sbml_warnings = False)
     R2 = py_simulate_model(Model = CRN2, timepoints = timepoints)
     #Check that the simulation results contain all relevant species
@@ -31,7 +34,9 @@ def test_sbml_with_and_without_annotations():
 
     #an annotated SBML file with global parameters
 
-    sbml_annotated_global= model_path+"\\models\\sbml_annotated_global.xml"
+    
+    #sbml_annotated_global= model_path+"\\models\\sbml_annotated_global.xml"
+    sbml_annotated_global = os.path.join(model_path,"models", "sbml_annotated_global.xml")
     CRN3 = Model(sbml_filename = sbml_annotated_global)
     R3 = py_simulate_model(Model = CRN3, timepoints = timepoints)
     #Check that the simulation results contain all relevant species
@@ -40,7 +45,7 @@ def test_sbml_with_and_without_annotations():
     assert "Z" in R3
 
     #an unnotated SBML file with global parameters
-    sbml_global = model_path+"\\models\\sbml_global.xml"
+    sbml_global = os.path.join(model_path,"models", "sbml_global.xml")
     CRN4 = Model(sbml_filename = sbml_global, sbml_warnings = False)
     R4 = py_simulate_model(Model = CRN4, timepoints = timepoints)
     #Check that the simulation results contain all relevant species
