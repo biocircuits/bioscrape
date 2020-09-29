@@ -73,11 +73,13 @@ def test_sbml_resaving_local_params_to_global_with_bs_annotation():
     timepoints = np.arange(0, 10, .1)
     model_path = os.path.join(os.path.dirname(__file__), "frozen_sbml_outputs")
 
-    sbml_annotated_local = model_path+"\\models\\sbml_annotated_local.xml"
+    #sbml_annotated_local = model_path+"\\models\\sbml_annotated_local.xml"
+    sbml_annotated_local = os.path.join(model_path, "models", "sbml_annotated_local.xml")
     CRN1 = Model(sbml_filename = sbml_annotated_local, sbml_warnings = False)
     R1 = py_simulate_model(Model = CRN1, timepoints = timepoints)
 
-    sbml_annotated_local_bs = model_path+"\\models\\sbml_annotated_local_bs.xml"
+    #sbml_annotated_local_bs = model_path+"\\models\\sbml_annotated_local_bs.xml"
+    sbml_annotated_local_bs = os.path.join(model_path, "models", "sbml_annotated_local_bs.xml")
     CRN1.write_sbml_model(sbml_annotated_local_bs)
     CRN1l = Model(sbml_filename = sbml_annotated_local_bs, sbml_warnings = False)
     R1l = py_simulate_model(Model = CRN1l, timepoints = timepoints)
