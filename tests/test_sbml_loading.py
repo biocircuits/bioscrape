@@ -97,11 +97,13 @@ def test_sbml_resaving_global_params_with_bs_annotation():
     model_path = os.path.join(os.path.dirname(__file__), "frozen_sbml_outputs")
     #an annotated SBML file with global parameters
 
-    sbml_annotated_global= model_path+"\\models\\sbml_annotated_global.xml"
+    #sbml_annotated_global= model_path+"\\models\\sbml_annotated_global.xml"
+    sbml_annotated_global = os.path.join(model_path,"models", "sbml_annotated_global.xml")
     CRN3 = Model(sbml_filename = sbml_annotated_global)
     R3 = py_simulate_model(Model = CRN3, timepoints = timepoints)
 
-    sbml_annotated_global_bs = model_path+"\\models\\sbml_annotated_global_bs.xml"
+    #sbml_annotated_global_bs = model_path+"\\models\\sbml_annotated_global_bs.xml"
+    sbml_annotated_global_bs = os.path.join(model_path,"models", "sbml_annotated_global_bs.xml")
     CRN3.write_sbml_model(sbml_annotated_global_bs)
     CRN3l = Model(sbml_filename = sbml_annotated_global_bs, sbml_warnings = False)
     R3l = py_simulate_model(Model = CRN3l, timepoints = timepoints)
@@ -125,11 +127,13 @@ def test_sbml_resaving_local_params_to_global_no_bs_annotation():
         timepoints = np.arange(0, 10, .1)
         model_path = os.path.join(os.path.dirname(__file__), "frozen_sbml_outputs")
         #an unnotated SBML file with local parameters
-        sbml_local = model_path+"\\models\\sbml_local.xml"
+        #sbml_local = model_path+"\\models\\sbml_local.xml"
+        sbml_local = os.path.join(model_path,"models", "sbml_local.xml")
         CRN2 = Model(sbml_filename = sbml_local, sbml_warnings = False)
         R2 = py_simulate_model(Model = CRN2, timepoints = timepoints)
 
-        sbml_local_bs = model_path+"\\models\\sbml_local_bs.xml"
+        #sbml_local_bs = model_path+"\\models\\sbml_local_bs.xml"
+        sbml_local_bs = os.path.join(model_path,"models", "sbml_local_bs.xml")
         CRN2.write_sbml_model(sbml_local_bs)
         CRN2l = Model(sbml_filename = sbml_local_bs, sbml_warnings = False)
         R2l = py_simulate_model(Model = CRN2l, timepoints = timepoints)
@@ -144,12 +148,16 @@ def test_sbml_resaving_global_params_no_bs_annotation():
     if False:
         timepoints = np.arange(0, 10, .1)
         model_path = os.path.join(os.path.dirname(__file__), "frozen_sbml_outputs")
+
         #an unnotated SBML file with global parameters
-        sbml_global = model_path+"\\models\\sbml_global.xml"
+        #sbml_global = model_path+"\\models\\sbml_global.xml"
+        sbml_global = os.path.join(model_path,"models", "sbml_global.xml")
+
         CRN4 = Model(sbml_filename = sbml_global, sbml_warnings = False)
         R4 = py_simulate_model(Model = CRN4, timepoints = timepoints)
 
-        sbml_global_bs = model_path+"\\models\\sbml_global_bs.xml"
+        #sbml_global_bs = model_path+"\\models\\sbml_global_bs.xml"
+        sbml_global_bs = os.path.join(model_path,"models", "sbml_global_bs.xml")
         CRN4.write_sbml_model(sbml_global_bs)
         CRN4l = Model(sbml_filename = sbml_global_bs, sbml_warnings = False)
         R4l = py_simulate_model(Model = CRN4l, timepoints = timepoints)
