@@ -18,9 +18,6 @@
     </listOfSpecies>
     <listOfReactions>
       <reaction id="r0" name="r0" reversible="false">
-        <annotation>
-          <PropensityType> type=general rate=(1+1.894*A^3.524+0.303*A^3.817)/(1+0.884*B^1.809+0.037*A^3.577+2.274*A^1.37+0.619*C^2.916)</PropensityType>
-        </annotation>
         <listOfReactants>
           <speciesReference species="A" stoichiometry="1" constant="false"/>
           <speciesReference species="B" stoichiometry="1" constant="false"/>
