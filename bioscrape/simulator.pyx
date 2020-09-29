@@ -398,7 +398,6 @@ cdef class CSimInterface:
         cdef double *prop = <double*> (self.propensity_buffer.data)
         self.compute_propensities(x,  prop, t)
 
-
         cdef unsigned s
         cdef unsigned j
         for s in range(self.num_species):
@@ -565,6 +564,33 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
             warnings.warn("Volume="+str(volume)+" > Max Volume="+str(self.max_volume))
         elif volume <= 0:
             warnings.warn("Volume="+str(volume)+" > Max Volume="+str(self.max_volume))
+
+    # Compute deterministic derivative
+    # This version safegaurds against species counts going negative 
+    # by not allowing reactions to fire if they consume a species of 0 concentration.
+    cdef void calculate_deterministic_derivative(self, double *x, double *dxdt, double t):
+        # Get propensities before doing anything else.
+        cdef double *prop = <double*> (self.propensity_buffer.data)
+        self.compute_propensities(x,  prop, t)
+
+        cdef unsigned s
+        cdef unsigned j
+        for s in range(self.num_species):
+
+            #Reset negative species concentrations to 0
+            if x[s] < 0:
+                x[s] = 0
+
+            dxdt[s] = 0
+            for j in range(self.S_indices[s].size()):
+                if self.S_values[s][j] <= 0 and x[s] <= 0:
+                    pass #Skip reactions that consume species of 0 concentration
+                else:
+                    dxdt[s] += prop[ self.S_indices[s][j]  ] * self.S_values[s][j]
+
+            #Verify that species do not go negative.
+            if x[s] <= 0 and dxdt[s] < 0:
+                dxdt[s] = 0
 
 cdef class SSAResult:
     def __init__(self, np.ndarray timepoints, np.ndarray result):
@@ -2027,11 +2053,8 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
     elif not Model is None and not Interface is None:
         raise ValueError("py_simulate_model requires either a Model OR a CSimInterface to be passed in. Not both.")
     elif Interface is None:
-        if safe and stochastic:
+        if safe:
             Interface = SafeModelCSimInterface(Model)
-        elif safe:
-            warnings.warn("Safe=True is only an option for stochastic simulation")
-            Interface = ModelCSimInterface(Model)
         else:
             Interface = ModelCSimInterface(Model)
     elif not Interface is None and safe:
