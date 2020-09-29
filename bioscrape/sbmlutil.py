@@ -65,7 +65,11 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
     for reaction in model.getListOfReactions():
         # get the propensity
         kl = reaction.getKineticLaw()
+
+
         # capture any local parameters
+        # also must save renamed local parameters to rename annotations later
+        renamed_params = {}
         for p in kl.getListOfParameters():
             pid = p.getId()
             if pid in allparams:
@@ -75,6 +79,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
                 # Rename the ID everywhere it's used (such as in the Kinetic Law)
                 kl.renameSIdRefs(oldid, newid)
                 p.setId(newid)
+                renamed_params[oldid] = newid #save the oldid-->newid mapping
                 # Rename its usages
                 for element in reaction.getListOfAllElements():
                     element.renameSIdRefs(oldid, newid)
@@ -132,6 +137,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
                         product_list.append(productspecies_id)
                 else:
                     product_list.append(productspecies_id)
+
         #Identify propensities based upon annotations
         annotation_string = reaction.getAnnotationString()
         if "PropensityType" in annotation_string:
@@ -151,6 +157,9 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
                 key_vals = [(i.split("=")[0], i.split("=")[1]) for i in annotation_list if "=" in i]
                 propensity_params = {}
                 for (k, v) in key_vals:
+                    #Change the name of a parameter if it was renamed earlier
+                    if v in renamed_params:
+                        v = renamed_params[v]
                     try:
                         propensity_params[k] = float(v)
                     except ValueError:
@@ -167,7 +176,8 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
             rxn = (reactant_list, product_list, propensity_type, general_kl_formula)
             if input_printout:
                 print("Reaction found:", reactant_list, "->", product_list)
-                print("Annotated propensity found with general ratestring:", rate_string)
+                print("Propensity found with general ratestring:", rate_string)
+
         allreactions.append(rxn)
 
     # Go through rules one at a time
@@ -453,7 +463,7 @@ def add_reaction(model, inputs_list, outputs_list,
     allparams = {}
     for p in model.getListOfParameters():
         pid = p.getId()
-        pid = '_' + pid
+        pid = '_' + pid 
         allparams[pid] = p.getValue()
     ratelaw = reaction.createKineticLaw()
     #Create Local Propensity Parameters
@@ -469,7 +479,8 @@ def add_reaction(model, inputs_list, outputs_list,
         annotation_dict["n"] = propensity_params['n']
 
     elif propensity_type == "general":
-        annotation_dict["rate"] = propensity_params['rate']
+        pass
+        #annotation_dict["rate"] = propensity_params['rate']
     else:
         raise ValueError(propensity_type+" is not a supported propensity_type")
 
@@ -601,6 +612,7 @@ def add_reaction(model, inputs_list, outputs_list,
         annotation_dict["d"] = d_species_id
     elif propensity_type == "general":
         ratestring = propensity_params['rate']
+
         species_list = _get_species_list_in_formula(ratestring, allspecies)
         for s in species_list:
             if s not in reactants_list and s not in products_list:
@@ -612,7 +624,8 @@ def add_reaction(model, inputs_list, outputs_list,
     math_ast = libsbml.parseL3Formula(ratestring)
     ratelaw.setMath(math_ast)
 
-    if propensity_annotation:
+    #Add propensity annotation
+    if propensity_annotation and propensity_type != "general":
         annotation_string = "<PropensityType>"
         for k in annotation_dict:
             annotation_string += " "+k + "=" + str(annotation_dict[k])

@@ -722,7 +722,7 @@ def sympy_species_and_parameters(instring):
     species_names = [s for s in names if (s[0] != '_' and s != 'volume' and s != 't')]
     param_names = [s[1:] for s in names if s[0] == '_']
 
-    return species_names,param_names
+    return species_names, param_names
 
 def sympy_recursion(tree, species2index, params2index):
     cdef SumTerm sumterm
@@ -770,9 +770,7 @@ def sympy_recursion(tree, species2index, params2index):
         powerterm.set_exponent( sympy_recursion(args[1], species2index,params2index) )
         return powerterm
 
-
     # check exp and log
-
     elif type(tree) == sympy.exp:
         expterm = ExpTerm()
         expterm.set_arg( sympy_recursion(args[0],species2index,params2index) )
@@ -784,7 +782,6 @@ def sympy_recursion(tree, species2index, params2index):
         return logterm
 
     # check Heaviside
-
     elif type(tree) == sympy.Heaviside:
         stepterm = StepTerm()
         stepterm.set_arg( sympy_recursion(args[0],species2index,params2index) )
