@@ -57,14 +57,17 @@ def test_sbml_with_and_without_annotations():
     assert all(R1["X"] == R2["X"])
     assert all(R1["Y"] == R2["Y"])
     assert all(R1["Z"] == R2["Z"])
+    assert set(R1.columns) == set(R2.columns)
 
     assert all(R1["X"] == R3["X"])
     assert all(R1["Y"] == R3["Y"])
     assert all(R1["Z"] == R3["Z"])
+    assert set(R1.columns) == set(R3.columns)
 
     assert all(R3["X"] == R4["X"])
     assert all(R3["Y"] == R4["Y"])
     assert all(R3["Z"] == R4["Z"])
+    assert set(R3.columns) == set(R4.columns)
 
 
 def test_sbml_resaving_local_params_to_global_with_bs_annotation():
@@ -88,6 +91,7 @@ def test_sbml_resaving_local_params_to_global_with_bs_annotation():
     assert all(R1["X"] == R1l["X"])
     assert all(R1["Y"] == R1l["Y"])
     assert all(R1["Z"] == R1l["Z"])
+    assert set(R1.columns) == set(R1l.columns)
 
 
 
@@ -113,6 +117,7 @@ def test_sbml_resaving_global_params_with_bs_annotation():
     assert all(R3["X"] == R3l["X"])
     assert all(R3["Y"] == R3l["Y"])
     assert all(R3["Z"] == R3l["Z"])
+    assert set(R3.columns) == set(R3l.columns)
 
 
 
@@ -125,45 +130,49 @@ def test_sbml_resaving_global_params_with_bs_annotation():
 def test_sbml_resaving_local_params_to_global_no_bs_annotation():
     #loads an SBML file with local parameters and no bioscrape annotations
     #resaves it via bioscrape, reloads it, simulates, and comapares results.
-    if False:
-        timepoints = np.arange(0, 10, .1)
-        model_path = os.path.join(os.path.dirname(__file__), "frozen_sbml_outputs")
-        #an unnotated SBML file with local parameters
-        #sbml_local = model_path+"\\models\\sbml_local.xml"
-        sbml_local = os.path.join(model_path,"models", "sbml_local.xml")
-        CRN2 = Model(sbml_filename = sbml_local, sbml_warnings = False)
-        R2 = py_simulate_model(Model = CRN2, timepoints = timepoints)
+    
+    timepoints = np.arange(0, 10, .1)
+    model_path = os.path.join(os.path.dirname(__file__), "frozen_sbml_outputs")
+    #an unnotated SBML file with local parameters
+    #sbml_local = model_path+"\\models\\sbml_local.xml"
+    sbml_local = os.path.join(model_path,"models", "sbml_local.xml")
+    CRN2 = Model(sbml_filename = sbml_local, sbml_warnings = False)
+    R2 = py_simulate_model(Model = CRN2, timepoints = timepoints)
 
-        #sbml_local_bs = model_path+"\\models\\sbml_local_bs.xml"
-        sbml_local_bs = os.path.join(model_path,"models", "sbml_local_bs.xml")
-        CRN2.write_sbml_model(sbml_local_bs)
-        CRN2l = Model(sbml_filename = sbml_local_bs, sbml_warnings = False)
-        R2l = py_simulate_model(Model = CRN2l, timepoints = timepoints)
-        #Check that the saved and loaded models match
-        assert all(R2["X"] == R2l["X"])
-        assert all(R2["Y"] == R2l["Y"])
-        assert all(R2["Z"] == R2l["Z"])
+    #sbml_local_bs = model_path+"\\models\\sbml_local_bs.xml"
+    sbml_local_bs = os.path.join(model_path,"models", "sbml_local_bs.xml")
+    CRN2.write_sbml_model(sbml_local_bs)
+    CRN2l = Model(sbml_filename = sbml_local_bs, sbml_warnings = False)
+    R2l = py_simulate_model(Model = CRN2l, timepoints = timepoints)
+    #Check that the saved and loaded models match
+    assert set(R2.columns) == set(R2l.columns)
+    assert all(R2["X"] == R2l["X"])
+    assert all(R2["Y"] == R2l["Y"])
+    assert all(R2["Z"] == R2l["Z"])
+    
 
 def test_sbml_resaving_global_params_no_bs_annotation():
     #loads an SBML file with global parameters and no bioscrape annotations
     #resaves it via bioscrape, reloads it, simulates, and comapares results.
-    if False:
-        timepoints = np.arange(0, 10, .1)
-        model_path = os.path.join(os.path.dirname(__file__), "frozen_sbml_outputs")
+    
+    timepoints = np.arange(0, 10, .1)
+    model_path = os.path.join(os.path.dirname(__file__), "frozen_sbml_outputs")
 
-        #an unnotated SBML file with global parameters
-        #sbml_global = model_path+"\\models\\sbml_global.xml"
-        sbml_global = os.path.join(model_path,"models", "sbml_global.xml")
+    #an unnotated SBML file with global parameters
+    #sbml_global = model_path+"\\models\\sbml_global.xml"
+    sbml_global = os.path.join(model_path,"models", "sbml_global.xml")
 
-        CRN4 = Model(sbml_filename = sbml_global, sbml_warnings = False)
-        R4 = py_simulate_model(Model = CRN4, timepoints = timepoints)
+    CRN4 = Model(sbml_filename = sbml_global, sbml_warnings = False)
+    R4 = py_simulate_model(Model = CRN4, timepoints = timepoints)
 
-        #sbml_global_bs = model_path+"\\models\\sbml_global_bs.xml"
-        sbml_global_bs = os.path.join(model_path,"models", "sbml_global_bs.xml")
-        CRN4.write_sbml_model(sbml_global_bs)
-        CRN4l = Model(sbml_filename = sbml_global_bs, sbml_warnings = False)
-        R4l = py_simulate_model(Model = CRN4l, timepoints = timepoints)
-        #Check that the saved and loaded models match
-        assert all(R4["X"] == R4l["X"])
-        assert all(R4["Y"] == R4l["Y"])
-        assert all(R4["Z"] == R4l["Z"])
+    #sbml_global_bs = model_path+"\\models\\sbml_global_bs.xml"
+    sbml_global_bs = os.path.join(model_path,"models", "sbml_global_bs.xml")
+    CRN4.write_sbml_model(sbml_global_bs)
+    CRN4l = Model(sbml_filename = sbml_global_bs, sbml_warnings = False)
+    R4l = py_simulate_model(Model = CRN4l, timepoints = timepoints)
+    #Check that the saved and loaded models match
+    assert set(R4.columns) == set(R4l.columns)
+    assert all(R4["X"] == R4l["X"])
+    assert all(R4["Y"] == R4l["Y"])
+    assert all(R4["Z"] == R4l["Z"])
+    

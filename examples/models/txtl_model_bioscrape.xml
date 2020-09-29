@@ -14,6 +14,7 @@
 <parameter name="delta" value="0.1" />
 <parameter name="I0" value="10.0" />
 <parameter name="T_I0" value="50.0" />
+<parameter name="S" value="nan" />
 
 <reaction text= "G -- G + T ">
 	<propensity type="proportionalhillpositive" d="G" s1="I" k="ktx" K="KI" n="n" />
