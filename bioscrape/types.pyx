@@ -1562,7 +1562,6 @@ cdef class Model:
             #Now no species should be added here
             pass
         for param_name in param_names:
-            print("add_reaction adding param", param_name)
             self._add_param(param_name)
 
         self.reaction_updates.append(reaction_update_dict)
@@ -1580,7 +1579,6 @@ cdef class Model:
             #Now anything not declared as a Species will be interpreted as a parameter
             pass
         for param_name in param_names:
-            print("add_reaction delay adding param", param_name)
             self._add_param(param_name)
 
         #Moved to Model._initialize
@@ -1977,6 +1975,8 @@ cdef class Model:
         :return: None
         """
         # open XML file from the filename and use BeautifulSoup to parse it
+        warnings.warn("Depricated Warning: Bioscrape XML is being replaced by SBML and will no longer be supported in a future version of the software.")
+
         if type(filename) == str:
             xml_file = open(filename,'r')
         else:
@@ -2008,12 +2008,22 @@ cdef class Model:
         if len(Model) != 1:
             raise SyntaxError('Did not include global model tag in XML file')
 
+        Species = xml.find_all('species')
+        for species in Species:
+            species_value = float(species['value'])
+            species_name = species['name']
+            self._set_species_value(species_name, species_value)
+
         Reactions = xml.find_all('reaction')
         for reaction in Reactions:
             # Parse the stoichiometry
             text = reaction['text']
             reactants = [s for s in [r.strip() for r in text.split('--')[0].split('+')] if s]
             products = [s for s in [r.strip() for r in text.split('--')[1].split('+')] if s]
+
+            for s in reactants + products:
+                if s not in self.species2index:
+                    raise ValueError(f"Species {s} found in a reaction but not declared in Species. All Species must be declared for proper parsing.")
 
             # parse the delayed part of the reaction the same way as we did before.
             if reaction.has_attr('after'):
@@ -2060,13 +2070,6 @@ cdef class Model:
             param_name = param['name']
             self.set_parameter(param_name = param_name, param_value = param_value)
 
-        Species = xml.find_all('species')
-        for species in Species:
-            species_value = float(species['value'])
-            species_name = species['name']
-            if species_name not in self.species2index:
-                print ('Warning! Species'+ species_name + ' not currently used in any rules or reactions.')
-            self._set_species_value(species_name, species_value)
 
     def get_params2index(self):
         return self.params2index
@@ -2275,6 +2278,7 @@ cdef class Model:
 
 
     def write_bioscrape_xml(self, file_name):
+        warnings.warn("Depricated Warning: Bioscrape XML is being replaced by SBML and will no longer be supported in a future version of the software.")
         #Writes Bioscrape XML
         txt = "<model>\n"
         species = self.get_species_list()
