@@ -90,7 +90,7 @@ cdef class Propensity:
         """
         pass
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, **keywords):
         """
         get which fields are species and which are parameters
         :param dict(str-->str) dictionary containing the XML attributes for that propensity to process.
@@ -122,7 +122,7 @@ cdef class ConstitutivePropensity(Propensity):
             else:
                 warnings.warn('Warning! Useless field for ConstitutivePropensity'+str(key))
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, **keywords):
         return ([],[fields['k']])
 
 
@@ -150,7 +150,7 @@ cdef class UnimolecularPropensity(Propensity):
             else:
                 warnings.warn('Warning! Useless field for UnimolecularPropensity '+str(key))
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, **keywords):
         return ([ fields['species'] ],[ fields['k'] ])
 
 
@@ -195,7 +195,7 @@ cdef class BimolecularPropensity(Propensity):
             else:
                 warnings.warn('Warning! Useless field for BimolecularPropensity'+str(key))
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, **keywords):
         return ([ x.strip() for x in fields['species'].split('*') ],[ fields['k'] ])
 
 
@@ -233,7 +233,7 @@ cdef class PositiveHillPropensity(Propensity):
             else:
                 warnings.warn('Warning! Useless field for PositiveHillPropensity '+str(key))
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, **keywords):
         return ([ fields['s1'] ],[ fields['K'],fields['n'],fields['k'] ])
 
 
@@ -277,7 +277,7 @@ cdef class PositiveProportionalHillPropensity(Propensity):
                 warnings.warn('Warning! Useless field for PositiveProportionalHillPropensity '+str(key))
 
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, **keywords):
         return ([ fields['s1'], fields['d'] ],[ fields['K'],fields['n'],fields['k'] ])
 
 
@@ -316,7 +316,7 @@ cdef class NegativeHillPropensity(Propensity):
             else:
                 warnings.warn('Warning! Useless field for NegativeHillPropensity '+str(key))
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, **keywords):
         return ([ fields['s1'] ],[ fields['K'],fields['n'],fields['k'] ])
 
 
@@ -360,7 +360,7 @@ cdef class NegativeProportionalHillPropensity(Propensity):
             else:
                 warnings.warn('Warning! Useless field for NegativeProportionalHillPropensity '+str(key))
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, **keywords):
         return ([ fields['s1'], fields['d'] ],[ fields['K'],fields['n'],fields['k'] ])
 
     def set_species(self, species, species_indices):
@@ -462,7 +462,7 @@ cdef class MassActionPropensity(Propensity):
 
 
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, **keywords):
         species_list = [x.strip()   for x in fields['species'].split('*') ]
         species_list = [x for x in species_list if x != '']
 
@@ -706,7 +706,7 @@ cdef class TimeTerm(Term):
         return time
 
 
-def sympy_species_and_parameters(instring):
+def sympy_species_and_parameters(instring, species2index, params2index):
     instring = instring.replace('^','**')
     instring = instring.replace('|','_')
     root = sympy.sympify(instring, _clash1)
@@ -717,10 +717,18 @@ def sympy_species_and_parameters(instring):
         index += 1
         nodes.extend(node.args)
 
-    names = [str(n) for n in nodes if type(n) == sympy.Symbol]
+    
 
-    species_names = [s for s in names if (s[0] != '_' and s != 'volume' and s != 't')]
-    param_names = [s[1:] for s in names if s[0] == '_']
+    #Old Way
+    #names = [str(n) for n in nodes if type(n) == sympy.Symbol]
+    #species_names = [s for s in names if (s[0] != '_' and s != 'volume' and s != 't')]
+    #param_names = [s[1:] for s in names if s[0] == '_']
+
+    #New Way
+    #remove leading "_" if there is one.
+    names = [str(n) for n in nodes if type(n) == sympy.Symbol if str(n)[0] != "_"]+[str(n)[1:] for n in nodes if type(n) == sympy.Symbol if str(n)[0] == "_"]
+    species_names = [s for s in names if s in species2index]
+    param_names = [s for s in names if (s not in species2index and s != 'volume' and s != 't')]
 
     return species_names, param_names
 
@@ -740,14 +748,22 @@ def sympy_recursion(tree, species2index, params2index):
     # check if symbol
     if type(tree) == sympy.Symbol:
         name = str(tree)
+
+        #remove initial underscores in names
         if name[0] == '_':
-            return ParameterTerm(params2index[ name[1:] ])
+            name = name[1:]
+
+        #New method: check params based upon being in the dictionary
+        if name in species2index:
+            return SpeciesTerm(species2index[ name ])
+        elif name in params2index:
+            return ParameterTerm(params2index[ name ])
         elif name == 'volume':
             return VolumeTerm()
         elif name == 't':
             return TimeTerm()
         else:
-            return SpeciesTerm(species2index[ name ])
+            raise ValueError(f"Unknown term {name} not found in Species, Parameters, or built-in-terms.")
     # check if addition
     elif type(tree) == sympy.Add:
         sumterm = SumTerm()
@@ -842,15 +858,15 @@ cdef class GeneralPropensity(Propensity):
     def __init__(self):
         self.propensity_type = PropensityType.general
 
-    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices):
+    def initialize(self, dict dictionary, dict species2index, dict params2index):
         instring = dictionary['rate']
 
-        self.term = parse_expression(instring, species_indices, parameter_indices)
+        self.term = parse_expression(instring, species2index, params2index)
 
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, dict species2index, dict params2index):
         instring = fields['rate'].strip()
-        return sympy_species_and_parameters(instring)
+        return sympy_species_and_parameters(instring, species2index, params2index)
 
 
 
@@ -910,7 +926,7 @@ cdef class Delay:
         """
         pass
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, **keywords):
         """
         get which fields are species and which are parameters
         :return: (list(string), list(string)) First entry is the fields that are
@@ -944,7 +960,7 @@ cdef class FixedDelay(Delay):
             else:
                 warnings.warn('Warning! Useless field for fixed delay', key)
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, **keywords):
         return [], [fields['delay']]
 
 cdef class GaussianDelay(Delay):
@@ -967,7 +983,7 @@ cdef class GaussianDelay(Delay):
             else:
                 warnings.warn('Warning! Useless field for gaussian delay', key)
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, **keywords):
         return [],[fields['mean'], fields['std']]
 
 
@@ -991,7 +1007,7 @@ cdef class GammaDelay(Delay):
             else:
                 warnings.warn('Warning! Useless field for gamma delay', key)
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, **keywords):
         return [],[fields['k'], fields['theta']]
 
 ##################################################                ####################################################
@@ -1028,7 +1044,7 @@ cdef class Rule:
         """
         pass
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, **keywords):
         """
         get which fields are species and which are parameters
         :param dict(str-->str) dictionary containing the XML attributes for that propensity to process.
@@ -1062,7 +1078,7 @@ cdef class AdditiveAssignmentRule(Rule):
         for string in src_names:
             self.species_source_indices.push_back(  species_indices[string]  )
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, **keywords):
         # Add the species names
         equation = fields['equation']
         split_eqn = [s.strip() for s in equation.split('=') ]
@@ -1094,24 +1110,30 @@ cdef class GeneralAssignmentRule(Rule):
 
         dest_name = fields['equation'].split('=')[0].strip()
 
-        if dest_name[0] == '_' or dest_name[0] == '|':
+        #if dest_name[0] == '_' or dest_name[0] == '|':
+        if dest_name[0] == '_':
+            dest_name = dest_name[1:]
+        if dest_name in params2index:
             self.param_flag = 1
-            self.dest_index = params2index[dest_name[1:]]
+            self.dest_index = params2index[dest_name]
         else:
             self.param_flag = 0
             self.dest_index = species2index[dest_name]
 
-    def get_species_and_parameters(self, dict fields):
+    def get_species_and_parameters(self, dict fields, dict species2index, dict params2index):
         instring = fields['equation'].strip()
         dest_name = instring.split('=')[0].strip()
         instring = instring.split('=')[1]
 
-        species_names, param_names = sympy_species_and_parameters(instring)
+        species_names, param_names = sympy_species_and_parameters(instring, species2index, params2index)
 
         if dest_name[0] == '_' or dest_name[0] == '|':
-            param_names.append(dest_name[1:])
-        else:
+            dest_name = dest_name[1:]
+
+        if dest_name in species2index:
             species_names.append(dest_name)
+        else:
+            param_names.append(dest_name)
 
         return species_names, param_names
 
@@ -1533,29 +1555,29 @@ cdef class Model:
         delay_reaction_update_dict = {}, delay_object = None, delay_param_dict = {}):
         self.initialized = False
 
-        species_names, param_names = propensity_object.get_species_and_parameters(propensity_param_dict)
+        species_names, param_names = propensity_object.get_species_and_parameters(propensity_param_dict, species2index = self.species2index, params2index = self.params2index)
 
         for species_name in species_names:
-            self._add_species(species_name)
+            #self._add_species(species_name)
+            #Now no species should be added here
+            pass
         for param_name in param_names:
             self._add_param(param_name)
 
         self.reaction_updates.append(reaction_update_dict)
         propensity_object.initialize(propensity_param_dict, self.species2index, self.params2index)
 
-        #Moved to Model._initialize
-        #self.propensities.append(propensity_object)
-        #self.c_propensities.push_back(<void*> propensity_object)
-
         if delay_object == None:
            delay_object = NoDelay()
         elif not type(delay_object) == type(NoDelay()):
             self.has_delay = True
 
-        species_names, param_names = delay_object.get_species_and_parameters(delay_param_dict)
+        species_names, param_names = delay_object.get_species_and_parameters(delay_param_dict, species2index = self.species2index, params2index = self.params2index)
 
         for species_name in species_names:
-            self._add_species(species_name)
+            #self._add_species(species_name)
+            #Now anything not declared as a Species will be interpreted as a parameter
+            pass
         for param_name in param_names:
             self._add_param(param_name)
 
@@ -1806,7 +1828,8 @@ cdef class Model:
         :return: None
         """
         self.initialized = False
-
+        if param_name in self.species2index:
+            raise ValueError(f"param_name {param_name} is the same as the name of a species!")
         if param_name not in self.params2index:
             self.params2index[param_name] = self._next_params_index
             self._next_params_index += 1
@@ -1834,8 +1857,8 @@ cdef class Model:
             raise SyntaxError('Invalid type of Rule: ' + rule_type)
 
         # Add species and params to model
-        species_names, params_names = rule_object.get_species_and_parameters(rule_attributes)
-        for s in species_names: self._add_species(s)
+        species_names, params_names = rule_object.get_species_and_parameters(rule_attributes, species2index = self.species2index, params2index=self.params2index)
+        for s in species_names: pass #self._add_species(s) No species should be added here
         for p in params_names: self._add_param(p)
 
         # initialize the rule
@@ -1952,6 +1975,8 @@ cdef class Model:
         :return: None
         """
         # open XML file from the filename and use BeautifulSoup to parse it
+        warnings.warn("Depricated Warning: Bioscrape XML is being replaced by SBML and will no longer be supported in a future version of the software.")
+
         if type(filename) == str:
             xml_file = open(filename,'r')
         else:
@@ -1983,12 +2008,22 @@ cdef class Model:
         if len(Model) != 1:
             raise SyntaxError('Did not include global model tag in XML file')
 
+        Species = xml.find_all('species')
+        for species in Species:
+            species_value = float(species['value'])
+            species_name = species['name']
+            self._set_species_value(species_name, species_value)
+
         Reactions = xml.find_all('reaction')
         for reaction in Reactions:
             # Parse the stoichiometry
             text = reaction['text']
             reactants = [s for s in [r.strip() for r in text.split('--')[0].split('+')] if s]
             products = [s for s in [r.strip() for r in text.split('--')[1].split('+')] if s]
+
+            for s in reactants + products:
+                if s not in self.species2index:
+                    raise ValueError(f"Species {s} found in a reaction but not declared in Species. All Species must be declared for proper parsing.")
 
             # parse the delayed part of the reaction the same way as we did before.
             if reaction.has_attr('after'):
@@ -2035,13 +2070,6 @@ cdef class Model:
             param_name = param['name']
             self.set_parameter(param_name = param_name, param_value = param_value)
 
-        Species = xml.find_all('species')
-        for species in Species:
-            species_value = float(species['value'])
-            species_name = species['name']
-            if species_name not in self.species2index:
-                print ('Warning! Species'+ species_name + ' not currently used in any rules or reactions.')
-            self._set_species_value(species_name, species_value)
 
     def get_params2index(self):
         return self.params2index
@@ -2250,6 +2278,7 @@ cdef class Model:
 
 
     def write_bioscrape_xml(self, file_name):
+        warnings.warn("Depricated Warning: Bioscrape XML is being replaced by SBML and will no longer be supported in a future version of the software.")
         #Writes Bioscrape XML
         txt = "<model>\n"
         species = self.get_species_list()

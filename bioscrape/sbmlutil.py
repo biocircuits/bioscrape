@@ -91,7 +91,9 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         # get the formula as a string and then add
         # a leading _ to parameter names
         kl_formula = libsbml.formulaToL3String(kl.getMath())
-        rate_string = _add_underscore_to_parameters(kl_formula, allparams)
+        #We should no longer add underscores to parameters
+        #rate_string = _add_underscore_to_parameters(kl_formula, allparams)
+        rate_string = kl_formula
 
         if reaction.getReversible() and sbml_warnings:
             warnings.warn('SBML model contains reversible reaction!\n' +
@@ -187,9 +189,11 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         rule_formula = libsbml.formulaToL3String(rule.getMath())
         rulevariable = rule.getVariable()
         if rulevariable in allspecies:
-            rule_string = rulevariable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
+            #rule_string = rulevariable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
+            rule_string = rulevariable + '=' + rule_formula
         elif rulevariable in allparams:
-            rule_string = '_' + rulevariable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
+            #rule_string = '_' + rulevariable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
+            rule_string = rulevariable + '=' + rule_formula
         else:
             warnings.warn('SBML: Attempting to assign something that is not a parameter or species %s'
                             % rulevariable)
@@ -200,7 +204,8 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         elif rule.getElementName() == 'assignmentRule':
             rule_type = 'assignment'
         elif rule.getElementName() == 'rateRule':
-            rate_rule_formula = _add_underscore_to_parameters(rule_formula, allparams)
+            #rate_rule_formula = _add_underscore_to_parameters(rule_formula, allparams)
+            rate_rule_formula = rule_formula
             rule_rxn = ([''], [rulevariable], 'general', rate_rule_formula) # Create --> X type reaction to model rate rules.
             allreactions.append(rule_rxn)
             continue
