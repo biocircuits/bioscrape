@@ -860,9 +860,7 @@ cdef class GeneralPropensity(Propensity):
 
     def initialize(self, dict dictionary, dict species2index, dict params2index):
         instring = dictionary['rate']
-
         self.term = parse_expression(instring, species2index, params2index)
-
 
     def get_species_and_parameters(self, dict fields, dict species2index, dict params2index):
         instring = fields['rate'].strip()
@@ -1485,7 +1483,9 @@ cdef class Model:
     def _create_vectors(self):
         #Create c-vectors of different objects
         self.propensities = []
+        self.c_propensities.clear()
         self.delays = []
+        self.c_delays.clear()
         for rxn in self.reaction_list:
             prop_object, delay_object, update_array, delay_update_array = rxn
             self.propensities.append(prop_object)
@@ -1493,6 +1493,7 @@ cdef class Model:
             self.delays.append(delay_object)
             self.c_delays.push_back(<void*> delay_object)
 
+        self.c_repeat_rules.clear()
         for rule_object in self.repeat_rules:
             self.c_repeat_rules.push_back(<void*> rule_object)
 
