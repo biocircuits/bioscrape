@@ -137,8 +137,5 @@ def check_sim_results(test_name, results_dict):
                           " has no saved result; freezing this result."))
             continue
 
-        frozen_data = np.load(result_file)
-        assert np.allclose(sim_data, frozen_data[:,:3])
-        assert np.allclose(sim_data, frozen_data), test_name + ":" + sim_name +\
-                                                " doesn't match frozen results"
-
+        frozen_data = np.load(result_file, allow_pickle=False)
+        assert np.allclose(sim_data, frozen_data), test_name + ":" + sim_name +" doesn't match frozen results"
