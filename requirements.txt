@@ -7,3 +7,4 @@ python-libsbml
 beautifulsoup4
 sympy
 emcee
+pandas
