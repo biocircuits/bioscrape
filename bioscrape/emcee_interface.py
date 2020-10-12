@@ -11,6 +11,7 @@ from bioscrape.types import Model
 from bioscrape.sbmlutil import import_sbml as sbmlutil_import_sbml
 from bioscrape.simulator import ModelCSimInterface, DeterministicSimulator, SSASimulator
 from bioscrape.pid_interfaces import StochasticInference, DeterministicInference
+from time import clock as process_time
 
 def initialize_mcmc(**kwargs):
     obj = MCMC(**kwargs)
@@ -19,6 +20,7 @@ def initialize_mcmc(**kwargs):
 class MCMC(object):
     def __init__(self, **kwargs):
         self.M = None
+        self.pid_interface = None
         if 'Model' in kwargs:
             self.set_model(kwargs.get('Model'))
         self.params_to_estimate = []
@@ -323,23 +325,29 @@ class MCMC(object):
         else:
             raise TypeError('exp_data attribute of MCMC object must be a list of Pandas DataFrames or a single Pandas DataFrame. ')
         return data
- 
-    def cost_function(self, params):
+
+    def setup_cost_function(self):
         if self.sim_type == 'stochastic':
-            pid_interface = StochasticInference(self.params_to_estimate, self.M, self.prior)
-            cost_value = pid_interface.get_likelihood_function(params, self.LL_data, self.timepoints, self.measurements, 
+            self.pid_interface = StochasticInference(self.params_to_estimate, self.M, self.prior)
+            self.pid_interface.setup_likelihood_function(self.LL_data, self.timepoints, self.measurements, 
                                                             self.initial_conditions, norm_order = self.norm_order, 
                                                             N_simulations = self.N_simulations, debug = self.debug)
-            self.cost_progress.append(cost_value)
-            return cost_value
         elif self.sim_type == 'deterministic':
-            pid_interface = DeterministicInference(self.params_to_estimate, self.M, self.prior)
-            cost_value = pid_interface.get_likelihood_function(params, self.LL_data, self.timepoints, self.measurements,
+            self.pid_interface = DeterministicInference(self.params_to_estimate, self.M, self.prior)
+            self.pid_interface.setup_likelihood_function(self.LL_data, self.timepoints, self.measurements, 
                                                             self.initial_conditions, norm_order = self.norm_order, debug = self.debug)
-            self.cost_progress.append(cost_value)
-            return cost_value
+
+    def cost_function(self, params):
+        if self.pid_interface is None:
+            raise RuntimeError("Must call MCMC.setup_cost_function() before MCMC.cost_function(params) can be used.")
+
+        cost_value = self.pid_interface.get_likelihood_function(params)
+        self.cost_progress.append(cost_value)
+        return cost_value
 
     def run_emcee(self, **kwargs):
+        self.setup_cost_function()
+        
         progress = kwargs.get('progress')
         convergence_check = kwargs.get('convergence_check')
         if not 'convergence_check' in kwargs:
@@ -455,61 +463,6 @@ class MCMC(object):
         except:
             warnings.warn('corner package not found - cannot plot parameter distributions.')
         return truth_list, uncertainty_list
-
-    def py_inference():
-        raise NotImplemented
-     
-    def simulate(self, timepoints, **kwargs):
-        ''' 
-        To simulate using bioscrape.
-        '''
-        sim_type = kwargs.get('sim_type')
-        species_to_plot = kwargs.get('species_to_plot')
-        plot_show = kwargs.get('plot_show')
-        if not plot_show:
-            plot_show = False
-        if self.M:
-            # If bioscrape model
-            M = self.M
-            s = ModelCSimInterface(M)
-            if sim_type == 'deterministic':
-                s.py_prep_deterministic_simulation()
-                s.py_set_initial_time(timepoints[0])
-                sim = DeterministicSimulator()
-                result = sim.py_simulate(s, timepoints)
-                result = result.py_get_result()
-                if plot_show:
-                    for species in species_to_plot:
-                        ind = M.get_species_index(species)
-                        plt.plot(timepoints,result[:,ind])
-                    plt.title(str(species_to_plot) + ' vs time')
-                    plt.show()
-                return result, M
-            elif sim_type == 'stochastic':
-                warnings.warn('For stochastic simulation of SBML models using bioscrape, it is highly recommended to NOT use reversible reactions as the SSA algorithm might not work for such cases.')
-                sim = SSASimulator()
-                s.py_set_initial_time(timepoints[0])
-                result = sim.py_simulate(s,timepoints)
-                result = result.py_get_result()
-                if plot_show:
-                    for species in species_to_plot:
-                        ind = M.get_species_index(species)
-                        plt.plot(timepoints,result[:,ind])
-                    plt.title(str(species_to_plot) + ' vs time')
-                    plt.show()
-                return result, M
-            else:
-                raise ValueError('Optional argument "sim_type" must be either deterministic or stochastic')
-        else:
-            raise ValueError('Model not found')
-
-    def export_sbml(self, filename):
-        raise NotImplementedError
-
-    def import_sbml(self, filename):
-        M = sbmlutil_import_sbml(filename)
-        self.M = M
-        return self.M
 
 # # Print iterations progress
 # def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█'):

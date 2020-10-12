@@ -1275,6 +1275,16 @@ cdef class RegularSimulator:
 cdef void* global_simulator
 cdef np.ndarray global_derivative_buffer
 
+def py_global_derivative_buffer():
+    global global_derivative_buffer
+    return global_derivative_buffer
+
+def py_set_globals(CSimInterface sim):
+    global global_simulator
+    global global_derivative_buffer
+    global_simulator = <void*> sim
+    global_derivative_buffer = np.empty(sim.py_get_num_species(),)
+
 def rhs_global(np.ndarray[np.double_t,ndim=1] state, double t):
     global global_simulator
     global global_derivative_buffer

@@ -4,6 +4,7 @@ from bioscrape.inference import StochasticTrajectories
 from bioscrape.inference import BulkData
 import warnings
 import numpy as np
+from time import clock as process_time
 
 class PIDInterface():
     '''
@@ -148,20 +149,12 @@ class PIDInterface():
 # Add a new class similar to this to create new interfaces.
 class StochasticInference(PIDInterface):
     def __init__(self, params_to_estimate, M, prior):
+        self.LL_stoch = None
+        self.dataStoch = None
         super().__init__(params_to_estimate, M, prior)
         return
 
-    def get_likelihood_function(self, params_values, data, timepoints, measurements, initial_conditions, norm_order = 2, N_simulations = 3, debug = False, **kwargs):
-        M = self.M
-        params_dict = {}
-        for key, p in zip(self.params_to_estimate, params_values):
-            params_dict[key] = p
-        # Check prior
-        else:
-            positivity = False
-        lp = self.check_prior(params_dict)
-        if not np.isfinite(lp):
-            return -np.inf
+    def setup_likelihood_function(self, data, timepoints, measurements, initial_conditions, norm_order = 2, N_simulations = 3, debug = False, **kwargs):
         N = np.shape(data)[0]
         if debug:
             print('Stochastic inference attributes:')
@@ -171,39 +164,45 @@ class StochasticInference(PIDInterface):
             print('The N is {0}'.format(N))
             print('Using the initial conditions: {0}'.format(initial_conditions))
             print('The current parameters are : {0}'.format(params_dict))
-        dataStoch = StochasticTrajectories(np.array(timepoints), data, measurements, N)
+        self.dataStoch = StochasticTrajectories(np.array(timepoints), data, measurements, N)
         #If there are multiple initial conditions in a data-set, should correspond to multiple initial conditions for inference.
         #Note len(initial_conditions) must be equal to the number of trajectories N
-        LL_stoch = STLL(model = M, init_state = initial_conditions,
-        data = dataStoch, N_simulations = N_simulations, norm_order = norm_order)
+        self.LL_stoch = STLL(model = self.M, init_state = initial_conditions,
+        data = self.dataStoch, N_simulations = N_simulations, norm_order = norm_order)
+
+    def get_likelihood_function(self, params):
         # Set params here and return the likelihood object.
-        if LL_stoch:
-            LL_stoch.set_init_params(params_dict)
-            LL_stoch_cost = LL_stoch.py_log_likelihood()
-            ln_prob = lp + LL_stoch_cost
-            return ln_prob
+        if self.LL_stoch is None:
+            raise RuntimeError("Must call StochasticInference.setup_likelihood_function before using StochasticInference.get_likelihood_function.")
+
+        #Set params
+        params_dict = {}
+        for key, p in zip(self.params_to_estimate, params):
+            params_dict[key] = p
+        self.LL_stoch.set_init_params(params_dict)
+
+        #Prior
+        lp = self.check_prior(params_dict)
+        if not np.isfinite(lp):
+            return -np.inf
+
+        LL_stoch_cost = self.LL_stoch.py_log_likelihood()
+        ln_prob = lp + LL_stoch_cost
+        return ln_prob
        
 # Add a new class similar to this to create new interfaces.
 class DeterministicInference(PIDInterface):
     def __init__(self, params_to_estimate, M, prior):
+        self.LL_det = None
+        self.dataDet = None
         super().__init__(params_to_estimate, M, prior)
         return
 
-    def get_likelihood_function(self, params_values, data, timepoints, measurements, initial_conditions, norm_order = 2, debug = False, **kwargs):
-        M = self.M
-        params_dict = {}
-        for key, p in zip(self.params_to_estimate, params_values):
-            params_dict[key] = p
-        # Check prior
-        lp = 0
-        lp = self.check_prior(params_dict)
-        if not np.isfinite(lp):
-            return -np.inf
+    def setup_likelihood_function(self, data, timepoints, measurements, initial_conditions, norm_order = 2, debug = False, **kwargs):
         N = np.shape(data)[0]
-        #Ceate Likelihood objects:
-        # Create a data Objects
+        #Create a data Objects
         # In this case the timepoints should be a list of timepoints vectors for each iteration
-        dataDet = BulkData(np.array(timepoints), data, measurements, N)
+        self.dataDet = BulkData(np.array(timepoints), data, measurements, N)
         #If there are multiple initial conditions in a data-set, should correspond to multiple initial conditions for inference.
         #Note len(initial_conditions) must be equal to the number of trajectories N
         if debug:
@@ -214,15 +213,31 @@ class DeterministicInference(PIDInterface):
             print('The N is {0}'.format(N))
             print('Using the initial conditions: {0}'.format(initial_conditions))
             print('The current parameters are : {0}'.format(params_dict))
-        LL_det = DLL(model = M, init_state = initial_conditions,
-        data = dataDet, norm_order = norm_order)
-        #Multiple samples with a single initial only require a single initial condition.
-        # Set params here and return the likelihood object.
-        if LL_det:
-            LL_det.set_init_params(params_dict)
-            LL_det_cost = LL_det.py_log_likelihood()
-            ln_prob = lp + LL_det_cost
-            return ln_prob
+
+        t2 = process_time()
+
+        #Create Likelihood object
+        self.LL_det = DLL(model = self.M, init_state = initial_conditions, data = self.dataDet, norm_order = norm_order)
+
+    def get_likelihood_function(self, params):
+        if self.LL_det is None:
+            raise RuntimeError("Must call DeterministicInference.setup_likelihood_function before using DeterministicInference.get_likelihood_function.")
+        #this part is the only part that is called repeatedly
+        params_dict = {}
+        for key, p in zip(self.params_to_estimate, params):
+            params_dict[key] = p
+        self.LL_det.set_init_params(params_dict)
+
+        # Check prior
+        lp = 0
+        lp = self.check_prior(params_dict)
+        if not np.isfinite(lp):
+            return -np.inf
+
+        #apply cost function
+        LL_det_cost = self.LL_det.py_log_likelihood()
+        ln_prob = lp + LL_det_cost
+        return ln_prob
         
 
 
