@@ -313,7 +313,6 @@ cdef class DeterministicLikelihood(ModelLikelihood):
 
     cdef double get_log_likelihood(self):
         
-        t0 = process_time()
         # Write in the specific parameters and species values.
         cdef np.ndarray[np.double_t, ndim = 1] species_vals = self.m.get_species_values()
         cdef np.ndarray[np.double_t, ndim = 1] param_vals = self.m.get_params_values()
@@ -324,11 +323,7 @@ cdef class DeterministicLikelihood(ModelLikelihood):
         cdef double dif = 0
         cdef np.ndarray[np.double_t, ndim = 3] measurements = self.bd.get_measurements()
 
-        t1 = process_time()
-        #print("instantation time", t1-t0)
-
         for n in range(self.N):
-            t10 = process_time()
             #Set Timepoints
             if self.bd.has_multiple_timepoints():
                 timepoints = self.bd.get_timepoints()[n, :]
@@ -347,12 +342,10 @@ cdef class DeterministicLikelihood(ModelLikelihood):
                 for i in range(self.M):
                     species_vals[ self.init_state_indices[i, n] ] = self.init_state_vals[i, n]
             
-            t11 = process_time()
             #print("n-loop setup", t11-t10)
             # Do a simulation of the model with time points specified by the data.
             ans = self.propagator.simulate(self.csim, timepoints).get_result()
 
-            t12 = process_time()
             #print("simulation", t12-t11)
             # Compare the data using norm and return the likelihood.
             for i in range(self.M):
@@ -361,12 +354,10 @@ cdef class DeterministicLikelihood(ModelLikelihood):
                     if dif < 0:
                         dif = -dif
                     error += dif**self.norm_order
-            t13 = process_time()
             #print("norm calc", t13-t12)
 
         error = error**(1./self.norm_order)
-        t2 = process_time()
-        #print("loop time", t2-t1)
+
         return -error
 
 cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):

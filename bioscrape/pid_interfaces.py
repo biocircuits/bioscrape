@@ -213,7 +213,6 @@ class DeterministicInference(PIDInterface):
             print('Using the initial conditions: {0}'.format(initial_conditions))
             print('The current parameters are : {0}'.format(params_dict))
 
-        t2 = process_time()
 
         #Create Likelihood object
         self.LL_det = DLL(model = self.M, init_state = initial_conditions, data = self.dataDet, norm_order = norm_order)
