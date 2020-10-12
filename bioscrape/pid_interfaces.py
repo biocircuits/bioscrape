@@ -4,7 +4,6 @@ from bioscrape.inference import StochasticTrajectories
 from bioscrape.inference import BulkData
 import warnings
 import numpy as np
-from time import clock as process_time
 
 class PIDInterface():
     '''

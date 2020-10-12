@@ -9,8 +9,6 @@ from simulator import CSimInterface, RegularSimulator, ModelCSimInterface, Deter
 import sys
 
 import emcee
-from time import clock as process_time
-
 
 ##################################################                ####################################################
 ######################################              DISTRIBUTION                      ################################

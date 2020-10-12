@@ -11,7 +11,6 @@ from bioscrape.types import Model
 from bioscrape.sbmlutil import import_sbml as sbmlutil_import_sbml
 from bioscrape.simulator import ModelCSimInterface, DeterministicSimulator, SSASimulator
 from bioscrape.pid_interfaces import StochasticInference, DeterministicInference
-from time import clock as process_time
 
 def initialize_mcmc(**kwargs):
     obj = MCMC(**kwargs)
@@ -347,7 +346,7 @@ class MCMC(object):
 
     def run_emcee(self, **kwargs):
         self.setup_cost_function()
-        
+
         progress = kwargs.get('progress')
         convergence_check = kwargs.get('convergence_check')
         if not 'convergence_check' in kwargs:
