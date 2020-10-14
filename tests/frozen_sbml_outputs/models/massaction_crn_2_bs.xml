@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version2/core" level="3" version="2">
+  <model id="biocrnpyler_764422" name="biocrnpyler_764422" substanceUnits="mole" timeUnits="second" volumeUnits="litre" areaUnits="square_metre" lengthUnits="metre" extentUnits="mole">
+    <listOfUnitDefinitions>
+      <unitDefinition id="square_metre">
+        <listOfUnits>
+          <unit kind="metre" exponent="2" scale="0" multiplier="1"/>
+        </listOfUnits>
+      </unitDefinition>
+    </listOfUnitDefinitions>
+    <listOfCompartments>
+      <compartment id="default" name="default" spatialDimensions="3" size="1e-06" constant="true"/>
+    </listOfCompartments>
+    <listOfSpecies>
+      <species id="dna_G" name="dna_G" compartment="default" initialConcentration="5.55" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="protein_A" name="protein_A" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="complex_dna_G_protein_A_2x_" name="complex_dna_G_protein_A_2x_" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="protein_X" name="protein_X" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+    </listOfSpecies>
+    <listOfParameters>
+      <parameter id="kb__" value="111" constant="true"/>
+      <parameter id="ku__" value="22" constant="true"/>
+      <parameter id="kex__" value="3.33" constant="true"/>
+      <parameter id="kd__" value="0.044" constant="true"/>
+    </listOfParameters>
+    <listOfReactions>
+      <reaction id="r0" name="r0" reversible="false">
+        <annotation>
+          <PropensityType> k=kb__ type=massaction</PropensityType>
+        </annotation>
+        <listOfReactants>
+          <speciesReference species="dna_G" stoichiometry="1" constant="false"/>
+          <speciesReference species="protein_A" stoichiometry="2" constant="false"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference species="complex_dna_G_protein_A_2x_" stoichiometry="1" constant="false"/>
+        </listOfProducts>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <times/>
+              <ci> kb__ </ci>
+              <ci> dna_G </ci>
+              <apply>
+                <power/>
+                <ci> protein_A </ci>
+                <cn type="integer"> 2 </cn>
+              </apply>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r0rev" name="r0rev" reversible="false">
+        <annotation>
+          <PropensityType> k=ku__ type=massaction</PropensityType>
+        </annotation>
+        <listOfReactants>
+          <speciesReference species="complex_dna_G_protein_A_2x_" stoichiometry="1" constant="false"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference species="dna_G" stoichiometry="1" constant="false"/>
+          <speciesReference species="protein_A" stoichiometry="2" constant="false"/>
+        </listOfProducts>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <times/>
+              <ci> ku__ </ci>
+              <ci> complex_dna_G_protein_A_2x_ </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r1" name="r1" reversible="false">
+        <annotation>
+          <PropensityType> k=kex__ type=massaction</PropensityType>
+        </annotation>
+        <listOfReactants>
+          <speciesReference species="dna_G" stoichiometry="1" constant="false"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference species="dna_G" stoichiometry="1" constant="false"/>
+          <speciesReference species="protein_X" stoichiometry="1" constant="false"/>
+        </listOfProducts>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <times/>
+              <ci> kex__ </ci>
+              <ci> dna_G </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r2" name="r2" reversible="false">
+        <annotation>
+          <PropensityType> k=kd__ type=massaction</PropensityType>
+        </annotation>
+        <listOfReactants>
+          <speciesReference species="protein_X" stoichiometry="1" constant="false"/>
+        </listOfReactants>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <times/>
+              <ci> kd__ </ci>
+              <ci> protein_X </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+    </listOfReactions>
+  </model>
+</sbml>

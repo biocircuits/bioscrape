@@ -1,8 +1,8 @@
 <model>
 <species name="G" value="1.0" />
 <species name="T" value="0.0" />
-<species name="I" value="0.0" />
 <species name="X" value="0.0" />
+<species name="I" value="0.0" />
 <species name="S" value="0.0" />
 
 <parameter name="KI" value="10.0" />
