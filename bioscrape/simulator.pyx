@@ -621,7 +621,7 @@ cdef class SSAResult:
             return self.py_get_result()
 
 
-    def py_empirical_distribution(self, start_time = None, species = None, Model = None, final_time = None):
+    def py_empirical_distribution(self, start_time = None, species = None, Model = None, final_time = None, max_counts = None):
         
         if species is None:
             species_inds = self.simulation_result.shape[1]
@@ -647,17 +647,26 @@ cdef class SSAResult:
         elif final_time > self.timepoints[-1]:
             raise ValueError(f"final_time={final_time} is greater than simulation_time={self.timepoints[-1]}")
 
-        return self.empirical_distribution(start_time, species_inds, final_time)
+        if max_counts is None:
+            max_counts = [0 for s in species_inds]
+        elif len(max_counts) != len(species_inds):
+            raise ValueError("max_counts must be a list of the same length as species")
+
+        return self.empirical_distribution(start_time, species_inds, final_time, max_counts)
 
     #calculates the empirical distribution of a trajectory over counts
-    #   burn_in: the time to begin the empirical calculation
+    #   start_time: the time to begin the empirical calculation
+    #   final_time: time to end the empirical marginalization
     #   species_inds: the list of species inds to calculate over. Marginalizes over non-included inds
-    cdef np.ndarray empirical_distribution(self, double start_time, list species_inds, double final_time):
+    #   max_counts: a list (size N-species) of the maximum count expected for each species. 
+    #         If max_counts[i] == 0, defaults to the maximum count found in the simulation: max(results[:, i]).
+    #         Useful for getting distributions of a specific size/shape.
+    cdef np.ndarray empirical_distribution(self, double start_time, list species_inds, double final_time, list max_counts_list):
         cdef unsigned s, t, ind, prod
         cdef unsigned tstart = len(self.timepoints[self.timepoints < start_time])
         cdef unsigned tend = len(self.timepoints[self.timepoints <= final_time])
         cdef unsigned N_species = len(species_inds)
-        cdef double dP = 1./(len(self.timepoints) - tstart)
+        cdef double dP = 1./(tend - tstart)
         cdef np.ndarray[np.int_t, ndim=1] index_ar = np.zeros(N_species, dtype = np.int_) #index array
         cdef np.ndarray[np.double_t, ndim = 1] dist
         cdef np.ndarray[np.int_t, ndim = 1] max_counts = np.zeros(N_species, dtype = np.int_) #max species counts
@@ -665,7 +674,10 @@ cdef class SSAResult:
         #Calculate max species counts
         for i in range(N_species):
             s = species_inds[i]
-            max_counts[i] = np.amax(self.simulation_result[tstart:, s], 0)+1 #the maximum number of each species
+            if max_counts_list[i] == 0: #the maximum number of each species is set for all 0 max species
+                max_counts[i] = np.amax(self.simulation_result[tstart:, s], 0)+1
+            else:
+                max_counts[i] += max_counts_list[i]+1
 
         #dist = np.zeros(tuple(max_counts.astype(np.int_)+1))#store the distribution here
         dist = np.zeros(np.prod(max_counts)) #Flattened array
@@ -676,6 +688,8 @@ cdef class SSAResult:
             ind = 0
             for i in range(N_species, 0, -1):#Go through species index backwards
                 s = species_inds[i-1] 
+                if self.simulation_result[t, s] > max_counts[i-1]:
+                    raise RuntimeError("Encountered a species count greater than max_counts!")
                 ind = ind + prod*<np.int_t>self.simulation_result[t, s]
                 prod = prod * max_counts[i-1] #update the product for the next index
             dist[ind] = dist[ind] + dP

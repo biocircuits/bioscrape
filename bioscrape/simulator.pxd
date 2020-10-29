@@ -162,7 +162,7 @@ cdef class SSAResult:
     cdef np.ndarray timepoints
     cdef np.ndarray simulation_result
 
-    cdef np.ndarray empirical_distribution(self, double burn_in, list species_inds, double tend)
+    cdef np.ndarray empirical_distribution(self, double burn_in, list species_inds, double tend, list max_counts_list)
     cdef np.ndarray first_moment(self, double start_time, double final_time, list species_inds)
     cdef np.ndarray standard_deviation(self, double start_time, double final_time, list species_inds)
     cdef np.ndarray second_moment(self, double start_time, double final_time, list species_inds1, list species_inds2)
