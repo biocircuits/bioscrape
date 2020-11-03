@@ -314,13 +314,14 @@ cdef class DeterministicLikelihood(ModelLikelihood):
     cdef double get_log_likelihood(self):
         
         # Write in the specific parameters and species values.
-        cdef np.ndarray species_vals = self.m.get_species_values()
-        cdef np.ndarray param_vals = self.m.get_params_values()
-        cdef np.ndarray ans
-        cdef np.ndarray timepoints
-        cdef unsigned i
+        cdef np.ndarray[np.double_t, ndim = 1] species_vals = self.m.get_species_values()
+        cdef np.ndarray[np.double_t, ndim = 1] param_vals = self.m.get_params_values()
+        cdef np.ndarray[np.double_t, ndim = 2] ans
+        cdef np.ndarray[np.double_t, ndim = 1] timepoints
+        cdef unsigned i, t
         cdef double error = 0.0
-        cdef np.ndarray measurements = self.bd.get_measurements()
+        cdef double dif = 0
+        cdef np.ndarray[np.double_t, ndim = 3] measurements = self.bd.get_measurements()
 
         for n in range(self.N):
             #Set Timepoints
@@ -328,8 +329,6 @@ cdef class DeterministicLikelihood(ModelLikelihood):
                 timepoints = self.bd.get_timepoints()[n, :]
             else:
                 timepoints = self.bd.get_timepoints()
-
-            
 
             #Set initial parameters
             if self.init_param_indices is not None:
@@ -343,12 +342,22 @@ cdef class DeterministicLikelihood(ModelLikelihood):
                 for i in range(self.M):
                     species_vals[ self.init_state_indices[i, n] ] = self.init_state_vals[i, n]
             
+            #print("n-loop setup", t11-t10)
             # Do a simulation of the model with time points specified by the data.
             ans = self.propagator.simulate(self.csim, timepoints).get_result()
+
+            #print("simulation", t12-t11)
             # Compare the data using norm and return the likelihood.
             for i in range(self.M):
-                error += np.linalg.norm(self.bd.get_measurements()[n, :,i] - ans[:,self.meas_indices[i]], ord = self.norm_order)
-       
+                for t in range(len(timepoints)):
+                    dif = measurements[n, t, i] - ans[t,self.meas_indices[i]]
+                    if dif < 0:
+                        dif = -dif
+                    error += dif**self.norm_order
+            #print("norm calc", t13-t12)
+
+        error = error**(1./self.norm_order)
+
         return -error
 
 cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
@@ -405,15 +414,17 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
 
     cdef double get_log_likelihood(self):
         # Write in the specific parameters and species values.
-        cdef np.ndarray species_vals = self.m.get_species_values()
-        cdef np.ndarray param_vals = self.m.get_params_values()
-        cdef np.ndarray ans
-        cdef np.ndarray timepoints
+        cdef np.ndarray[np.double_t, ndim = 1] species_vals = self.m.get_species_values()
+        cdef np.ndarray[np.double_t, ndim = 1] param_vals = self.m.get_params_values()
+        cdef np.ndarray[np.double_t, ndim = 1] timepoints
 
         cdef unsigned i
         cdef unsigned n
         cdef unsigned s
         cdef double error = 0.0
+        cdef double dif = 0
+        cdef np.ndarray[np.double_t, ndim = 2] ans
+        cdef np.ndarray[np.double_t, ndim = 3] measurements = self.sd.get_measurements()
 
         # Do N*N_simulations simulations of the model with time points specified by the data.
         for n in range(self.N):
@@ -436,8 +447,16 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
                     for i in range(self.M):
                         species_vals[ self.init_state_indices[i, n] ] = self.init_state_vals[i, n]
                 ans = self.propagator.simulate(self.csim, timepoints).get_result()
+
                 for i in range(self.M):
-                    error += np.linalg.norm( self.sd.get_measurements()[n, :,i] - ans[:,self.meas_indices[i]], ord = self.norm_order)
+                    # Compare the data using norm and return the likelihood.
+                    for t in range(len(timepoints)):
+                        dif = measurements[n, t, i] - ans[t,self.meas_indices[i]]
+                        if dif < 0:
+                            dif = -dif
+                        error += dif**self.norm_order
+
+        error = error**(1./self.norm_order)
         return -1.0*error/(1.0*self.N_simulations)
 
 cdef class StochasticTrajectoryMomentLikelihood(StochasticTrajectoriesLikelihood):
