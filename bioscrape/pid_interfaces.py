@@ -130,14 +130,36 @@ class PIDInterface():
         Check if given param_value is valid according to the prior distribution.
         Returns the log prior probability or np.inf if the param_value is invalid. 
         '''
-        raise NotImplementedError
+        prior_dict = self.prior
+        if prior_dict is None:
+            raise ValueError('No prior found')
+        alpha = prior_dict[param_name][1]
+        beta = prior_dict[param_name][2]
+        from scipy.special import gamma
+        prob = (beta**alpha)/gamma(alpha) * param_value**(alpha - 1) * np.exp(-1 * beta*param_value)
+        if prob > 1 or prob < 0:
+            warnings.warn('Probability greater than 1 or less than 0 while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+            return np.inf
+        else:
+            return np.log(prob)
 
     def beta_prior(self, param_name, param_value):
         '''
         Check if given param_value is valid according to the prior distribution.
         Returns the log prior probability or np.inf if the param_value is invalid. 
         '''
-        raise NotImplementedError
+        prior_dict = self.prior
+        if prior_dict is None:
+            raise ValueError('No prior found')
+        alpha = prior_dict[param_name][1]
+        beta = prior_dict[param_name][2]
+        from scipy.special import beta as beta_func
+        prob = (param_value**(alpha-1) * (1 - param_value)**(beta - 1) )/beta_func(alpha, beta)
+        if prob > 1 or prob < 0:
+            warnings.warn('Probability greater than 1 or less than 0 while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+            return np.inf
+        else:
+            return np.log(prob)
 
     def log_uniform_prior(self, param_name, param_value):
         '''
@@ -184,9 +206,6 @@ class PIDInterface():
         else:
             return np.log(prob)
 
-
-        raise NotImplementedError
-        
 # Add a new class similar to this to create new interfaces.
 class StochasticInference(PIDInterface):
     def __init__(self, params_to_estimate, M, prior):

@@ -491,7 +491,7 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
             self.meas_indices[i] = self.m.get_species_index(the_list[i])
 
 
-def py_inference(Model = None, params_to_estimate = None, exp_data = None, 
+def py_inference(Model = None, params_to_estimate = None, exp_data = None, initial_conditions = None
                     measurements = None, time_column = None, nwalkers = None, nsteps = None,
                     init_seed = None, prior = None, sim_type = None, plot_show = True, **kwargs):
     
@@ -503,6 +503,8 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None,
         pid.set_exp_data(exp_data)
     if measurements is not None:
         pid.set_measurements(measurements)
+    if initial_conditions is not None:
+        pid.set_initial_conditions(initial_conditions)
     if time_column is not None:
         pid.set_time_column(time_column)
     if nwalkers is not None:
