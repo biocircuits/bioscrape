@@ -491,9 +491,9 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
             self.meas_indices[i] = self.m.get_species_index(the_list[i])
 
 
-def py_inference(Model = None, params_to_estimate = None, exp_data = None, initial_conditions = None
-                    measurements = None, time_column = None, nwalkers = None, nsteps = None,
-                    init_seed = None, prior = None, sim_type = None, plot_show = True, **kwargs):
+def py_inference(Model = None, params_to_estimate = None, exp_data = None, initial_conditions = None,
+                measurements = None, time_column = None, nwalkers = None, nsteps = None,
+                init_seed = None, prior = None, sim_type = None, plot_show = True, **kwargs):
     
     if Model is None:
         raise ValueError('Model object cannot be None.')
