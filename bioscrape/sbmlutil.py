@@ -37,6 +37,8 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         raise ValueError("SBML File {0} not found. Model could not be read.".format(sbml_file))
     if 'sbml_warnings' in kwargs:
         sbml_warnings = kwargs.get('sbml_warnings')
+    elif 'bioscrape' in model.getId() or 'biocrnpyler' in model.getId():
+        sbml_warnings = False
     else:
         sbml_warnings = True
     # Parse through species and parameters and keep a set of both along with their values.
