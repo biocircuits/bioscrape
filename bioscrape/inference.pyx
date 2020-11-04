@@ -6,6 +6,7 @@ from types import Model
 from types cimport Model
 from simulator cimport CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
 from simulator import CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
+from emcee_interface import initialize_mcmc
 import sys
 
 import emcee
@@ -488,3 +489,36 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
         self.meas_indices = np.zeros(len(the_list), dtype=int)
         for i in range(len(the_list)):
             self.meas_indices[i] = self.m.get_species_index(the_list[i])
+
+
+def py_inference(Model = None, params_to_estimate = None, exp_data = None, 
+                    measurements = None, time_column = None, nwalkers = None, nsteps = None,
+                    init_seed = None, prior = None, sim_type = None, plot_show = True, **kwargs):
+    
+    if Model is None:
+        raise ValueError('Model object cannot be None.')
+        
+    pid = initialize_mcmc(Model = Model, **kwargs)
+    if exp_data is not None:
+        pid.set_exp_data(exp_data)
+    if measurements is not None:
+        pid.set_measurements(measurements)
+    if time_column is not None:
+        pid.set_time_column(time_column)
+    if nwalkers is not None:
+        pid.set_nwalkers(nwalkers)
+    if init_seed is not None:
+        pid.set_init_seed(init_seed)
+    if nsteps is not None:
+        pid.set_nsteps(nsteps)
+    if sim_type is not None:
+        pid.set_sim_type(sim_type)
+    if params_to_estimate is not None:
+        pid.set_params_to_estimate(params_to_estimate)
+    if prior is not None:
+        pid.set_prior(prior)
+
+    sampler = pid.run_mcmc(plot_show = plot_show, **kwargs)
+    if plot_show:
+        pid.plot_mcmc_results(sampler, **kwargs)
+    return sampler, pid
