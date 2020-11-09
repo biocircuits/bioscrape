@@ -101,7 +101,7 @@ class PIDInterface():
             raise ValueError('The standard deviation must be positive.')
         # Using probability density function for normal distribution
         # Using scipy.stats.norm has overhead that affects speed up to 2x
-        prob = 1/(np.sqrt(2*np.pi) * sigma) * np.exp((-0.5*param_value - mu)**2/sigma**2)
+        prob = 1/(np.sqrt(2*np.pi) * sigma) * np.exp(-0.5*(param_value - mu)**2/sigma**2)
         if prob > 1 or prob < 0:
             warnings.warn('Probability greater than 1 or less than 0 while checking Gaussian prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
