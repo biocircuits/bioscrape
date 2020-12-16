@@ -11,6 +11,7 @@ import re
 import sympy
 from sympy.abc import _clash1
 import warnings
+import logging
 import libsbml
 from bioscrape.sbmlutil import add_species, add_parameter, add_reaction, add_rule, create_sbml_model, import_sbml
 
@@ -120,7 +121,7 @@ cdef class ConstitutivePropensity(Propensity):
             elif key == "propensity_type":
                 pass
             else:
-                warnings.warn('Warning! Useless field for ConstitutivePropensity'+str(key))
+                logging.info('Warning! Useless field for ConstitutivePropensity'+str(key))
 
     def get_species_and_parameters(self, dict fields, **keywords):
         return ([],[fields['k']])
@@ -148,7 +149,7 @@ cdef class UnimolecularPropensity(Propensity):
             elif key == "propensity_type":
                 pass
             else:
-                warnings.warn('Warning! Useless field for UnimolecularPropensity '+str(key))
+                logging.info('Warning! Useless field for UnimolecularPropensity '+str(key))
 
     def get_species_and_parameters(self, dict fields, **keywords):
         return ([ fields['species'] ],[ fields['k'] ])
@@ -193,7 +194,7 @@ cdef class BimolecularPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                warnings.warn('Warning! Useless field for BimolecularPropensity'+str(key))
+                logging.info('Warning! Useless field for BimolecularPropensity'+str(key))
 
     def get_species_and_parameters(self, dict fields, **keywords):
         return ([ x.strip() for x in fields['species'].split('*') ],[ fields['k'] ])
@@ -231,7 +232,7 @@ cdef class PositiveHillPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                warnings.warn('Warning! Useless field for PositiveHillPropensity '+str(key))
+                logging.info('Warning! Useless field for PositiveHillPropensity '+str(key))
 
     def get_species_and_parameters(self, dict fields, **keywords):
         return ([ fields['s1'] ],[ fields['K'],fields['n'],fields['k'] ])
@@ -274,7 +275,7 @@ cdef class PositiveProportionalHillPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                warnings.warn('Warning! Useless field for PositiveProportionalHillPropensity '+str(key))
+                logging.info('Warning! Useless field for PositiveProportionalHillPropensity '+str(key))
 
 
     def get_species_and_parameters(self, dict fields, **keywords):
@@ -314,7 +315,7 @@ cdef class NegativeHillPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                warnings.warn('Warning! Useless field for NegativeHillPropensity '+str(key))
+                logging.info('Warning! Useless field for NegativeHillPropensity '+str(key))
 
     def get_species_and_parameters(self, dict fields, **keywords):
         return ([ fields['s1'] ],[ fields['K'],fields['n'],fields['k'] ])
@@ -358,7 +359,7 @@ cdef class NegativeProportionalHillPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[value]
             else:
-                warnings.warn('Warning! Useless field for NegativeProportionalHillPropensity '+str(key))
+                logging.info('Warning! Useless field for NegativeProportionalHillPropensity '+str(key))
 
     def get_species_and_parameters(self, dict fields, **keywords):
         return ([ fields['s1'], fields['d'] ],[ fields['K'],fields['n'],fields['k'] ])
@@ -370,7 +371,7 @@ cdef class NegativeProportionalHillPropensity(Propensity):
             elif key == 'd':
                 self.d_index = species_indices[species['d']]
             else:
-                warnings.warn('Warning! Useless field for NegativeProportionalHillPropensity '+str(key))
+                logging.info('Warning! Useless field for NegativeProportionalHillPropensity '+str(key))
     def set_parameters(self, parameters, parameter_indices):
         for key in parameters:
             if key == 'K':
@@ -380,7 +381,7 @@ cdef class NegativeProportionalHillPropensity(Propensity):
             elif key == 'k':
                 self.rate_index = parameter_indices[parameters[key]]
             else:
-                warnings.warn('Warning! Useless field for NegativeProportionalHillPropensity '+str(key))
+                logging.info('Warning! Useless field for NegativeProportionalHillPropensity '+str(key))
 
 
 
@@ -458,7 +459,7 @@ cdef class MassActionPropensity(Propensity):
             elif key == 'k':
                 self.k_index = parameter_indices[value]
             else:
-                warnings.warn('Warning! Useless field for MassActionPropensity '+str(key))
+                logging.info('Warning! Useless field for MassActionPropensity '+str(key))
 
 
 
@@ -956,7 +957,7 @@ cdef class FixedDelay(Delay):
             if key == 'delay':
                 self.delay_index = parameter_indices[value]
             else:
-                warnings.warn('Warning! Useless field for fixed delay', key)
+                logging.info('Warning! Useless field for fixed delay', key)
 
     def get_species_and_parameters(self, dict fields, **keywords):
         return [], [fields['delay']]
@@ -979,7 +980,7 @@ cdef class GaussianDelay(Delay):
             elif key == 'std':
                 self.std_index = parameter_indices[value]
             else:
-                warnings.warn('Warning! Useless field for gaussian delay', key)
+                logging.info('Warning! Useless field for gaussian delay', key)
 
     def get_species_and_parameters(self, dict fields, **keywords):
         return [],[fields['mean'], fields['std']]
@@ -1003,7 +1004,7 @@ cdef class GammaDelay(Delay):
             elif key == 'theta':
                 self.theta_index = parameter_indices[value]
             else:
-                warnings.warn('Warning! Useless field for gamma delay', key)
+                logging.info('Warning! Useless field for gamma delay', key)
 
     def get_species_and_parameters(self, dict fields, **keywords):
         return [],[fields['k'], fields['theta']]
@@ -1887,7 +1888,7 @@ cdef class Model:
     #Sets the value of a parameter in the model
     def set_parameter(self, param_name, param_value):
         if param_name not in self.params2index:
-            warnings.warn('Warning! parameter '+ param_name+" does not show up in any currently defined reactions or rules.")
+            logging.info('Warning! parameter '+ param_name+" does not show up in any currently defined reactions or rules.")
             self._add_param(param_name)
 
         param_index = self.params2index[param_name]
@@ -1921,7 +1922,7 @@ cdef class Model:
                 warning_txt += s+", "
                 self.species_values[i] = 0
         if uninitialized_species:
-            warnings.warn(warning_txt)
+            logging.info(warning_txt)
 
     #Checks if the dictionary dic contains the keyword key.
     #if dic[key] = str: do nothing
