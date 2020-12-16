@@ -12,6 +12,7 @@ from types cimport Model, Delay, Propensity, Rule
 from scipy.integrate import odeint, ode
 import sys
 import warnings
+import logging
 
 
 ##################################################                ####################################################
@@ -266,7 +267,7 @@ cdef class CSimInterface:
 
     #Checks model or interface is valid. Meant to be overriden by the subclass
     cdef void check_interface(self):
-        warnings.warn("No interface Checking Implemented")
+        logging.info("No interface Checking Implemented")
     # meant to be overriden by the subclass
     cdef double compute_delay(self, double *state, unsigned rxn_index):
         return 0.0
@@ -418,7 +419,7 @@ cdef class ModelCSimInterface(CSimInterface):
         #Check Model and initialization
         if not self.model.initialized:
             self.model.py_initialize()
-            warnings.warn("Uninitialized Model Passed into ModelCSimInterface. Model.py_initialize() called automatically.")
+            logging.info("Uninitialized Model Passed into ModelCSimInterface. Model.py_initialize() called automatically.")
         self.check_interface()
         self.c_propensities = self.model.get_c_propensities()
         self.c_delays = self.model.get_c_delays()
@@ -1344,7 +1345,7 @@ cdef class DeterministicSimulator(RegularSimulator):
                         sim.apply_repeated_rules( &(results[index,0]),timepoints[index] )
                 return SSAResult(timepoints,results)
 
-            sys.stderr.write('odeint failed with mxstep=%d...' % (steps_allowed))
+            logging.info('odeint failed with mxstep=%d...' % (steps_allowed))
 
             # make the mxstep bigger if the user specified a bigger max
             if steps_allowed >= self.mxstep:
@@ -1418,7 +1419,7 @@ cdef class DeterministicDilutionSimulator(RegularSimulator):
                         sim.apply_repeated_rules( &(results[index,0]), timepoints[index] )
                 return SSAResult(timepoints,results)
 
-            sys.stderr.write('odeint failed with mxstep=%d...' % (steps_allowed))
+            logging.info('odeint failed with mxstep=%d...' % (steps_allowed))
 
             # make the mxstep bigger if the user specified a bigger max
             if steps_allowed >= self.mxstep:
@@ -2068,7 +2069,7 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
         else:
             Interface = ModelCSimInterface(Model)
     elif not Interface is None and safe:
-        warnings.warn("Cannot gaurantee that the interface passed in is safe. Simulating anyway.")
+        logging.info("Cannot gaurantee that the interface passed in is safe. Simulating anyway.")
 
     #Create Volume (if necessary)
     if isinstance(volume, Volume):
@@ -2111,7 +2112,7 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
             result = Sim.py_volume_simulate(Interface, v, timepoints)
     else:
         if v != None:
-            warnings.warn("uncessary volume parameter for deterministic simulation.")
+            logging.info("uncessary volume parameter for deterministic simulation.")
         Sim = DeterministicSimulator()
         Interface.py_prep_deterministic_simulation()
         result = Sim.py_simulate(Interface, timepoints)
