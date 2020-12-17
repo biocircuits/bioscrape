@@ -85,7 +85,7 @@ class PIDInterface():
         if param_value > upper_bound or param_value < lower_bound:
             return np.inf
         else:
-            return 0.0
+            return np.log( 1/(upper_bound - lower_bound) )
 
     def gaussian_prior(self, param_name, param_value):
         '''
@@ -102,8 +102,8 @@ class PIDInterface():
         # Using probability density function for normal distribution
         # Using scipy.stats.norm has overhead that affects speed up to 2x
         prob = 1/(np.sqrt(2*np.pi) * sigma) * np.exp(-0.5*(param_value - mu)**2/sigma**2)
-        if prob > 1 or prob < 0:
-            warnings.warn('Probability greater than 1 or less than 0 while checking Gaussian prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+        if prob < 0:
+            warnings.warn('Probability less than 0 while checking Gaussian prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
         else:
             return np.log(prob)
@@ -119,8 +119,8 @@ class PIDInterface():
         lambda_p = prior_dict[param_name][1]
 
         prob = lambda_p * np.exp(-lambda_p * param_value)
-        if prob > 1 or prob < 0:
-            warnings.warn('Probability greater than 1 or less than 0 while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+        if prob < 0:
+            warnings.warn('Probability less than 0 while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
         else:
             return np.log(prob)
@@ -137,8 +137,8 @@ class PIDInterface():
         beta = prior_dict[param_name][2]
         from scipy.special import gamma
         prob = (beta**alpha)/gamma(alpha) * param_value**(alpha - 1) * np.exp(-1 * beta*param_value)
-        if prob > 1 or prob < 0:
-            warnings.warn('Probability greater than 1 or less than 0 while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+        if prob < 0:
+            warnings.warn('Probability less than 0 while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
         else:
             return np.log(prob)
@@ -153,10 +153,10 @@ class PIDInterface():
             raise ValueError('No prior found')
         alpha = prior_dict[param_name][1]
         beta = prior_dict[param_name][2]
-        from scipy.special import beta as beta_func
+        import scipy.special.beta as beta_func
         prob = (param_value**(alpha-1) * (1 - param_value)**(beta - 1) )/beta_func(alpha, beta)
-        if prob > 1 or prob < 0:
-            warnings.warn('Probability greater than 1 or less than 0 while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+        if prob < 0:
+            warnings.warn('Probability less than 0 while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
         else:
             return np.log(prob)
@@ -178,10 +178,10 @@ class PIDInterface():
         if param_value > upper_bound or param_value < lower_bound:
             return np.inf
 
-        prob = 1/(param_value* (np.log(b) - np.log(a)))
+        prob = 1/(param_value* (np.log(upper_bound) - np.log(lower_bound)))
 
-        if prob > 1 or prob < 0:
-            warnings.warn('Probability greater than 1 or less than 0 while checking Log-Uniform prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+        if prob < 0:
+            warnings.warn('Probability less than 0 while checking Log-Uniform prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
         else:
             return np.log(prob)
@@ -200,8 +200,8 @@ class PIDInterface():
             raise ValueError('The standard deviation must be positive.')
         # Using probability density function for log-normal distribution
         prob = 1/(param_value * np.sqrt(2*np.pi) * sigma) * np.exp((-0.5 * (np.log(param_value) - mu)**2)/sigma**2)
-        if prob > 1 or prob < 0:
-            warnings.warn('Probability greater than 1 or less than 0 while checking log-normal prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+        if prob < 0:
+            warnings.warn('Probability less than 0 while checking log-normal prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
         else:
             return np.log(prob)
@@ -223,7 +223,6 @@ class StochasticInference(PIDInterface):
             print('The measurmenets is {0}'.format(measurements))
             print('The N is {0}'.format(N))
             print('Using the initial conditions: {0}'.format(initial_conditions))
-            print('The current parameters are : {0}'.format(params_dict))
         self.dataStoch = StochasticTrajectories(np.array(timepoints), data, measurements, N)
         #If there are multiple initial conditions in a data-set, should correspond to multiple initial conditions for inference.
         #Note len(initial_conditions) must be equal to the number of trajectories N
@@ -272,7 +271,6 @@ class DeterministicInference(PIDInterface):
             print('The measurmenets is {0}'.format(measurements))
             print('The N is {0}'.format(N))
             print('Using the initial conditions: {0}'.format(initial_conditions))
-            print('The current parameters are : {0}'.format(params_dict))
 
 
         #Create Likelihood object
