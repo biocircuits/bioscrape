@@ -2,9 +2,10 @@ name: learn-github-actions
 on: [push]
 jobs:
   build:
-      runs-on: ubuntu-latest
+      runs-on: ${{ matrix.os }}
       strategy:
         matrix:
+          os: [windows-latest, ubuntu-latest, macos-latest]
           python-version: [3.6, 3.7, 3.8]
 
       steps:
@@ -20,7 +21,6 @@ jobs:
       - name: install bioscrape
         run: python setup.py install bioscrape
       - name: Test bioscrape with pytest
-        run: |
-          pytest
+        run: pytest
       - name: install lineages
         run: python setup.py install lineages
