@@ -35,7 +35,6 @@ import warnings
 
 import pandas
 
-
 # Events are general objects that happen with some internal propensity but are 
 # not chemical reactions
 cdef class Event:
