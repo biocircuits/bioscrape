@@ -1,0 +1,4 @@
+include Tests/*.py
+include README.rst
+include LICENSE
+exclude bioscrape.egg-info/*
