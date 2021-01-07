@@ -31,19 +31,19 @@ try:
         ext_options['annotate'] = True
         sys.argv.remove("annotate")
 
-    #Determine if we install bioscrape
+    #Determine if we install bioscrape, lineage, or both
     install_bioscrape = False
+    install_lineage = False
+    if "bioscrape" not in sys.argv and "lineage" not in sys.argv:
+        install_bioscrape = True
+        install_lineage = True
     if "bioscrape" in sys.argv:
         install_bioscrape = True
         sys.argv.remove("bioscrape")
-    elif "lineage" not in sys.argv:
-        install_bioscrape = True
-
-    #Determine if we install lineage
-    install_lineage = False
     if "lineage" in sys.argv:
         install_lineage = True
         sys.argv.remove("lineage")
+    
     elif "bioscrape" not in sys.argv:
         install_lineage = True
 
