@@ -1,4 +1,4 @@
-name: learn-github-actions
+name: install_and_test_package
 on: [push]
 jobs:
   build:
@@ -22,5 +22,5 @@ jobs:
         run: python setup.py install bioscrape
       - name: Test bioscrape with pytest
         run: pytest
-      - name: install lineages
-        run: python setup.py install lineages
+      - name: install lineage
+        run: python setup.py install lineage
