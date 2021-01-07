@@ -17,6 +17,10 @@ print("sys.argv", sys.argv)
 try:
     numpyInclude = [get_include(), '.']
 
+    #Install Bioscrape Core Package
+    package_data = {'bioscrape': ['*.pxd']}
+    bioscrape_src_dir = 'bioscrape'
+
     ext_options = {}
     ext_options['language'] = 'c++'
     ext_options['include_dirs'] = numpyInclude
@@ -27,8 +31,9 @@ try:
 
     #used to generate HTML annotations of the cython code for
     #optimization purposes.
+    cythonize_options = {"include_path":[bioscrape_src_dir]}
     if "annotate" in sys.argv:
-        ext_options['annotate'] = True
+        cythonize_options['annotate'] = True
         sys.argv.remove("annotate")
 
     #Determine if we install bioscrape, lineage, or both
@@ -47,9 +52,7 @@ try:
     elif "bioscrape" not in sys.argv:
         install_lineage = True
 
-    #Install Bioscrape Core Package
-    package_data = {'bioscrape': ['*.pxd']}
-    bioscrape_src_dir = 'bioscrape'
+    
 
     cython_extensions = []
     if install_bioscrape:
@@ -71,7 +74,7 @@ try:
             Extension('bioscrape.'+s.split('.')[0],[lineage_src_dir+'/'+s], **ext_options) 
             for s in lineage_source_files
         ]
-        cython_extensions += cythonize(lineage_extensions)
+        cython_extensions += cythonize(lineage_extensions, **cythonize_options)
         print("Lineage compiled.")
 
 except Exception as e:
@@ -80,7 +83,7 @@ except Exception as e:
 
 setup(
     name = 'bioscrape',
-    version = '0.0.1',
+    version = '0.0.2',
     author='Anandh Swaminathan, William Poole, Ayush Pandey',
     url='https://github.com/biocircuits/bioscrape/',
     description='Biological Stochastic Simulation of Single Cell Reactions and Parameter Estimation.',
