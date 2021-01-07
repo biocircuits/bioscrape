@@ -73,15 +73,15 @@ try:
         ]
         cython_extensions += cythonize(lineage_extensions)
         print("Lineage compiled.")
-        
+
 except Exception as e:
     print("Error occured during Cython Compilation. Check C++ Compiler and Cython Installation.")
     raise
 
 setup(
     name = 'bioscrape',
-    version = '1.0.0',
-    author='Biocircuits',
+    version = '0.0.1',
+    author='Anandh Swaminathan, William Poole, Ayush Pandey',
     url='https://github.com/biocircuits/bioscrape/',
     description='Biological Stochastic Simulation of Single Cell Reactions and Parameter Estimation.',
     long_description=long_description,
