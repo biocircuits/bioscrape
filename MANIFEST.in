@@ -1,4 +1,6 @@
-include Tests/*.py
 include README.rst
 include LICENSE
-exclude bioscrape.egg-info/*
+include tests/*
+include lineage/*.pxd
+include lineage/*.pyx
+exclude *.cpp

@@ -14,23 +14,37 @@ with open('README.rst') as fp:
 
 # Compile Cython
 try:
-    numpyInclude = [get_include(), '.']
+    print("Directiories\n", os.listdir("."))
+    print("File Walk\n", [i for i in os.walk(".")])
+
+    f = open("bioscrape/random.pyx")
+    f.close()
+
+    numpyInclude = get_include()
 
     #Install Bioscrape Core Package
-    package_data = {'bioscrape': ['*.pxd']}
-    bioscrape_src_dir = 'bioscrape'
+    #these folders must also be listed in the MANIFEST.in
+    package_data = {
+        'bioscrape':["*.pxd", "*.pyx", "bioscrape/*.pxd", "bioscrape/*.pyx"],
+    }
 
+    bioscrape_src_dir = 'bioscrape'
+    lineage_src_dir = 'lineage'
+
+    #Extension Module Options
     ext_options = {}
     ext_options['language'] = 'c++'
-    ext_options['include_dirs'] = numpyInclude
+    ext_options['include_dirs'] = [numpyInclude, ".", bioscrape_src_dir, lineage_src_dir]
+
+    #Special directives for MacOS
     if platform.system() == "Darwin":
         ext_options['extra_compile_args'] = ['-std=c++11', "-mmacosx-version-min=10.9"]
         ext_options['extra_link_args'] = ["-stdlib=libc++", "-mmacosx-version-min=10.9"]
         print('Using macOS clang args')
 
-    #used to generate HTML annotations of the cython code for
-    #optimization purposes.
-    cythonize_options = {"include_path":[bioscrape_src_dir]}
+    #Cython Options
+    cythonize_options = {"include_path":[bioscrape_src_dir, lineage_src_dir, "."], "language_level":"3"}
+    #used to generate HTML annotations of the cython code for optimization purposes.
     if "annotate" in sys.argv:
         cythonize_options['annotate'] = True
         sys.argv.remove("annotate")
@@ -47,9 +61,6 @@ try:
     if "lineage" in sys.argv:
         install_lineage = True
         sys.argv.remove("lineage")
-    
-    elif "bioscrape" not in sys.argv:
-        install_lineage = True
 
     cython_extensions = []
     if install_bioscrape:
@@ -62,12 +73,10 @@ try:
                     **ext_options) for s in bioscrape_source_files
             ]
         cython_extensions += cythonize(bioscrape_extensions, **cythonize_options)
-        print("Bioscrape Installed.")
+        print("Bioscrape Compiled.")
 
     if install_lineage:
-        package_data['lineage'] = ['*.pxd']
         print("Installing Lineage...")
-        lineage_src_dir = 'lineage'
         lineage_source_files = ['lineage.pyx']
         lineage_extensions = [
             Extension(name = 'bioscrape.'+s.split('.')[0],
@@ -83,14 +92,14 @@ except Exception as e:
 
 setup(
     name = 'bioscrape',
-    version = '0.0.1.1',
+    version = '0.0.1.40',
     author='Anandh Swaminathan, William Poole, Ayush Pandey',
     url='https://github.com/biocircuits/bioscrape/',
     description='Biological Stochastic Simulation of Single Cell Reactions and Parameter Estimation.',
     long_description=long_description,
     packages = ['bioscrape'],
     package_dir = {'bioscrape' : bioscrape_src_dir},
-    package_data = package_data,
+    package_data = {},
     ext_modules = cython_extensions,
     zip_safe=False,
     classifiers=[
