@@ -30,7 +30,10 @@ try:
 
     #used to generate HTML annotations of the cython code for
     #optimization purposes.
-    cythonize_options = {"include_path":[bioscrape_src_dir]}
+    cythonize_options = {
+    "include_path":[bioscrape_src_dir],
+    "language_level":"2" #Language level 3 does not work yet
+    } 
     if "annotate" in sys.argv:
         cythonize_options['annotate'] = True
         sys.argv.remove("annotate")
