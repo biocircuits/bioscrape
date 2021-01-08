@@ -86,7 +86,7 @@ except Exception as e:
 
 setup(
     name = 'bioscrape',
-    version = '1.0.1',
+    version = '1.0.2',
     author='Anandh Swaminathan, William Poole, Ayush Pandey',
     url='https://github.com/biocircuits/bioscrape/',
     description='Biological Stochastic Simulation of Single Cell Reactions and Parameter Estimation.',
@@ -114,7 +114,7 @@ setup(
         "pytest",
         "numpy",
         "scipy",
-        "Cython",
+        "cython",
         "python-libsbml",
         "beautifulsoup4",
         "sympy",
