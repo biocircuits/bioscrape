@@ -119,6 +119,7 @@ class PIDInterface():
         lambda_p = prior_dict[param_name][1]
 
         prob = lambda_p * np.exp(-lambda_p * param_value)
+
         if prob < 0:
             warnings.warn('Probability less than 0 while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
@@ -182,6 +183,7 @@ class PIDInterface():
 
         if prob < 0:
             warnings.warn('Probability less than 0 while checking Log-Uniform prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+
             return np.inf
         else:
             return np.log(prob)
@@ -202,6 +204,7 @@ class PIDInterface():
         prob = 1/(param_value * np.sqrt(2*np.pi) * sigma) * np.exp((-0.5 * (np.log(param_value) - mu)**2)/sigma**2)
         if prob < 0:
             warnings.warn('Probability less than 0 while checking log-normal prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+
             return np.inf
         else:
             return np.log(prob)
