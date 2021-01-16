@@ -1,11 +1,24 @@
 from distutils.core import setup
-from numpy import get_include
 from distutils.extension import Extension
-from Cython.Build import cythonize
 import platform
 import os
 import sys
+import subprocess
 
+#The following try-catch statements ensure numpy and cython are installed prior to running setup.py
+#in some virtual environments, pip dependencies have issues with cython packages.
+#NUMPY CHECK
+try:
+    from numpy import get_include
+except ModuleNotFoundError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "numpy"])
+    from numpy import get_include
+#CYTHON CHECK
+try:
+    from Cython.Build import cythonize
+except ModuleNotFoundError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "cython"])
+    from Cython.Build import cythonize
 
 
 #Load the readme as a long description
@@ -86,7 +99,7 @@ except Exception as e:
 
 setup(
     name = 'bioscrape',
-    version = '1.0.2',
+    version = '1.0.2.2',
     author='Anandh Swaminathan, William Poole, Ayush Pandey',
     url='https://github.com/biocircuits/bioscrape/',
     description='Biological Stochastic Simulation of Single Cell Reactions and Parameter Estimation.',
@@ -106,13 +119,13 @@ setup(
         'Operating System :: OS Independent',
     ],
     setup_requires = [
+        "numpy",
         "cython",
-        "numpy"
         ],
     install_requires=[
+        "numpy",
         "matplotlib",
         "pytest",
-        "numpy",
         "scipy",
         "cython",
         "python-libsbml",
