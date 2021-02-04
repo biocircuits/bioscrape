@@ -59,7 +59,8 @@ cdef class Propensity:
         :param time: (double) the current time
         :return: (double) computed propensity, should be non-negative
         """
-        return -1.0
+        #By default, volume propensitiesa are the same as regular propensities, unless otherwise noted
+        return self.get_propensity(state, params, time)
 
 
     cdef double get_stochastic_propensity(self, double* state, double* params, double time):
@@ -403,35 +404,13 @@ cdef class MassActionPropensity(Propensity):
         for i in range(len(self.sp_inds)):
             for j in range(self.sp_counts[i]):
                 ans *= max(state[self.sp_inds[i]]-j, 0)
-
         return ans
 
-    cdef double get_volume_propensity(self, double *state, double *params,
-                                      double volume, double time):
-        cdef double ans = params[self.k_index]
-        cdef int i
-        for i in range(self.num_species):
-            ans *= state[self.sp_inds[i]]
-        if self.num_species == 1:
-            return ans
-        elif self.num_species == 2:
-            return ans / volume
-        elif self.num_species == 0:
-            return ans * volume
-        else:
-            return ans / (volume ** (self.num_species - 1) )
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
+        return self.get_propensity(state, params, time) / (volume ** (self.num_species - 1) )
 
     cdef double get_stochastic_volume_propensity(self, double *state, double *params, double volume, double time):
-
-        cdef double ans = self.get_stochastic_propensity(state, params, time)
-        if self.num_species == 0:
-            return ans*volume
-        elif self.num_species == 1:
-            return ans
-        elif self.num_species == 2:
-            return ans / volume
-        else:
-            return ans / (volume ** (self.num_species - 1))
+        return self.get_stochastic_propensity(state, params, time) / (volume ** (self.num_species - 1))
 
 
     def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
@@ -1557,10 +1536,10 @@ cdef class Model:
         delay_reaction_update_dict = {}, delay_object = None, delay_param_dict = {}):
         self.initialized = False
 
+
         species_names, param_names = propensity_object.get_species_and_parameters(propensity_param_dict, species2index = self.species2index, params2index = self.params2index)
 
         for species_name in species_names:
-            #self._add_species(species_name)
             #Now no species should be added here
             pass
         for param_name in param_names:
@@ -1577,15 +1556,12 @@ cdef class Model:
         species_names, param_names = delay_object.get_species_and_parameters(delay_param_dict, species2index = self.species2index, params2index = self.params2index)
 
         for species_name in species_names:
-            #self._add_species(species_name)
             #Now anything not declared as a Species will be interpreted as a parameter
             pass
         for param_name in param_names:
             self._add_param(param_name)
 
         #Moved to Model._initialize
-        #self.delays.append(delay_object)
-        #self.c_delays.push_back(<void*> delay_object)
         self.delay_reaction_updates.append(delay_reaction_update_dict)
         delay_object.initialize(delay_param_dict, self.species2index, self.params2index)
         self.reaction_list.append((propensity_object, delay_object, reaction_update_dict, delay_reaction_update_dict))
