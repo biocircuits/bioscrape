@@ -179,7 +179,6 @@ class PIDInterface():
             return np.inf
 
         prob = 1/(param_value* (np.log(upper_bound) - np.log(lower_bound)))
-
         if prob < 0:
             warnings.warn('Probability less than 0 while checking Log-Uniform prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
