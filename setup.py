@@ -51,6 +51,9 @@ try:
         cythonize_options['annotate'] = True
         sys.argv.remove("annotate")
 
+    # # Turn on to enable gdb debugging
+    # cythonize_options["gdb_debug"] = True
+
     #Determine if we install bioscrape, lineage, or both
     install_bioscrape = False
     install_lineage = False

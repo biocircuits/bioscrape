@@ -13,6 +13,7 @@ from sympy.abc import _clash1
 import warnings
 import logging
 import libsbml
+import cython
 from bioscrape.sbmlutil import add_species, add_parameter, add_reaction, add_rule, create_sbml_model, import_sbml
 
 from libc.math cimport log, sqrt, cos, round, exp, fabs
@@ -474,7 +475,7 @@ cdef class MassActionPropensity(Propensity):
 ######################################              PARSING                             ##############################
 #################################################                     ################################################
 
-
+@cython.auto_pickle(True)
 cdef class Term:
     cdef double evaluate(self, double *species, double *params, double time):
         raise SyntaxError('Cannot make Term base object')
@@ -492,7 +493,7 @@ cdef class Term:
                                     vol, time)
 
 # Base building blocks
-
+@cython.auto_pickle(True)
 cdef class ConstantTerm(Term):
 
     def __init__(self, double val):
@@ -503,9 +504,8 @@ cdef class ConstantTerm(Term):
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return self.value
 
+@cython.auto_pickle(True)
 cdef class SpeciesTerm(Term):
-
-
     def __init__(self, unsigned ind):
         self.index = ind
 
@@ -514,8 +514,8 @@ cdef class SpeciesTerm(Term):
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return species[self.index]
 
+@cython.auto_pickle(True)
 cdef class ParameterTerm(Term):
-
     def __init__(self, unsigned ind):
         self.index = ind
 
@@ -532,16 +532,37 @@ cdef class VolumeTerm(Term):
 
 # Putting stuff together
 
-cdef class SumTerm(Term):
+#   To make BinaryTerms picklable, we need to use a __reduce__ 
+#   function, which needs to return a function that can reconstruct a BinaryTerm
+#   from a state. Internally-defined functions can't be pickled, so that 
+#   function has to be external to the class. Thus, we need this function.
+# 
+#   I also tried to make BinaryTerms picklable using __getstate__ and 
+#   __setstate__, which would obviate the need for this ugly external function,
+#   but that resulted in mysterious errors about calling unsafe __new__() 
+#   methods, which I couldn't resolve. Sorry. =(
+def restore_binary_term(state, ClassName):
+    new_term = ClassName()
+    if state is not None:
+        for i, x in enumerate(state):
+            new_term.py_add_term(x)
+    return new_term
 
-
+cdef class BinaryTerm(Term):
     def __init__(self):
         self.terms_list = []
+
+    def __reduce__(self):
+        return (restore_binary_term, (self.terms_list, self.__class__))
 
     cdef void add_term(self,Term trm):
         self.terms.push_back(<void*> trm)
         self.terms_list.append(trm)
 
+    def py_add_term(self, Term trm):
+        self.add_term(trm)
+
+cdef class SumTerm(BinaryTerm):
     cdef double evaluate(self, double *species, double *params, double time):
         cdef double ans = 0.0
         cdef unsigned i
@@ -556,14 +577,7 @@ cdef class SumTerm(Term):
             ans += (<Term>(self.terms[i])).volume_evaluate(species,params,vol, time)
         return ans
 
-cdef class ProductTerm(Term):
-    def __init__(self):
-        self.terms_list = []
-
-    cdef void add_term(self,Term trm):
-        self.terms.push_back(<void*> trm)
-        self.terms_list.append(trm)
-
+cdef class ProductTerm(BinaryTerm):
     cdef double evaluate(self, double *species, double *params, double time):
         cdef double ans = 1.0
         cdef unsigned i
@@ -578,14 +592,8 @@ cdef class ProductTerm(Term):
             ans *= (<Term>(self.terms[i])).volume_evaluate(species,params,vol,time)
         return ans
 
-cdef class MaxTerm(Term):
-    def __init__(self):
-        self.terms_list = []
 
-    cdef void add_term(self,Term trm):
-        self.terms.push_back(<void*> trm)
-        self.terms_list.append(trm)
-
+cdef class MaxTerm(BinaryTerm):
     cdef double evaluate(self, double *species, double *params, double time):
         cdef double ans = (<Term>(self.terms[0])).evaluate(species, params,time)
         cdef unsigned i
@@ -607,14 +615,7 @@ cdef class MaxTerm(Term):
                 ans = temp
         return ans
 
-cdef class MinTerm(Term):
-    def __init__(self):
-        self.terms_list = []
-
-    cdef void add_term(self,Term trm):
-        self.terms.push_back(<void*> trm)
-        self.terms_list.append(trm)
-
+cdef class MinTerm(BinaryTerm):
     cdef double evaluate(self, double *species, double *params, double time):
         cdef double ans = (<Term>(self.terms[0])).evaluate(species, params,time)
         cdef unsigned i
@@ -636,9 +637,8 @@ cdef class MinTerm(Term):
                 ans = temp
         return ans
 
+@cython.auto_pickle(True)
 cdef class PowerTerm(Term):
-
-
     cdef void set_base(self, Term base):
         self.base = base
     cdef void set_exponent(self, Term exponent):
@@ -652,7 +652,7 @@ cdef class PowerTerm(Term):
         return self.base.volume_evaluate(species,params,vol,time) ** \
                self.exponent.volume_evaluate(species,params,vol,time)
 
-
+@cython.auto_pickle(True)
 cdef class ExpTerm(Term):
     cdef void set_arg(self, Term arg):
         self.arg = arg
@@ -663,6 +663,7 @@ cdef class ExpTerm(Term):
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return exp(self.arg.volume_evaluate(species,params,vol,time))
 
+@cython.auto_pickle(True)
 cdef class LogTerm(Term):
     cdef void set_arg(self, Term arg):
         self.arg = arg
@@ -673,7 +674,7 @@ cdef class LogTerm(Term):
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return log(self.arg.volume_evaluate(species,params,vol,time))
 
-
+@cython.auto_pickle(True)
 cdef class StepTerm(Term):
     cdef void set_arg(self, Term arg):
         self.arg = arg
@@ -688,6 +689,7 @@ cdef class StepTerm(Term):
             return 1.0
         return 0
 
+@cython.auto_pickle(True)
 cdef class AbsTerm(Term):
     cdef void set_arg(self, Term arg):
         self.arg = arg
@@ -698,7 +700,7 @@ cdef class AbsTerm(Term):
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return fabs( self.arg.volume_evaluate(species,params,vol,time) )
 
-
+@cython.auto_pickle(True)
 cdef class TimeTerm(Term):
     cdef double evaluate(self, double *species, double *params, double time):
         return time
@@ -866,6 +868,9 @@ cdef class GeneralPropensity(Propensity):
     def get_species_and_parameters(self, dict fields, dict species2index, dict params2index):
         instring = fields['rate'].strip()
         return sympy_species_and_parameters(instring, species2index, params2index)
+
+    def py_get_term(self):
+        return self.term
 
 
 
@@ -1363,14 +1368,34 @@ cdef class StateDependentVolume(Volume):
 ##############################                     #############################
 
 cdef class Model:
-    def __init__(self, filename = None, species = [], reactions = [], parameters = [], rules = [], 
-                initial_condition_dict = None, sbml_filename = None, input_printout = False, 
-                initialize_model = True, **kwargs):
+    def __init__(self, filename = None, species = [], reactions = [], 
+                 parameters = [], rules = [], initial_condition_dict = None, 
+                 sbml_filename = None, input_printout = False, 
+                 initialize_model = True, **kwargs):
         """
-        Read in a model from a file using XML format for the model.
+        Read in a model from a file using XML format, SBML format, or by 
+        specifying the model programmatically.
 
         :param filename: (str) the file to read the model
         """
+
+        ########################################################################
+        # DEVELOPER WARNING 
+        # 
+        # In order to be copiable and usable with multiprocessing, Model must be 
+        # picklable. To do that, Model implements a __getstate__ method and a 
+        # __setstate__ method, which respectively compress all of the Model's 
+        # state variables into a picklable tuple and use those tuples to make a 
+        # new Model identical to the old one. 
+        # 
+        # IF YOU ADD, REMOVE, OR CHANGE ANY VARIABLES HERE, YOU MUST REFLECT 
+        # THOSE CHANGES IN THE __getstate__ AND __setstate__ METHODS.
+        #
+        # This is especially important for newly-added variables. If you add 
+        # variables but don't update the pickling methods, then you will 
+        # introduce SILENT bugs whenever a user makes a copy of a Model or tries
+        # to use a Model in multiple threads/processes with multiprocessing. 
+        ########################################################################
         self._next_species_index = 0
         self._next_params_index = 0
         self._dummy_param_counter = 0
@@ -2364,6 +2389,83 @@ cdef class Model:
         with open(file_name, 'w') as f:
             f.write(sbml_string)
         return True
+
+    # Update this if you change any of Model's member variables!
+    def __getstate__(self):
+        '''Returns the Model's state as a tuple of picklable Python objects. 
+
+        Note that c_propensities, c_delays, and c_repeat_rules are just 
+        pointers to the objects in propensities, delays, and repeat_rules,
+        respectively, so only the latter are needed to fully represent the 
+        Model's state.
+        '''
+        return (self._next_species_index,
+                self._next_params_index,
+                self._dummy_param_counter,
+                self.has_delay,
+                self.propensities,
+                self.delays,
+                self.repeat_rules,
+                self.species2index,
+                self.params2index,
+                self.species_values,
+                self.params_values,
+                self.update_array,
+                self.delay_update_array,
+                self.reaction_list,
+                self.reaction_updates,
+                self.delay_reaction_updates,
+                self.initialized,
+                self.txt_dict,
+                self.reaction_definitions,
+                self.rule_definitions)
+
+    # Update this if you change any of Model's member variables!
+    def __setstate__(self, state):
+        '''Sets this Model's state to that of another, using a tuple generated
+        by the other Model's __getstate__ method. 
+
+        Note that c_propensities, c_delays, and c_repeat_rules are just 
+        pointers to the objects in propensities, delays, and repeat_rules,
+        respectively, so only the latter are needed to fully reconstruct a 
+        Model's state.
+        '''
+        self._next_species_index = state[0]
+        self._next_params_index = state[1]
+        self._dummy_param_counter = state[2]
+        self.has_delay = state[3]
+
+        self.propensities = state[4]
+        self.c_propensities.clear()
+        if state[4] is not None:
+            for x in state[4]:
+                self.c_propensities.push_back(<void *> x)
+        self.delays = state[5]
+        self.c_delays.clear()
+        if state[5] is not None:
+            for x in state[5]:
+                self.c_delays.push_back(<void *> x)
+        self.repeat_rules = state[6]
+        self.c_repeat_rules.clear()
+        if state[6] is not None:
+            for x in state[6]:
+                self.c_repeat_rules.push_back(<void *> x)
+
+        self.species2index = state[7]
+        self.params2index = state[8]
+        self.species_values = state[9]
+        self.params_values = state[10]
+        self.update_array = state[11]
+        self.delay_update_array = state[12]
+        self.reaction_list = state[13]
+        self.reaction_updates = state[14]
+        self.delay_reaction_updates = state[15]
+        self.initialized = state[16]
+        self.txt_dict = state[17]
+        self.reaction_definitions = state[18]
+        self.rule_definitions = state[19]
+
+
 
 ##################################################                ####################################################
 ######################################              DATA    TYPES                       ##############################

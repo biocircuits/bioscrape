@@ -233,7 +233,7 @@ cdef class VolumeTerm(Term):
 
 # Putting stuff together
 
-cdef class SumTerm(Term):
+cdef class BinaryTerm(Term):
     cdef vector[void*] terms
     cdef list terms_list
 
@@ -242,28 +242,25 @@ cdef class SumTerm(Term):
     cdef double evaluate(self, double *species, double *params, double time)
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
 
-cdef class ProductTerm(Term):
-    cdef vector[void*] terms
-    cdef list terms_list
+cdef class SumTerm(BinaryTerm):
+    cdef void add_term(self,Term trm)
 
+    cdef double evaluate(self, double *species, double *params, double time)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
+
+cdef class ProductTerm(BinaryTerm):
     cdef void add_term(self,Term trm)
     cdef double evaluate(self, double *species, double *params, double time)
 
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
 
-cdef class MaxTerm(Term):
-    cdef vector[void*] terms
-    cdef list terms_list
-
+cdef class MaxTerm(BinaryTerm):
     cdef void add_term(self,Term trm)
     cdef double evaluate(self, double *species, double *params, double time)
 
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
 
-cdef class MinTerm(Term):
-    cdef vector[void*] terms
-    cdef list terms_list
-
+cdef class MinTerm(BinaryTerm):
     cdef void add_term(self,Term trm)
     cdef double evaluate(self, double *species, double *params, double time)
 
@@ -576,6 +573,25 @@ cdef class Model:
 
 
     """
+    ############################################################################
+    # DEVELOPER WARNING 
+    # 
+    # In order to be copiable and usable with multiprocessing, Model must be 
+    # picklable. To do that, Model implements a __getstate__ method and a 
+    # __setstate__ method, which respectively compress all of the Model's state 
+    # variables into a picklable tuple and use those tuples to make a new Model 
+    # identical to the old one. 
+    # 
+    # IF YOU ADD, REMOVE, OR CHANGE ANY VARIABLES HERE, YOU MUST REFLECT THOSE 
+    # CHANGES IN THE __getstate__ AND __setstate__ METHODS.
+    #
+    # This is especially important for newly-added variables. If you add 
+    # variables but don't update the pickling methods, then you will introduce 
+    # SILENT bugs whenever a user makes a copy of a Model or tries to use a 
+    # Model in multiple threads/processes with multiprocessing. 
+    ############################################################################
+    
+
     cdef unsigned _next_species_index
     cdef unsigned _next_params_index
     cdef unsigned _dummy_param_counter
