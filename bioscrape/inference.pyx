@@ -6,7 +6,7 @@ from types import Model
 from types cimport Model
 from simulator cimport CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
 from simulator import CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
-from emcee_interface import initialize_inference
+from inference_setup import initialize_inference
 import sys
 
 import emcee
