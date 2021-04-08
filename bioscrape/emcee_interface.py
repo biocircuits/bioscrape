@@ -349,8 +349,11 @@ class MCMC(object):
 
         progress = kwargs.get('progress')
         convergence_check = kwargs.get('convergence_check')
+        mcmc_diagnostics = kwargs.get('mcmc_diagnostics')
         if not 'convergence_check' in kwargs:
             convergence_check = True
+        if not 'mcmc_diagnostics' in kwargs:
+            mcmc_diagnostics = True
         if not 'progress' in kwargs:
             progress = True
         try:
@@ -362,24 +365,34 @@ class MCMC(object):
         for p in self.params_to_estimate:
             value = self.M.get_parameter_dictionary()[p]
             params_values.append(value)
-        p0 = np.array(params_values) + self.init_seed * np.random.randn(self.nwalkers, ndim)
+        if isinstance(self.init_seed, np.ndarray) or isinstance(self.init_seed, list):
+            p0 = np.array(self.init_seed) + 0.01*np.random.randn(self.nwalkers, ndim)
+        else:
+            p0 = np.array(params_values) + self.init_seed * np.random.randn(self.nwalkers, ndim)
         assert p0.shape == (self.nwalkers, ndim)
         sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function)
         sampler.run_mcmc(p0, self.nsteps, progress = progress)
         if convergence_check:
             self.autocorrelation_time = sampler.get_autocorr_time()
+        if mcmc_diagnostics:
+            if not convergence_check:
+                raise ValueError('MCMC diagnostics cannot be printed when convergence check is False.')
+            self.mcmc_diagnostics = {'Autocorrelation time for each parameter':self.autocorrelation_time,
+                                    'Acceptance fraction (fraction of steps that were accepted)':sampler.acceptance_fraction}
         # Write results
         import csv
         with open('mcmc_results.csv','w', newline = "") as f:
             writer = csv.writer(f)
             writer.writerows(sampler.flatchain)
-            if convergence_check:
-                writer.writerow('\nAutocorrelation times\n')
-                writer.writerow(self.autocorrelation_time)
+            if mcmc_diagnostics:
+                writer.writerow('\nMCMC convrgence diagnostics\n')
+                writer.writerow(self.mcmc_diagnostics)
             writer.writerow('\nCost function progress\n')
             writer.writerow(self.cost_progress)
             f.close()
-        print('Successfully completed MCMC parameter identification procedure. Parameter distribution data written to mcmc_results.csv file')
+        print('Successfully completed MCMC parameter identification procedure. Parameter distribution data written to mcmc_results.csv file. Check the MCMC diagnostics to evaluate convergence.')
+        if mcmc_diagnostics:
+            print(self.mcmc_diagnostics)
         return sampler
     
     def plot_mcmc_results(self, sampler, plot_show = True, **kwargs):
