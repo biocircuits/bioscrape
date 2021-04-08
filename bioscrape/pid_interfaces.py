@@ -9,7 +9,7 @@ class PIDInterface():
     '''
     PID Interface : Parameter identification interface.
     Super class to create parameter identification (PID) interfaces. Two PID interfaces currently implemented: 
-    Deterministic and Stochastic inference using time-series data.
+    Deterministic and Stochastic Bayesian inference using time-series data.
     To add a new PIDInterface - simply add a new subclass of this parent class with your desired 
     log-likelihood functions. You can even have your own check_prior function in that class if you do not 
     prefer to use the built in priors with this package.
@@ -296,7 +296,40 @@ class DeterministicInference(PIDInterface):
         ln_prob = lp + LL_det_cost
         return ln_prob
         
+class LMFitInference(PIDInterface):
+    def __init__(self, params_to_estimate, M, prior):
+        self.residual_function = None
+        self.dataLMFit = None
+        super().__init__(params_to_estimate, M, prior)
+        return
 
+    def setup_likelihood_function(self, data, timepoints, measurements, initial_conditions, 
+                                method = 'leastsq', debug = False, **kwargs):
+        N = np.shape(data)[0]
+        # In this case the timepoints should be a list of timepoints vectors for each iteration
+        self.dataLMFit = np.reshape(data, (np.array(timepoints), data, measurements, N)
+        #If there are multiple initial conditions in a data-set, should correspond to multiple initial conditions for inference.
+        #Note len(initial_conditions) must be equal to the number of trajectories N
+        if debug:
+            print('The LMFit inference attributes:')
+            print('The timepoints shape is {0}'.format(np.shape(timepoints)))
+            print('The data shape is {0}'.format(np.shape(data)))
+            print('The measurmenets is {0}'.format(measurements))
+            print('The N is {0}'.format(N))
+            print('Using the initial conditions: {0}'.format(initial_conditions))
+
+    def get_likelihood_function(self, params):
+        # Check prior
+        lp = 0
+        lp = self.check_prior(params)
+        if not np.isfinite(lp):
+            return -np.inf
+        for n in range(N):
+            curr_data = self.dataLMFit[n,:,:]
+            model_sim = py_simulate(M, timepoints, x0, stochastic = stochastic)
+            ln_prob = lp + model_sim - data 
+        return ln_prob
+ 
 
 
 

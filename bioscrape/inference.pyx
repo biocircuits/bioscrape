@@ -6,7 +6,7 @@ from types import Model
 from types cimport Model
 from simulator cimport CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
 from simulator import CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
-from emcee_interface import initialize_mcmc
+from emcee_interface import initialize_inference
 import sys
 
 import emcee
@@ -493,12 +493,13 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
 
 def py_inference(Model = None, params_to_estimate = None, exp_data = None, initial_conditions = None,
                 measurements = None, time_column = None, nwalkers = None, nsteps = None,
-                init_seed = None, prior = None, sim_type = None, plot_show = True, **kwargs):
+                init_seed = None, prior = None, sim_type = None, inference_type = 'emcee',
+                plot_show = True, **kwargs):
     
     if Model is None:
         raise ValueError('Model object cannot be None.')
         
-    pid = initialize_mcmc(Model = Model, **kwargs)
+    pid = initialize_inference(Model = Model, **kwargs)
     if exp_data is not None:
         pid.set_exp_data(exp_data)
     if measurements is not None:
@@ -519,8 +520,11 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
         pid.set_params_to_estimate(params_to_estimate)
     if prior is not None:
         pid.set_prior(prior)
-
-    sampler = pid.run_mcmc(plot_show = plot_show, **kwargs)
-    if plot_show:
-        pid.plot_mcmc_results(sampler, **kwargs)
-    return sampler, pid
+    if inference_type == 'emcee':
+        sampler = pid.run_mcmc(plot_show = plot_show, **kwargs)
+        if plot_show:
+            pid.plot_mcmc_results(sampler, **kwargs)
+        return sampler, pid
+    elif inference_type == 'lmfit':
+        minimizer_result = pid.run_lmfit(plot_show = plot_show, **kwargs)
+        return minimizer_result
