@@ -45,6 +45,9 @@ class InferenceSetup(object):
         self.sim_type = 'deterministic'
         if 'sim_type' in kwargs:
             self.set_sim_type(kwargs.get('sim_type'))
+        self.method = 'emcee'
+        if 'method' in kwargs:
+            self.set_method(kwargs.get('method'))
         self.timepoints = None
         if 'timepoints' in kwargs:
             self.set_timepoints(kwargs.get('timepoints'))
@@ -88,6 +91,8 @@ class InferenceSetup(object):
         Set the prior distribution for the parameter inference
         '''
         self.prior = prior
+        if len(list(self.prior.keys())) != len(self.params_to_estimate):
+            raise ValueError('Prior keys length must be equal to the length of params_to_estimate.')
         return True 
 
     def set_nsteps(self, nsteps: int):
@@ -106,14 +111,14 @@ class InferenceSetup(object):
 
     def set_dimension(self, dimension: int):
         '''
-        Set the dimension of parameter set to identify when using Python emcee
+        Set the dimension of parameter set to identify 
         '''
         self.dimension = dimension 
         return True 
 
     def set_init_seed(self, init_seed: float):
         '''
-        Set the init_seed of parameter set to initialize Python emcee
+        Set the init_seed of parameter set to initialize the parameter identification routine
         '''
         self.init_seed = init_seed 
         return True 
@@ -139,6 +144,16 @@ class InferenceSetup(object):
         self.sim_type = sim_type 
         return True 
 
+    def set_method(self, method: str):
+        '''
+        Set the parameter identification method to use. 
+        Supported method keywords:
+        * 'emcee' : Uses Python emcee: https://emcee.readthedocs.io/en/stable/
+        * 'lmfit' : Uses Python non-linear least squares package: https://lmfit.github.io/lmfit-py/
+        '''
+        self.method = method 
+        return True 
+        
     def set_N_simulations(self, N_simulations: int):
         '''
         Set the number of simulations to run for each condition when doing stochastic inference.
@@ -155,7 +170,29 @@ class InferenceSetup(object):
         Must be a dictionary object with keys pointing to the species measurements (in order of self.measurements).
         Values of dictionary may be list of different initial conditions for which the data was collected. 
         '''
-        self.initial_conditions = initial_conditions 
+        if type(initial_conditions) is dict:
+            if len(list(initial_conditions.keys())) != len(self.M.get_species_array()):
+                new_ic = dict(self.M.get_species_dictionary())
+                for key, value in initial_conditions.items():
+                    new_ic[key] = value
+                self.initial_conditions = new_ic
+            else:
+                self.initial_conditions = initial_conditions
+        elif type(initial_conditions) is list and len(initial_conditions):
+            for curr_ic_index in range(len(initial_conditions)):
+                ic = initial_conditions[curr_ic_index]
+                if type(ic) is not dict:
+                    raise ValueError('All entries in the initial condition list must be dictionaries.')
+                elif len(list(ic.keys())) != len(self.M.get_species_array()):
+                    new_ic = dict(self.M.get_species_dictionary())
+                    for key, value in ic.items():
+                        new_ic[key] = value
+                    initial_conditions[curr_ic_index] = new_ic
+            self.initial_conditions = initial_conditions
+        # Get initial_conditions from the model if not given explicitly
+        initial_conditions = self.initial_conditions
+        if initial_conditions is None: 
+            self.initial_conditions = self.M.get_species_dictionary()
         return True 
 
     def set_measurements(self, measurements: list):
@@ -176,7 +213,10 @@ class InferenceSetup(object):
         '''
         Set the experimental data to the inference object. Must be a list of Pandas data frame objects.
         '''
-        self.exp_data = exp_data 
+        if isinstance(exp_data, (pd.DataFrame, list)):
+            self.exp_data = exp_data
+        else:
+            raise ValueError('exp_data must be either a Pandas dataframe or a list of dataframes.')
         return True 
 
     def set_norm_order(self, norm_order: int):
@@ -193,66 +233,27 @@ class InferenceSetup(object):
         return self.params_to_estimate
 
     def run_mcmc(self, **kwargs):
-        # Get initial_conditions from the model if not given explicitly
-        initial_conditions = self.initial_conditions
-        if initial_conditions == None: 
-            self.initial_conditions = self.M.get_species_dictionary()
-        self.prepare_mcmc(**kwargs)
+        self.prepare_inference(**kwargs)
         sampler = self.run_emcee(**kwargs)
         return sampler
 
-    def prepare_mcmc(self, **kwargs):
+    def prepare_inference(self, **kwargs):
         timepoints = kwargs.get('timepoints')
-        exp_data = kwargs.get('exp_data')
-        params = kwargs.get('params')
-        prior = kwargs.get('prior')
-        nwalkers = kwargs.get('nwalkers')
-        init_seed = kwargs.get('init_seed')
-        nsteps = kwargs.get('nsteps')
-        penalty = kwargs.get('penalty')
-        cost = kwargs.get('cost')
-        measurements = kwargs.get('measurements')
-        initial_conditions = kwargs.get('initial_conditions')
-
         norm_order = kwargs.get('norm_order')
         N_simulations = kwargs.get('N_simulations')
         debug = kwargs.get('debug')
         if N_simulations:
-            self.N_simulations = N_simulations # Number of simulations per sample to compare to
+            self.set_N_simulations(N_simulations)
         if norm_order:
-            self.norm_order = norm_order # (integer) Which norm to use: 1-Norm, 2-norm, etc.
+            # (integer) Which norm to use: 1-Norm, 2-norm, etc.
+            self.set_norm_order(norm_order)
         if debug:
             self.debug = debug
-        if type(timepoints) is list:
-            if len(timepoints):
-                self.timepoints = timepoints
-        elif type(timepoints) is np.ndarray:
-            if list(timepoints):
-                self.timepoints = timepoints
-        if isinstance(exp_data, (pd.DataFrame, list)):
-            self.exp_data = exp_data
-        if isinstance(params, list):
-            self.params_to_estimate = params
-        if isinstance(prior, dict):
-            self.prior = prior
-        if len(list(self.prior.keys())) != len(self.params_to_estimate):
-            raise ValueError('Prior keys length must be equal to the length of params_to_estimate.')
-        if nwalkers:
-            self.nwalkers = nwalkers
-        if init_seed:
-            self.init_seed = init_seed 
-        if nsteps:
-            self.nsteps = nsteps
-        if penalty:
-            self.penalty = penalty
-        if cost:
-            self.cost = cost
-        if isinstance(measurements, list):
-            self.measurements = measurements
-        if type(initial_conditions) is dict and len(list(initial_conditions.keys())):
-            self.initial_conditions = initial_conditions
-        elif type(initial_conditions) is list and len(initial_conditions):
-            self.initial_conditions = initial_conditions
+        if timepoints is not None:
+            if isinstance(timepoints, (list, np.ndarray)):
+                self.set_timepoints(timepoints)
+            else:
+                raise ValueError('Expected type list or np.ndarray for timepoints.')
         self.LL_data = self.extract_data(self.exp_data)
 
     def extract_data(self, exp_data):
@@ -260,26 +261,31 @@ class InferenceSetup(object):
         if isinstance(self.timepoints, (list, np.ndarray)):
             warnings.warn('Timepoints given by user, not using the data to extract the timepoints automatically.')
         M = len(self.measurements)# Number of measurements
+        if type(exp_data) is list:
+            if len(exp_data) == 1:
+                exp_data = exp_data[0]
         # Multiple trajectories case 
-        if type(self.exp_data) is list:
+        if type(exp_data) is list:
+            N = len(exp_data)# Number of trajectories
             data_list_final = []
             timepoints_list = []
             for df in exp_data:
                 data_list = []
                 if type(df) is not pd.DataFrame:
-                    raise TypeError('All elements of exp_data attribute of an MCMC object must be Pandas DataFrame objects.')
+                    raise TypeError('All elements of exp_data attribute of an InferenceSetup object must be Pandas DataFrame objects.')
                 # Extract timepoints
                 if self.time_column:
                     timepoint_i = np.array(df.get(self.time_column)).flatten()
                     timepoints_list.append(timepoint_i)
                 else:
-                    raise TypeError('time_column attribute of MCMC object must be a string.')
+                    raise TypeError('time_column attribute of InferenceSetup object must be a string.')
 
                 # Extract measurements    
                 if type(self.measurements) is list and len(self.measurements) == 1:
                     data_list.append(np.array(df.get(self.measurements[0])))
                 elif type(self.measurements) is list and len(self.measurements) > 1:
                     for m in self.measurements:
+                        # Error in multiple measurements
                         data_list.append(np.array(df.get(m)))
                 # Number of timepoints
                 T = len(timepoints_list[0])
@@ -288,23 +294,31 @@ class InferenceSetup(object):
                 data_i = np.array(data_list)
                 data_i = np.reshape(data_i, (T, M))
                 data_list_final.append(data_i)
+
+            # Create initial conditions as required
+            if type(self.initial_conditions) is dict:
+                all_initial_conditions = [self.initial_conditions]*N
+            elif type(self.initial_conditions) is list:
+                if len(self.initial_conditions) != N:
+                    raise ValueError('For a list of initial conditions, each item must be a dictionary and the length of the list must be the same as the number of trajectories.')
+                all_initial_conditions = self.initial_conditions
+            self.initial_conditions = all_initial_conditions
             data = np.array(data_list_final)
             self.timepoints = timepoints_list
-            N = len(exp_data)# Number of trajectories
             T = len(timepoints_list[0])
             data = np.reshape(data, (N,T,M))
             if self.debug:
                 print('N (Number of trajectories) = {0}'.format(N))
                 print('T (Length of timepoints) = {0}'.format(T))
                 print('M (Number of measured species) = {0}'.format(M))
-                # print('The shape of data is {0}'.format(np.shape(data)))
+                print('The shape of data is {0}'.format(np.shape(data)))
             assert np.shape(data) == (N,T,M)
         elif type(exp_data) is pd.DataFrame:
             # Extract time
             if self.time_column:
                 self.timepoints = np.array(exp_data.get(self.time_column)).flatten()
             else:
-                raise TypeError('time_column attribute of MCMC object must be a string.')
+                raise TypeError('time_column attribute of InferenceSetup object must be a string.')
             
             # Extract measurements
             if type(self.measurements) is list and len(self.measurements) == 1:
@@ -312,7 +326,7 @@ class InferenceSetup(object):
             elif type(self.measurements) is list and len(self.measurements) > 1:
                 data_list = []
                 for m in self.measurements:
-                    data_list.append(np.array(df.get(m)))
+                    data_list.append(np.array(exp_data.get(m)))
                 data = np.array(data_list)
             else:
                 raise ValueError('Something wrong with experimental data input to inference.')
@@ -321,7 +335,7 @@ class InferenceSetup(object):
             M = len(self.measurements)# Number of measurements
             data = np.reshape(data, (N,T,M))
         else:
-            raise TypeError('exp_data attribute of MCMC object must be a list of Pandas DataFrames or a single Pandas DataFrame. ')
+            raise TypeError('exp_data attribute of InferenceSetup object must be a list of Pandas DataFrames or a single Pandas DataFrame. ')
         return data
 
     def setup_cost_function(self):
@@ -337,7 +351,7 @@ class InferenceSetup(object):
 
     def cost_function(self, params):
         if self.pid_interface is None:
-            raise RuntimeError("Must call MCMC.setup_cost_function() before MCMC.cost_function(params) can be used.")
+            raise RuntimeError("Must call InferenceSetup.setup_cost_function() before InferenceSetup.cost_function(params) can be used.")
 
         cost_value = self.pid_interface.get_likelihood_function(params)
         self.cost_progress.append(cost_value)
@@ -345,14 +359,15 @@ class InferenceSetup(object):
 
     def run_emcee(self, **kwargs):
         self.setup_cost_function()
-
         progress = kwargs.get('progress')
         convergence_check = kwargs.get('convergence_check')
-        mcmc_diagnostics = kwargs.get('mcmc_diagnostics')
+        convergence_diagnostics = kwargs.get('convergence_diagnostics')
         if not 'convergence_check' in kwargs:
             convergence_check = True
-        if not 'mcmc_diagnostics' in kwargs:
-            mcmc_diagnostics = True
+        if not 'convergence_diagnostics' in kwargs:
+            convergence_diagnostics = True
+            if not convergence_check:
+                convergence_diagnostics = False
         if not 'progress' in kwargs:
             progress = True
         try:
@@ -373,25 +388,25 @@ class InferenceSetup(object):
         sampler.run_mcmc(p0, self.nsteps, progress = progress)
         if convergence_check:
             self.autocorrelation_time = sampler.get_autocorr_time()
-        if mcmc_diagnostics:
+        if convergence_diagnostics:
             if not convergence_check:
                 raise ValueError('MCMC diagnostics cannot be printed when convergence check is False.')
-            self.mcmc_diagnostics = {'Autocorrelation time for each parameter':self.autocorrelation_time,
+            self.convergence_diagnostics = {'Autocorrelation time for each parameter':self.autocorrelation_time,
                                     'Acceptance fraction (fraction of steps that were accepted)':sampler.acceptance_fraction}
         # Write results
         import csv
         with open('mcmc_results.csv','w', newline = "") as f:
             writer = csv.writer(f)
             writer.writerows(sampler.flatchain)
-            if mcmc_diagnostics:
+            if convergence_diagnostics:
                 writer.writerow('\nMCMC convrgence diagnostics\n')
-                writer.writerow(self.mcmc_diagnostics)
+                writer.writerow(self.convergence_diagnostics)
             writer.writerow('\nCost function progress\n')
             writer.writerow(self.cost_progress)
             f.close()
         print('Successfully completed MCMC parameter identification procedure. Parameter distribution data written to mcmc_results.csv file. Check the MCMC diagnostics to evaluate convergence.')
-        if mcmc_diagnostics:
-            print(self.mcmc_diagnostics)
+        if convergence_diagnostics:
+            print(self.convergence_diagnostics)
         return sampler
     
     def plot_mcmc_results(self, sampler, plot_show = True, **kwargs):
@@ -474,3 +489,72 @@ class InferenceSetup(object):
         except:
             warnings.warn('corner package not found - cannot plot parameter distributions.')
         return truth_list, uncertainty_list
+
+
+    def run_lmfit(self, method = 'leastsq', plot_show = True, **kwargs):
+        """
+        Run the Python LMFit package for a bioscrape model.
+        """
+        self.prepare_inference(**kwargs)
+        N = np.shape(self.LL_data)[0]
+        if self.sim_type == 'stochastic':
+            stochastic = True
+        else:
+            stochastic = False
+        self.pid_interface = LMFitInference(self.params_to_estimate, self.M, self.prior)
+        minimizer_result = [None]*N
+        if N == 1:
+            minimizer_result[0] = self.pid_interface.get_minimizer_results(self.LL_data[0,:,:], self.timepoints, self.measurements, 
+                                                                        self.initial_conditions, 
+                                                                        stochastic = stochastic, debug = self.debug, 
+                                                                        method = method, plot_show = plot_show, **kwargs)
+        else:   
+            for i in range(N):
+                minimizer_result[i] = self.pid_interface.get_minimizer_results(self.LL_data[i,:,:], self.timepoints[i], 
+                                                                            self.measurements, self.initial_conditions[i], 
+                                                                            stochastic = stochastic, debug = self.debug, 
+                                                                            method = method, plot_show = plot_show, **kwargs)
+        print('Successfully completed parameter identification procedure using LMFit. Parameter values and fitness reports written to lmfit_results.csv file. Check the minimizer_results object returned to further statistically evaluate the goodness of fit.')
+        return minimizer_result
+
+    def write_lmfit_results(self, minimizer_result, **kwargs):
+        """
+        Process minimizer_result list obtained from LMFit package
+        and plot parameter values on a scatter plot using the corner package.
+        Arguments:
+        * minimizer_result: List of MinimizerResult object (from LMFit package)
+        * kwargs: Passed to the corner package. 
+
+        Output:
+        * A CSV file: "lmfit_results.csv" is written with each row consisting of the optimized parameter
+        value corresponding to each trajectory in the data.
+        * Corner histogram plot showing the parameter values obtained.
+        """
+        import csv
+        try:
+            from lmfit import fit_report
+        except:
+            raise ImportError('Package lmfit not found.')
+        values_dict = {}
+        for param_name in self.params_to_estimate:
+            values_dict[param_name] = []
+        for result in minimizer_result:
+            for param_name in self.params_to_estimate:
+                values_dict[param_name].append(dict(result.params.valuesdict())[param_name])
+        df = pd.DataFrame.from_dict(values_dict)
+        # df.to_csv('lmfit_results.csv', columns = self.params_to_estimate, index = False)
+        with open('lmfit_results.csv','w') as f:
+            f.write(str(df))
+
+        convergence_diagnostics = kwargs.get('convergence_diagnostics') 
+        if convergence_diagnostics is None:
+            convergence_diagnostics = True
+        if convergence_diagnostics:
+            count = 0
+            for result in minimizer_result:
+                with open('lmfit_results.csv','a') as f:
+                    # writer = csv.writer(f)
+                    f.write('\nFor trajectory: {0}\n'.format(count))
+                    f.write(fit_report(result))
+                    count += 1
+                    f.close()

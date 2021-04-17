@@ -229,7 +229,6 @@ cdef class ModelLikelihood(Likelihood):
             sds = [sd]
         elif len(sd.keys()) > 0 and len(sds) > 0:
             raise ValueError("set_init_species requires either a list of initial condition dictionaries sds or a single initial condition dictionary sd as parameters, not both.")
-        
         self.Nx0 = len(sds)
 
         if len(sds)>1:
@@ -313,7 +312,6 @@ cdef class DeterministicLikelihood(ModelLikelihood):
         return self.norm_order
 
     cdef double get_log_likelihood(self):
-        
         # Write in the specific parameters and species values.
         cdef np.ndarray[np.double_t, ndim = 1] species_vals = self.m.get_species_values()
         cdef np.ndarray[np.double_t, ndim = 1] param_vals = self.m.get_params_values()
@@ -494,7 +492,7 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
 def py_inference(Model = None, params_to_estimate = None, exp_data = None, initial_conditions = None,
                 measurements = None, time_column = None, nwalkers = None, nsteps = None,
                 init_seed = None, prior = None, sim_type = None, inference_type = 'emcee',
-                plot_show = True, **kwargs):
+                method = 'mcmc', plot_show = True, **kwargs):
     
     if Model is None:
         raise ValueError('Model object cannot be None.')
@@ -504,8 +502,9 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
         pid.set_exp_data(exp_data)
     if measurements is not None:
         pid.set_measurements(measurements)
-    if initial_conditions is not None:
-        pid.set_initial_conditions(initial_conditions)
+    if initial_conditions is None:
+        initial_conditions = dict(Model.get_species_dictionary())
+    pid.set_initial_conditions(initial_conditions)
     if time_column is not None:
         pid.set_time_column(time_column)
     if nwalkers is not None:
@@ -520,11 +519,14 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
         pid.set_params_to_estimate(params_to_estimate)
     if prior is not None:
         pid.set_prior(prior)
-    if inference_type == 'emcee':
+    if inference_type == 'emcee' and method == 'mcmc':
         sampler = pid.run_mcmc(plot_show = plot_show, **kwargs)
         if plot_show:
             pid.plot_mcmc_results(sampler, **kwargs)
         return sampler, pid
     elif inference_type == 'lmfit':
-        minimizer_result = pid.run_lmfit(plot_show = plot_show, **kwargs)
+        minimizer_result = pid.run_lmfit(method = method, plot_show = plot_show, **kwargs)
+        pid.write_lmfit_results(minimizer_result, **kwargs)
         return minimizer_result
+    else:
+        raise ValueError("Set inference_type keyword argument to your preferred inference package name. Currently emcee and lmfit are supported.")

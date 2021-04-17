@@ -1,0 +1,229 @@
+         k_c         C_max         d
+0   0.010217  1.244477e+08  0.002690
+1   0.011023  1.320089e+08  0.003191
+2   0.011965  1.574400e+08  0.004171
+3   0.012999  1.611977e+08  0.004961
+4   0.014694  1.633434e+08  0.006267
+5   0.015194  1.703036e+08  0.006901
+6   0.020723  2.299105e+08  0.011777
+7   0.013008  1.566451e+08  0.005156
+8   0.013299  1.592150e+08  0.005408
+9   0.012723  1.469774e+08  0.004635
+10  0.012238  1.455509e+08  0.004323
+11  0.008863  1.062727e+08  0.000523
+For trajectory: 0
+[[Fit Statistics]]
+    # fitting method   = leastsq
+    # function evals   = 33
+    # data points      = 73
+    # variables        = 3
+    chi-square         = 1.1832e+15
+    reduced chi-square = 1.6903e+13
+    Akaike info crit   = 2226.40799
+    Bayesian info crit = 2233.27937
+[[Variables]]
+    k_c:    0.01021666 +/- 583.401801 (5710298.35%) (init = 0.009355598)
+    C_max:  1.2445e+08 +/- 7.1064e+12 (5710331.89%) (init = 1.121751e+08)
+    d:      0.00268989 +/- 583.043302 (21675346.58%) (init = 0.001015358)
+[[Correlations]] (unreported correlations are < 0.100)
+    C(k_c, d)     =  1.000
+    C(C_max, d)   =  1.000
+    C(k_c, C_max) =  1.000
+For trajectory: 1
+[[Fit Statistics]]
+    # fitting method   = leastsq
+    # function evals   = 25
+    # data points      = 73
+    # variables        = 3
+    chi-square         = 9.8735e+14
+    reduced chi-square = 1.4105e+13
+    Akaike info crit   = 2213.19792
+    Bayesian info crit = 2220.06930
+[[Variables]]
+    k_c:    0.01102303 +/- 489.950637 (4444789.61%) (init = 0.01021666)
+    C_max:  1.3201e+08 +/- 5.8673e+12 (4444644.46%) (init = 1.244477e+08)
+    d:      0.00319065 +/- 489.132296 (15330195.72%) (init = 0.002689891)
+[[Correlations]] (unreported correlations are < 0.100)
+    C(k_c, d)     =  1.000
+    C(C_max, d)   =  1.000
+    C(k_c, C_max) =  1.000
+For trajectory: 2
+[[Fit Statistics]]
+    # fitting method   = leastsq
+    # function evals   = 30
+    # data points      = 73
+    # variables        = 3
+    chi-square         = 9.7671e+14
+    reduced chi-square = 1.3953e+13
+    Akaike info crit   = 2212.40718
+    Bayesian info crit = 2219.27856
+[[Variables]]
+    k_c:    0.01196473 +/- 405.903412 (3392500.32%) (init = 0.01102303)
+    C_max:  1.5744e+08 +/- 5.3411e+12 (3392465.09%) (init = 1.320089e+08)
+    d:      0.00417146 +/- 406.089453 (9734940.46%) (init = 0.003190646)
+[[Correlations]] (unreported correlations are < 0.100)
+    C(k_c, d)     =  1.000
+    C(C_max, d)   =  1.000
+    C(k_c, C_max) =  1.000
+For trajectory: 3
+[[Fit Statistics]]
+    # fitting method   = leastsq
+    # function evals   = 32
+    # data points      = 73
+    # variables        = 3
+    chi-square         = 7.6255e+14
+    reduced chi-square = 1.0894e+13
+    Akaike info crit   = 2194.33731
+    Bayesian info crit = 2201.20869
+[[Variables]]
+    k_c:    0.01299946 +/- 35.1040163 (270042.03%) (init = 0.01196473)
+    C_max:  1.6120e+08 +/- 4.3530e+11 (270043.79%) (init = 1.5744e+08)
+    d:      0.00496138 +/- 35.1040568 (707545.98%) (init = 0.004171463)
+[[Correlations]] (unreported correlations are < 0.100)
+    C(k_c, d)     =  1.000
+    C(C_max, d)   =  1.000
+    C(k_c, C_max) =  1.000
+For trajectory: 4
+[[Fit Statistics]]
+    # fitting method   = leastsq
+    # function evals   = 28
+    # data points      = 73
+    # variables        = 3
+    chi-square         = 5.9548e+14
+    reduced chi-square = 8.5068e+12
+    Akaike info crit   = 2176.28437
+    Bayesian info crit = 2183.15575
+[[Variables]]
+    k_c:    0.01469435 +/- 361.266120 (2458538.36%) (init = 0.01299946)
+    C_max:  1.6334e+08 +/- 4.0159e+12 (2458543.64%) (init = 1.611977e+08)
+    d:      0.00626696 +/- 361.266300 (5764620.90%) (init = 0.004961382)
+[[Correlations]] (unreported correlations are < 0.100)
+    C(k_c, d)     =  1.000
+    C(C_max, d)   =  1.000
+    C(k_c, C_max) =  1.000
+For trajectory: 5
+[[Fit Statistics]]
+    # fitting method   = leastsq
+    # function evals   = 25
+    # data points      = 73
+    # variables        = 3
+    chi-square         = 5.7298e+14
+    reduced chi-square = 8.1855e+12
+    Akaike info crit   = 2173.47364
+    Bayesian info crit = 2180.34502
+[[Variables]]
+    k_c:    0.01519398 +/- 163.448332 (1075744.03%) (init = 0.01469435)
+    C_max:  1.7030e+08 +/- 1.8320e+12 (1075751.05%) (init = 1.633434e+08)
+    d:      0.00690076 +/- 163.391314 (2367727.61%) (init = 0.006266957)
+[[Correlations]] (unreported correlations are < 0.100)
+    C(k_c, d)     =  1.000
+    C(C_max, d)   =  1.000
+    C(k_c, C_max) =  1.000
+For trajectory: 6
+[[Fit Statistics]]
+    # fitting method   = leastsq
+    # function evals   = 33
+    # data points      = 73
+    # variables        = 3
+    chi-square         = 4.4043e+14
+    reduced chi-square = 6.2918e+12
+    Akaike info crit   = 2154.26657
+    Bayesian info crit = 2161.13794
+[[Variables]]
+    k_c:    0.02072267 +/- 5.00163398 (24136.05%) (init = 0.01519398)
+    C_max:  2.2991e+08 +/- 5.5493e+10 (24136.63%) (init = 1.703036e+08)
+    d:      0.01177682 +/- 5.00297562 (42481.55%) (init = 0.006900765)
+[[Correlations]] (unreported correlations are < 0.100)
+    C(k_c, d)     =  1.000
+    C(C_max, d)   =  1.000
+    C(k_c, C_max) =  1.000
+For trajectory: 7
+[[Fit Statistics]]
+    # fitting method   = leastsq
+    # function evals   = 30
+    # data points      = 73
+    # variables        = 3
+    chi-square         = 7.5706e+14
+    reduced chi-square = 1.0815e+13
+    Akaike info crit   = 2193.81025
+    Bayesian info crit = 2200.68163
+[[Variables]]
+    k_c:    0.01300788 +/- 334.991333 (2575296.01%) (init = 0.02072267)
+    C_max:  1.5665e+08 +/- 4.0341e+12 (2575301.10%) (init = 2.299105e+08)
+    d:      0.00515552 +/- 334.991456 (6497722.09%) (init = 0.01177682)
+[[Correlations]] (unreported correlations are < 0.100)
+    C(k_c, d)     =  1.000
+    C(C_max, d)   =  1.000
+    C(k_c, C_max) =  1.000
+For trajectory: 8
+[[Fit Statistics]]
+    # fitting method   = leastsq
+    # function evals   = 24
+    # data points      = 73
+    # variables        = 3
+    chi-square         = 6.9466e+14
+    reduced chi-square = 9.9238e+12
+    Akaike info crit   = 2187.53124
+    Bayesian info crit = 2194.40262
+[[Variables]]
+    k_c:    0.01329892 +/- 375.469049 (2823305.82%) (init = 0.01300788)
+    C_max:  1.5922e+08 +/- 4.4951e+12 (2823313.34%) (init = 1.566451e+08)
+    d:      0.00540779 +/- 375.469314 (6943114.21%) (init = 0.005155521)
+[[Correlations]] (unreported correlations are < 0.100)
+    C(k_c, d)     =  1.000
+    C(C_max, d)   =  1.000
+    C(k_c, C_max) =  1.000
+For trajectory: 9
+[[Fit Statistics]]
+    # fitting method   = leastsq
+    # function evals   = 29
+    # data points      = 73
+    # variables        = 3
+    chi-square         = 5.8424e+14
+    reduced chi-square = 8.3462e+12
+    Akaike info crit   = 2174.89315
+    Bayesian info crit = 2181.76452
+[[Variables]]
+    k_c:    0.01272345 +/- 216.786385 (1703833.84%) (init = 0.01329892)
+    C_max:  1.4698e+08 +/- 2.5043e+12 (1703838.73%) (init = 1.59215e+08)
+    d:      0.00463467 +/- 216.786569 (4677498.10%) (init = 0.005407794)
+[[Correlations]] (unreported correlations are < 0.100)
+    C(k_c, d)     =  1.000
+    C(C_max, d)   =  1.000
+    C(k_c, C_max) =  1.000
+For trajectory: 10
+[[Fit Statistics]]
+    # fitting method   = leastsq
+    # function evals   = 25
+    # data points      = 73
+    # variables        = 3
+    chi-square         = 6.6091e+14
+    reduced chi-square = 9.4416e+12
+    Akaike info crit   = 2183.89504
+    Bayesian info crit = 2190.76642
+[[Variables]]
+    k_c:    0.01223828 +/- 347.637974 (2840579.46%) (init = 0.01272345)
+    C_max:  1.4555e+08 +/- 4.1345e+12 (2840611.21%) (init = 1.469774e+08)
+    d:      0.00432330 +/- 347.860227 (8046166.21%) (init = 0.004634669)
+[[Correlations]] (unreported correlations are < 0.100)
+    C(k_c, d)     =  1.000
+    C(C_max, d)   =  1.000
+    C(k_c, C_max) =  1.000
+For trajectory: 11
+[[Fit Statistics]]
+    # fitting method   = leastsq
+    # function evals   = 32
+    # data points      = 73
+    # variables        = 3
+    chi-square         = 5.4258e+14
+    reduced chi-square = 7.7512e+12
+    Akaike info crit   = 2169.49376
+    Bayesian info crit = 2176.36514
+[[Variables]]
+    k_c:    0.00886336 +/- 318.383843 (3592136.13%) (init = 0.01223828)
+    C_max:  1.0627e+08 +/- 3.8175e+12 (3592138.64%) (init = 1.455509e+08)
+    d:      5.2310e-04 +/- 318.383745 (60864236.41%) (init = 0.004323304)
+[[Correlations]] (unreported correlations are < 0.100)
+    C(C_max, d)   =  1.000
+    C(k_c, d)     =  1.000
+    C(k_c, C_max) =  1.000
