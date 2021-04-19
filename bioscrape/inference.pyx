@@ -362,11 +362,13 @@ cdef class DeterministicLikelihood(ModelLikelihood):
 cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
     def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None):
         self.m = m
+        self.delay = False
         if csim is None:
             csim = ModelCSimInterface(m)
         if prop is None:
             if m.has_delay:
-                raise NotImplementedError("Delay Simulation not yet implemented for inference.")
+                prop = DelaySSASimulator()
+                self.delay = True
             else:
                 prop = SSASimulator()
 
@@ -445,7 +447,11 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
                 elif self.Nx0 == self.N: #Different initial conditions for different simulations
                     for i in range(self.M):
                         species_vals[ self.init_state_indices[i, n] ] = self.init_state_vals[i, n]
-                ans = self.propagator.simulate(self.csim, timepoints).get_result()
+                if self.delay:
+                    q = ArrayDelayQueue.setup_queue(self.csim.py_get_num_reactions(), len(timepoints),timepoints[1]-timepoints[0])
+                    ans = self.propogator.py_delay_simulate(self.csim, q, timepoints).get_result()
+                else not self.delay:
+                    ans = self.propagator.simulate(self.csim, timepoints).get_result()
 
                 for i in range(self.M):
                     # Compare the data using norm and return the likelihood.
