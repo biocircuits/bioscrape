@@ -707,7 +707,7 @@ cdef class TimeTerm(Term):
         return time
 
 
-def sympy_species_and_parameters(instring, species2index, params2index):
+def sympy_species_and_parameters(instring, species2index = None, params2index = None):
     instring = instring.replace('^','**')
     instring = instring.replace('|','_')
     root = sympy.sympify(instring, _clash1)
@@ -728,8 +728,14 @@ def sympy_species_and_parameters(instring, species2index, params2index):
     #New Way
     #remove leading "_" if there is one.
     names = [str(n) for n in nodes if type(n) == sympy.Symbol if str(n)[0] != "_"]+[str(n)[1:] for n in nodes if type(n) == sympy.Symbol if str(n)[0] == "_"]
-    species_names = [s for s in names if s in species2index]
-    param_names = [s for s in names if (s not in species2index and s != 'volume' and s != 't')]
+    if species2index is None:
+        species_names = [str(n) for n in nodes if type(n) == sympy.Symbol if str(n)[0] != "_"]
+    else:
+        species_names = [s for s in names if s in species2index]
+    if params2index is None:
+        param_names = [str(n)[1:] for n in nodes if type(n) == sympy.Symbol if str(n)[0] == "_"]
+    else:
+        param_names = [s for s in names if (s not in species2index and s != 'volume' and s != 't')]
 
     return species_names, param_names
 

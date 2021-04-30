@@ -5,6 +5,9 @@ import os
 import sys
 import subprocess
 
+# Set to true to enable line profiling
+line_debug = False
+
 #The following try-catch statements ensure numpy and cython are installed prior to running setup.py
 #in some virtual environments, pip dependencies have issues with cython packages.
 #NUMPY CHECK
@@ -40,6 +43,8 @@ try:
         ext_options['extra_compile_args'] = ['-std=c++11', "-mmacosx-version-min=10.9"]
         ext_options['extra_link_args'] = ["-stdlib=libc++", "-mmacosx-version-min=10.9"]
         print('Using macOS clang args')
+    if line_debug:
+        ext_options['define_macros'] = [('CYTHON_TRACE_NOGIL', '1')]
 
     #used to generate HTML annotations of the cython code for
     #optimization purposes.
@@ -50,24 +55,44 @@ try:
     if "annotate" in sys.argv:
         cythonize_options['annotate'] = True
         sys.argv.remove("annotate")
+    if line_debug:
+        cythonize_options["compiler_directives"] = {
+            'profile': True,
+            'linetrace': True,
+            'binding': True
+        }
 
     #Determine if we install bioscrape, lineage, or both
     install_bioscrape = False
     install_lineage = False
-    if "bioscrape" not in sys.argv and "lineage" not in sys.argv:
-        install_bioscrape = True
-        install_lineage = True
-    if "bioscrape" in sys.argv:
-        install_bioscrape = True
-        sys.argv.remove("bioscrape")
-    if "lineage" in sys.argv:
-        install_lineage = True
-        sys.argv.remove("lineage")
-    
-    elif "bioscrape" not in sys.argv:
-        install_lineage = True
+    install_pqtest = False
+    if "pq_test" in sys.argv:
+        install_bioscrape = False
+        install_lineage = False
+        install_pqtest = True
+        sys.argv.remove("pq_test")
+    else:
+        if "bioscrape" not in sys.argv and "lineage" not in sys.argv:
+            install_bioscrape = True
+            install_lineage = True
+        if "bioscrape" in sys.argv:
+            install_bioscrape = True
+            sys.argv.remove("bioscrape")
+        if "lineage" in sys.argv:
+            install_lineage = True
+            sys.argv.remove("lineage")
+        
+        elif "bioscrape" not in sys.argv:
+            install_lineage = True
 
     cython_extensions = []
+    if install_pqtest:
+        print("Installing pq_test...")
+        pqtest_extensions = [Extension(name = 'bioscrape.pq_test',
+                                        sources = ['lineage/pq_test.pyx'], 
+                                        **ext_options)]
+        cython_extensions += cythonize(pqtest_extensions, **cythonize_options)
+        print("pq_test cythonized.")
     if install_bioscrape:
         print("Installing Bioscrape...")
         bioscrape_source_files = ['random.pyx', 'types.pyx', 'simulator.pyx', 'inference.pyx']
