@@ -82,6 +82,13 @@ try:
         install_lineage = True
 
     cython_extensions = []
+    if install_pqtest:
+        print("Installing pq_test...")
+        pqtest_extensions = [Extension(name = 'bioscrape.pq_test',
+                                        sources = ['lineage/pq_test.pyx'], 
+                                        **ext_options)]
+        cython_extensions += cythonize(pqtest_extensions, **cythonize_options)
+        print("pq_test cythonized.")
     if install_bioscrape:
         print("Installing Bioscrape...")
         bioscrape_source_files = ['random.pyx', 'types.pyx', 'simulator.pyx', 'inference.pyx']
