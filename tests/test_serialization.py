@@ -103,21 +103,24 @@ def test_random_complex_model():
 	# TEST SERIALIZATION OF MODEL #
 	###############################
 	timepoints = np.arange(0, 25, 0.01)
-	prepickling_results = py_simulate_model(timepoints, 
+	for is_stochastic in [False, True]:
+		prepickling_results = py_simulate_model(timepoints, 
 									Model = M, 
-									stochastic = True, 
+									stochastic = is_stochastic, 
 									return_dataframe = False).py_get_result()
-	pickled_M = pickle.dumps(M)
-	postpickled_M = pickle.loads(pickled_M)
+		pickled_M = pickle.dumps(M)
+		postpickled_M = pickle.loads(pickled_M)
 
-	test_utils.set_seed(seed)
-	postpickling_results = py_simulate_model(timepoints, 
+		test_utils.set_seed(seed)
+		postpickling_results = py_simulate_model(timepoints, 
 									Model = postpickled_M, 
-									stochastic = True, 
+									stochastic = is_stochastic, 
 									return_dataframe = False).py_get_result()
 
-	assert np.allclose(prepickling_results, postpickling_results), \
-		   	"Complex Model changes when pickled and unpickled."
+		assert np.allclose(prepickling_results, postpickling_results, equal_nan = True), \
+			   	f"Complex Model changes in " + \
+			   	f"{'stochastic' if is_stochastic else 'deterministic'} " + \
+			   	"simulation when pickled and unpickled."
 
 
 def test_random_complex_lineagemodel():
