@@ -718,7 +718,8 @@ def sympy_species_and_parameters(instring, species2index = None, params2index = 
         index += 1
         nodes.extend(node.args)
 
-    names = [str(n) for n in nodes if type(n) == sympy.Symbol]
+    names = [str(n) for n in nodes if type(n) == sympy.Symbol]\
+            +[str(n)[1:] for n in nodes if type(n) == sympy.Symbol if str(n)[0] == "_"]
 
     species_names = [s for s in names if s in species2index]
     param_names = [s for s in names if (s not in species2index and s != 'volume' and s != 't')]
