@@ -51,7 +51,7 @@ try:
     cythonize_options = {
     "include_path":[bioscrape_src_dir],
     "language_level":"2" #Language level 3 does not work yet
-    } 
+    }
     if "annotate" in sys.argv:
         cythonize_options['annotate'] = True
         sys.argv.remove("annotate")
@@ -65,41 +65,27 @@ try:
     #Determine if we install bioscrape, lineage, or both
     install_bioscrape = False
     install_lineage = False
-    install_pqtest = False
-    if "pq_test" in sys.argv:
-        install_bioscrape = False
-        install_lineage = False
-        install_pqtest = True
-        sys.argv.remove("pq_test")
-    else:
-        if "bioscrape" not in sys.argv and "lineage" not in sys.argv:
-            install_bioscrape = True
-            install_lineage = True
-        if "bioscrape" in sys.argv:
-            install_bioscrape = True
-            sys.argv.remove("bioscrape")
-        if "lineage" in sys.argv:
-            install_lineage = True
-            sys.argv.remove("lineage")
-        
-        elif "bioscrape" not in sys.argv:
-            install_lineage = True
+    if "bioscrape" not in sys.argv and "lineage" not in sys.argv:
+        install_bioscrape = True
+        install_lineage = True
+    if "bioscrape" in sys.argv:
+        install_bioscrape = True
+        sys.argv.remove("bioscrape")
+    if "lineage" in sys.argv:
+        install_lineage = True
+        sys.argv.remove("lineage")
+
+    elif "bioscrape" not in sys.argv:
+        install_lineage = True
 
     cython_extensions = []
-    if install_pqtest:
-        print("Installing pq_test...")
-        pqtest_extensions = [Extension(name = 'bioscrape.pq_test',
-                                        sources = ['lineage/pq_test.pyx'], 
-                                        **ext_options)]
-        cython_extensions += cythonize(pqtest_extensions, **cythonize_options)
-        print("pq_test cythonized.")
     if install_bioscrape:
         print("Installing Bioscrape...")
         bioscrape_source_files = ['random.pyx', 'types.pyx', 'simulator.pyx', 'inference.pyx']
         bioscrape_extensions = [
                 Extension(
                     name = 'bioscrape.'+s.split('.')[0],
-                    sources = [bioscrape_src_dir+'/'+s], 
+                    sources = [bioscrape_src_dir+'/'+s],
                     **ext_options) for s in bioscrape_source_files
             ]
         cython_extensions += cythonize(bioscrape_extensions, **cythonize_options)
@@ -112,7 +98,7 @@ try:
         lineage_source_files = ['lineage.pyx']
         lineage_extensions = [
             Extension(name = 'bioscrape.'+s.split('.')[0],
-                sources = [lineage_src_dir+'/'+s], 
+                sources = [lineage_src_dir+'/'+s],
                 **ext_options) for s in lineage_source_files
         ]
         cython_extensions += cythonize(lineage_extensions, **cythonize_options)

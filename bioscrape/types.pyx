@@ -718,26 +718,10 @@ def sympy_species_and_parameters(instring, species2index = None, params2index = 
         index += 1
         nodes.extend(node.args)
 
+    names = [str(n) for n in nodes if type(n) == sympy.Symbol]
 
-
-    #Old Way
-    #names = [str(n) for n in nodes if type(n) == sympy.Symbol]
-    #species_names = [s for s in names if (s[0] != '_' and s != 'volume' and s != 't')]
-    #param_names = [s[1:] for s in names if s[0] == '_']
-
-    #New Way
-    #remove leading "_" if there is one.
-    names = [str(n) for n in nodes if type(n) == sympy.Symbol if str(n)[0] != "_"]+[str(n)[1:] for n in nodes if type(n) == sympy.Symbol if str(n)[0] == "_"]
-    if species2index is None:
-        warnings.warn("sympy_species_and_parameters will strictly require a species2index argument in an upcoming release.", PendingDepricationWarning)
-        species_names = [str(n) for n in nodes if type(n) == sympy.Symbol if str(n)[0] != "_"]
-    else:
-        species_names = [s for s in names if s in species2index]
-    if params2index is None:
-        warnings.warn("sympy_species_and_parameters will strictly require a params2index argument in an upcoming release.", PendingDepricationWarning)
-        param_names = [str(n)[1:] for n in nodes if type(n) == sympy.Symbol if str(n)[0] == "_"]
-    else:
-        param_names = [s for s in names if (s not in species2index and s != 'volume' and s != 't')]
+    species_names = [s for s in names if s in species2index]
+    param_names = [s for s in names if (s not in species2index and s != 'volume' and s != 't')]
 
     return species_names, param_names
 
