@@ -52,8 +52,8 @@ def test_random_complex_model():
 	# We will use a random(ish) rational function for propensity
 	param_dict = {}
 	rate_str = "(1+"
-	numerator_terms = np.random.randint(0, 5)
-	denominator_terms = np.random.randint(0, 5)
+	numerator_terms = 1#np.random.randint(0, 5)
+	denominator_terms = 1# np.random.randint(0, 5)
 	for i in range(numerator_terms):
 		coef = str(round(np.exp(np.random.uniform(low = param_min,
 												 high = param_max)), 3))
@@ -61,14 +61,14 @@ def test_random_complex_model():
 		species = all_species[np.random.randint(len(all_species))]
 		rate_str += coef + "*" + species + "^" + exp + "+"
 	rate_str = rate_str[:-1] + ")"
-	rate_str += "/(1+"
-	for i in range(denominator_terms):
-		coef =str(round(np.exp(np.random.uniform(low = param_min,
-												 high = param_max)), 3))
-		exp = str(round(np.random.uniform(low = 0,high = param_max), 3))
-		species = all_species[np.random.randint(len(all_species))]
-		rate_str += coef + "*" + species + "^" + exp + "+"
-	rate_str =  rate_str[:-1] + ")"
+	# rate_str += "/(1+"
+	# for i in range(denominator_terms):
+	# 	coef =str(round(np.exp(np.random.uniform(low = param_min,
+	# 											 high = param_max)), 3))
+	# 	exp = str(round(np.random.uniform(low = 0,high = param_max), 3))
+	# 	species = all_species[np.random.randint(len(all_species))]
+	# 	rate_str += coef + "*" + species + "^" + exp + "+"
+	# rate_str =  rate_str[:-1] + ")"
 	param_dict['rate'] = rate_str
 	if debug:
 		print('\t params =', param_dict)
@@ -81,9 +81,11 @@ def test_random_complex_model():
 	delay_params = dict()
 	for p in ["mean", "std"]:
 		delay_params[p] = round(np.exp(np.random.uniform(low = param_min, 
-                                                         high = param_max)), 3)
+														 high = param_max)), 3)
 	conversion_rxn = (["A"], [], "massaction", {"k": delay_k}, "gaussian", 
-                      [], ["B"], delay_params)
+                     [], ["B"], delay_params)
+
+	# conversion_rxn = (["A"], ["B"], "massaction", {"k": delay_k})
 
 	x0 = {"A":25, "B": 25, "C":0, "I": 0}
 	M = Model(species = ["A", "B", "C", "I"], 
@@ -109,6 +111,7 @@ def test_random_complex_model():
 									stochastic = is_stochastic, 
 									return_dataframe = False).py_get_result()
 		pickled_M = pickle.dumps(M)
+		pickle.dump(M, open("temp.pck", "wb"))
 		postpickled_M = pickle.loads(pickled_M)
 
 		test_utils.set_seed(seed)
@@ -117,7 +120,7 @@ def test_random_complex_model():
 									stochastic = is_stochastic, 
 									return_dataframe = False).py_get_result()
 
-		assert np.allclose(prepickling_results, postpickling_results, equal_nan = True), \
+		assert np.allclose(prepickling_results, postpickling_results, equal_nan = False), \
 			   	f"Complex Model changes in " + \
 			   	f"{'stochastic' if is_stochastic else 'deterministic'} " + \
 			   	"simulation when pickled and unpickled."

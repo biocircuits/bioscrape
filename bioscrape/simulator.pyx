@@ -1341,6 +1341,21 @@ cdef class DeterministicSimulator(RegularSimulator):
 
             if full_output['message'] == 'Integration successful.':
                 if sim.get_number_of_rules() > 0:
+                    if np.isnan(results).any():
+                        outstr = "Got a NaN in deterministic simulation!\n"
+                        first_nan_idx = np.where(np.isnan(results))[0][0]
+                        prev_nan_idx = first_nan_idx -1
+                        first_nan_state = results[first_nan_idx]
+                        prev_nan_state = results[prev_nan_idx]
+                        outstr += "\nstate at first nan is " + str(first_nan_state)
+                        outstr += "\nstate just before first nan is " + str(prev_nan_state)
+    
+                        first_nan_rhs_global = rhs_ode(timepoints[first_nan_idx], results[first_nan_idx])
+                        prev_nan_rhs_global =  rhs_ode(timepoints[prev_nan_idx], results[prev_nan_idx])
+                        outstr += "\nrhs_ode at first instance is " + str(first_nan_rhs_global)
+                        outstr += "\nrhs_ode just before first instance is " + str(prev_nan_rhs_global)
+
+                        # raise ValueError(outstr)
                     for index in range(timepoints.shape[0]):
                         sim.apply_repeated_rules( &(results[index,0]),timepoints[index] )
                 return SSAResult(timepoints,results)
