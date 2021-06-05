@@ -51,25 +51,17 @@ def test_random_complex_model():
 	
 	# We will use a random(ish) rational function for propensity
 	param_dict = {}
-	rate_str = "(1+"
-	numerator_terms = 1#np.random.randint(0, 5)
-	denominator_terms = 1# np.random.randint(0, 5)
-	for i in range(numerator_terms):
+	rate_str = "("
+	for i in range(2):
 		coef = str(round(np.exp(np.random.uniform(low = param_min,
 												 high = param_max)), 3))
-		exp = str(round(np.random.uniform(low = 0,high = param_max), 3))
-		species = all_species[np.random.randint(len(all_species))]
-		rate_str += coef + "*" + species + "^" + exp + "+"
+		exp1 = str(round(np.random.uniform(low = 0,high = param_max), 3))
+		exp2 = str(round(np.random.uniform(low = 0,high = param_max), 3))
+		species = inputs[i]
+		rate_str += coef + "*" + species + "^(" + exp1 + "+" + exp2 +  ")*"
 	rate_str = rate_str[:-1] + ")"
-	# rate_str += "/(1+"
-	# for i in range(denominator_terms):
-	# 	coef =str(round(np.exp(np.random.uniform(low = param_min,
-	# 											 high = param_max)), 3))
-	# 	exp = str(round(np.random.uniform(low = 0,high = param_max), 3))
-	# 	species = all_species[np.random.randint(len(all_species))]
-	# 	rate_str += coef + "*" + species + "^" + exp + "+"
-	# rate_str =  rate_str[:-1] + ")"
 	param_dict['rate'] = rate_str
+
 	if debug:
 		print('\t params =', param_dict)
 
@@ -106,14 +98,14 @@ def test_random_complex_model():
 	###############################
 	timepoints = np.arange(0, 25, 0.01)
 	for is_stochastic in [False, True]:
+		test_utils.set_seed(seed)
 		prepickling_results = py_simulate_model(timepoints, 
 									Model = M, 
 									stochastic = is_stochastic, 
 									return_dataframe = False).py_get_result()
 		pickled_M = pickle.dumps(M)
-		pickle.dump(M, open("temp.pck", "wb"))
+		
 		postpickled_M = pickle.loads(pickled_M)
-
 		test_utils.set_seed(seed)
 		postpickling_results = py_simulate_model(timepoints, 
 									Model = postpickled_M, 
