@@ -2,7 +2,6 @@
 # cython: cdivision=True
 # cython: wraparound=True
 
-
 import numpy as np
 cimport numpy as np
 cimport random as cyrandom

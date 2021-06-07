@@ -686,7 +686,7 @@ cdef class TimeTerm(Term):
         return time
 
 
-def sympy_species_and_parameters(instring, species2index, params2index):
+def sympy_species_and_parameters(instring, species2index = None, params2index = None):
     instring = instring.replace('^','**')
     instring = instring.replace('|','_')
     root = sympy.sympify(instring, _clash1)
@@ -697,16 +697,9 @@ def sympy_species_and_parameters(instring, species2index, params2index):
         index += 1
         nodes.extend(node.args)
 
-    
+    names = [str(n) for n in nodes if type(n) == sympy.Symbol]\
+            +[str(n)[1:] for n in nodes if type(n) == sympy.Symbol if str(n)[0] == "_"]
 
-    #Old Way
-    #names = [str(n) for n in nodes if type(n) == sympy.Symbol]
-    #species_names = [s for s in names if (s[0] != '_' and s != 'volume' and s != 't')]
-    #param_names = [s[1:] for s in names if s[0] == '_']
-
-    #New Way
-    #remove leading "_" if there is one.
-    names = [str(n) for n in nodes if type(n) == sympy.Symbol if str(n)[0] != "_"]+[str(n)[1:] for n in nodes if type(n) == sympy.Symbol if str(n)[0] == "_"]
     species_names = [s for s in names if s in species2index]
     param_names = [s for s in names if (s not in species2index and s != 'volume' and s != 't')]
 
@@ -1342,8 +1335,8 @@ cdef class StateDependentVolume(Volume):
 ##############################                     #############################
 
 cdef class Model:
-    def __init__(self, filename = None, species = [], reactions = [], parameters = [], rules = [], 
-                initial_condition_dict = None, sbml_filename = None, input_printout = False, 
+    def __init__(self, filename = None, species = [], reactions = [], parameters = [], rules = [],
+                initial_condition_dict = None, sbml_filename = None, input_printout = False,
                 initialize_model = True, **kwargs):
         """
         Read in a model from a file using XML format for the model.
@@ -1354,7 +1347,7 @@ cdef class Model:
         self._next_params_index = 0
         self._dummy_param_counter = 0
 
-        self.has_delay = False #Does the Model contain any delay reactions? 
+        self.has_delay = False #Does the Model contain any delay reactions?
                                #Updated in _add_reaction.
 
         self.species2index = {}
@@ -1364,7 +1357,7 @@ cdef class Model:
         self.repeat_rules = []
         self.params_values = np.array([])
         self.species_values = np.array([])
-        self.txt_dict = {'reactions':"", 'rules':""} # A dictionary to store XML 
+        self.txt_dict = {'reactions':"", 'rules':""} # A dictionary to store XML
                                                      #txt to write bioscrape xml
         self.reaction_definitions = [] # List of reaction tuples useful for writing SBML
         self.rule_definitions = [] #A list of rule tuples useful for writing SBML
@@ -1374,15 +1367,15 @@ cdef class Model:
         self.delay_update_array = None
         self.reaction_updates = []
         self.delay_reaction_updates = []
-        # Set to True when the stochiometric matrices are created and model 
+        # Set to True when the stochiometric matrices are created and model
         # checked by the initialize() function
-        self.initialized = False 
-        self.reaction_list = [] # A list used to store tuples (propensity, 
-                                # delay, update_array, delay_update_array) for 
+        self.initialized = False
+        self.reaction_list = [] # A list used to store tuples (propensity,
+                                # delay, update_array, delay_update_array) for
                                 # each reaction
 
         if filename != None and sbml_filename != None:
-            raise ValueError("Cannot load both a bioSCRAPE xml file and an " 
+            raise ValueError("Cannot load both a bioSCRAPE xml file and an "
                              "SBML file. Please choose just one.")
         elif filename != None:
             self.parse_model(filename, input_printout = input_printout)
@@ -1404,10 +1397,10 @@ cdef class Model:
                 raise ValueError("Reaction Tuple of the wrong length! Must be "
                                  "of length 4 (no delay) or 8 (with delays). "
                                  "See BioSCRAPE Model API for details.")
-            self.create_reaction(reactants, products, propensity_type, 
-                                 propensity_param_dict, delay_type, 
-                                 delay_reactants, delay_products, 
-                                 delay_param_dict, 
+            self.create_reaction(reactants, products, propensity_type,
+                                 propensity_param_dict, delay_type,
+                                 delay_reactants, delay_products,
+                                 delay_param_dict,
                                  input_printout = input_printout)
 
         if isinstance(parameters, dict):
@@ -1421,12 +1414,12 @@ cdef class Model:
         for rule in rules:
             if len(rule) == 2:
                 rule_type, rule_attributes = rule
-                self.create_rule(rule_type, rule_attributes, 
+                self.create_rule(rule_type, rule_attributes,
                                  input_printout = input_printout)
             elif len(rule) == 3:
                 rule_type, rule_attributes, rule_frequency = rule
-                self.create_rule(rule_type, rule_attributes, 
-                                 rule_frequency = rule_frequency, 
+                self.create_rule(rule_type, rule_attributes,
+                                 rule_frequency = rule_frequency,
                                  input_printout = input_printout)
             else:
                 raise ValueError("Rules must be a tuple: (rule_type (string), "
@@ -1486,9 +1479,9 @@ cdef class Model:
         # Casting as a set means order doesn't matter.
         # Sets can only hold an element once, so this could give weird results
         # if the same reaction or rule definition appears multiple times.
-        # 
-        # If reaction/rule definitions are the same, that implies that many of 
-        # the other attributes of the Model must be the same. 
+        #
+        # If reaction/rule definitions are the same, that implies that many of
+        # the other attributes of the Model must be the same.
         if sorted(self.reaction_definitions) != sorted(other.reaction_definitions):
             return False
         if sorted(self.rule_definitions) != sorted(other.rule_definitions):
@@ -1646,9 +1639,9 @@ cdef class Model:
     #   delay_reactants (list): a list of delay reaction reactant specie names (strings)
     #   delay_products: a list of delay reaction products specie names (strings)
     #   delay_param_dict: a dictionary of the parameters for the delay distribution
-    def create_reaction(self, reactants, products, propensity_type, 
-                        propensity_param_dict, delay_type = None, 
-                        delay_reactants = None, delay_products = None, 
+    def create_reaction(self, reactants, products, propensity_type,
+                        propensity_param_dict, delay_type = None,
+                        delay_reactants = None, delay_products = None,
                         delay_param_dict = None, input_printout = False):
 
         if input_printout:
@@ -1746,7 +1739,7 @@ cdef class Model:
         self._add_reaction(reaction_update_dict, prop_object, propensity_param_dict, delay_reaction_update_dict, delay_object, delay_param_dict)
         self.write_rxn_txt(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict)
         self.reaction_definitions.append((reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict))
-    
+
     def write_rxn_txt(self, reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict):
         #Write bioscrape XML and save it to the xml dictionary
         rxn_txt = '<reaction text= "'
