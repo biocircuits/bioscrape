@@ -729,7 +729,8 @@ cdef class LineageModel(Model):
 		species_names_e, param_names_e = \
 					event_object.get_species_and_parameters(event_param_dict, self.species2index, self.params2index)
 		species_names_p, param_names_p = \
-				prop_object.get_species_and_parameters(propensity_param_dict, self.species2index, self.params2index)
+				prop_object.get_species_and_parameters(propensity_param_dict, species2index = self.species2index, 
+														params2index = self.params2index)
 
 		for species_name in species_names_e+species_names_p:
 			self._add_species(species_name)
