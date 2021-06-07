@@ -712,7 +712,6 @@ cdef class LineageModel(Model):
 			self.death_events.append(event)
 			self.c_death_events.push_back(<void*>event)
 
-
 	def py_initialize(self):
 		self._initialize()
 		self.initialized = True
