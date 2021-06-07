@@ -531,8 +531,27 @@ cdef class GeneralDeathRule(DeathRule):
 		species, parameters = sympy_species_and_parameters(equation_string, species2index, params2index)
 		return (species, parameters)
 
-#A super class of Bioscrape.Types.Model which contains new cell lineage features
+#A subclass of Bioscrape.Types.Model which contains new cell lineage features
 cdef class LineageModel(Model):
+
+	############################################################################
+    # DEVELOPER WARNING 
+    # 
+    # In order to be copiable and usable with multiprocessing, Model must be 
+    # picklable. To do that, Model implements a __getstate__ method and a 
+    # __setstate__ method, which respectively compress all of the Model's state 
+    # variables into a picklable tuple and use those tuples to make a new Model 
+    # identical to the old one. 
+    # 
+    # IF YOU ADD, REMOVE, OR CHANGE ANY VARIABLES HERE, YOU MUST REFLECT THOSE 
+    # CHANGES IN THE __getstate__ AND __setstate__ METHODS.
+    #
+    # This is especially important for newly-added variables. If you add 
+    # variables but don't update the pickling methods, then you will introduce 
+    # SILENT bugs whenever a user makes a copy of a Model or tries to use a 
+    # Model in multiple threads/processes with multiprocessing. 
+    ############################################################################
+
 	cdef unsigned num_division_events
 	cdef unsigned num_division_rules
 	cdef unsigned num_death_events
@@ -732,7 +751,7 @@ cdef class LineageModel(Model):
 			self.death_events_list.append((event_object, prop_object))
 		else:
 			raise ValueError("Unknown Event Type: Misc Event Not Yet Implemented")
-			self.other_events_list.append((event_object, prop_object))
+			# self.other_events_list.append((event_object, prop_object))
 
 	def create_death_event(self, str event_type, dict event_params, str event_propensity_type, dict propensity_params, print_out = False):
 		event_params = dict(event_params)
@@ -908,6 +927,113 @@ cdef class LineageModel(Model):
 
 	def py_get_volume_splitters(self):
 		return self.rule_volume_splitters, self.event_volume_splitters
+
+	def __getstate__(self):
+		'''Returns the LineageModel's state as a tuple of picklable Python objects. 
+
+		Note that c_lineage_propensities, c_death_events, etc. are just 
+		pointers to the objects in lineage_propensities, death_events, etc.,
+		respectively, so only the latter are needed to fully represent the 
+		LineageModel's state.
+        '''
+        # Everything covered by the Model class...
+		superclass_state = list(super().__getstate__())
+
+		# ...plus everything covered by this class.
+		additional_state =  [self.num_division_events,
+							 self.num_division_rules,
+							 self.num_death_events,
+							 self.num_death_rules,
+							 self.num_volume_events,
+							 self.num_volume_rules,
+							 self.volume_events_list,
+							 self.division_events_list,
+							 self.division_rules_list,
+							 self.death_events_list,
+							 self.lineage_propensities,
+							 self.death_events,
+							 self.division_events,
+							 self.volume_events,
+							 self.other_events,
+							 self.death_rules,
+							 self.division_rules,
+							 self.volume_rules,
+							 self.rule_volume_splitters,
+							 self.event_volume_splitters,
+							 self.global_species,
+							 self.global_volume]
+
+		return tuple(additional_state + superclass_state)
+
+	def __setstate__(self, state):
+		'''Sets this LineageModel's state to that of another, using a tuple generated
+		by the other LineageModel's __getstate__ method. 
+		
+		Note that c_propensities, c_delays, and c_repeat_rules are just 
+		pointers to the objects in propensities, delays, and repeat_rules,
+		respectively, so only the latter are needed to fully reconstruct a 
+		LineageModel's state.
+		'''
+		# Everything covered by the Model class...
+		super().__setstate__(state[22:])
+
+		# ...plus everything covered by this class
+		self.num_division_events = state[0]
+		self.num_division_rules = state[1]
+		self.num_death_events = state[2]
+		self.num_death_rules = state[3]
+		self.num_volume_events = state[4]
+		self.num_volume_rules = state[5]
+		self.volume_events_list = state[6]
+		self.division_events_list = state[7]
+		self.division_rules_list = state[8]
+		self.death_events_list = state[9]
+	
+		self.lineage_propensities = state[10]
+		self.c_lineage_propensities.clear()
+		if state[10] is not None:
+			for x in state[10]:
+				self.c_lineage_propensities.push_back(<void *> x)
+		self.death_events = state[11]
+		self.c_death_events.clear()
+		if state[11] is not None:
+			for x in state[11]:
+				self.c_death_events.push_back(<void *> x)
+		self.division_events = state[12]
+		self.c_division_events.clear()
+		if state[12] is not None:
+			for x in state[12]:
+				self.c_division_events.push_back(<void *> x)
+		self.volume_events = state[13]
+		self.c_volume_events.clear()
+		if state[13] is not None:
+			for x in state[13]:
+				self.c_volume_events.push_back(<void *> x)
+		self.other_events = state[14]
+		self.c_other_events.clear()
+		if state[14] is not None:
+			for x in state[14]:
+				self.c_other_events.push_back(<void *> x)
+		self.death_rules = state[15]
+		self.c_death_rules.clear()
+		if state[15] is not None:
+			for x in state[15]:
+				self.c_death_rules.push_back(<void *> x)
+		self.division_rules = state[16]
+		self.c_division_rules.clear()
+		if state[16] is not None:
+			for x in state[16]:
+				self.c_division_rules.push_back(<void *> x)
+		self.volume_rules = state[17]
+		self.c_volume_rules.clear()
+		if state[17] is not None:
+			for x in state[17]:
+				self.c_volume_rules.push_back(<void *> x)
+
+		self.rule_volume_splitters = state[18]
+		self.event_volume_splitters = state[19]
+		self.global_species = state[20]
+		self.global_volume = state[21]
 
 cdef class LineageCSimInterface(ModelCSimInterface):
 	cdef unsigned num_division_events
