@@ -92,7 +92,10 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
                 allparams[pid] = p.getValue()
         # get the formula as a string and then add
         # a leading _ to parameter names
-        kl_formula = libsbml.formulaToL3String(kl.getMath())
+        math_ast = kl.getMath()
+        if math_ast is None:
+            raise ValueError("Could not import the rate law for reaction to SBML.")
+        kl_formula = libsbml.formulaToL3String(math_ast)
         #We should no longer add underscores to parameters
         #rate_string = _add_underscore_to_parameters(kl_formula, allparams)
         rate_string = kl_formula
@@ -629,7 +632,9 @@ def add_reaction(model, inputs_list, outputs_list,
     ratestring = _remove_underscore_from_parameters(ratestring, allparams)
     # Set the ratelaw to the ratestring
     math_ast = libsbml.parseL3Formula(ratestring)
-    ratelaw.setMath(math_ast)
+    flag = ratelaw.setMath(math_ast)
+    if not flag == libsbml.LIBSBML_OPERATION_SUCCESS or math_ast is None:
+        raise ValueError("Could not write the rate law for reaction to SBML. Check the reaction definition.")
 
     #Add propensity annotation
     if propensity_annotation and propensity_type != "general":

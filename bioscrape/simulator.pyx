@@ -2,7 +2,6 @@
 # cython: cdivision=True
 # cython: wraparound=True
 
-
 import numpy as np
 cimport numpy as np
 cimport random as cyrandom
@@ -276,7 +275,7 @@ cdef class CSimInterface:
     cdef void compute_propensities(self, double *state, double *propensity_destination, double time):
         pass
     cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time):
-        pass
+        self.compute_propensities(state, propensity_destination, time)
 
     # by default stochastic propensities are assumed to be the same as normal propensities. This may be overwritten by the subclass, however.
     cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time):
@@ -539,6 +538,11 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
             if self.prop_is_0 == 0:
                 propensity_destination[self.rxn_ind] = (<Propensity> (self.c_propensities[0][self.rxn_ind]) ).get_stochastic_propensity(state, self.c_param_values, time)
 
+                #Issue a warning of a propensity goes negative
+                if propensity_destination[self.rxn_ind] < 0:
+                    warnings.warn("Propensity #"+str(self.rxn_ind)+" is negative with value "+str(propensity_destination[self.rxn_ind]) + " setting to 0.")
+                    propensity_destination[self.rxn_ind] = 0
+
     cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time):
         self.check_count_function(state, volume)
         self.rxn_ind = 0
@@ -552,6 +556,11 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
                 self.s_ind+=1
             if self.prop_is_0 == 0:
                 propensity_destination[self.rxn_ind] = (<Propensity> (self.c_propensities[0][self.rxn_ind]) ).get_stochastic_volume_propensity(state, self.c_param_values, volume, time)
+
+                #Issue a warning of a propensity goes negative
+                if propensity_destination[self.rxn_ind] < 0:
+                    warnings.warn("Propensity #"+str(self.rxn_ind)+" is negative with value "+str(propensity_destination[self.rxn_ind]) + " setting to 0.")
+                    propensity_destination[self.rxn_ind] = 0
 
     cdef void check_count_function(self, double *state, double volume):
         self.s_ind = 0
@@ -2056,7 +2065,7 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
 
 #A wrapper function to allow easy simulation of Models
 def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = False, 
-                    delay = None, safe = False, volume = False, return_dataframe = True):
+                    delay = None, safe = False, volume = False, return_dataframe = True, simulation_timestep = .01):
     #Check model and interface
     if Model is None and Interface is None:
         raise ValueError("py_simulate_model requires either a Model or CSimInterface to be passed in.")
@@ -2067,6 +2076,9 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
             Interface = SafeModelCSimInterface(Model)
         else:
             Interface = ModelCSimInterface(Model)
+
+        Interface.py_set_dt(simulation_timestep)
+
     elif not Interface is None and safe:
         logging.info("Cannot gaurantee that the interface passed in is safe. Simulating anyway.")
 

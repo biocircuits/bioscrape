@@ -1,0 +1,6 @@
+include README.rst
+include LICENSE
+include tests/*
+global-include *.pyx
+global-include *.pxd
+exclude *.cpp
