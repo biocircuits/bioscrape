@@ -358,7 +358,7 @@ class LMFitInference(PIDInterface):
         if plot_show:
             self.M.set_species(initial_conditions)
             self.M.set_params(dict(result.params.valuesdict()))
-            model_sim_fit = py_simulate_model(timepoints, Model = self.M, stochastic = stochastic)
+            model_sim_fit = py_simulate_model(timepoints, Model = self.M, stochastic = stochastic, delay = self.M.has_delays())
             measurements_counter = 0
             for species in measurements:
                 plt.plot(timepoints, model_sim_fit[species], color = 'orange', lw = 2, alpha = 0.5)

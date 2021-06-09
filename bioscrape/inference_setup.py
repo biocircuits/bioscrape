@@ -390,7 +390,8 @@ class InferenceSetup(object):
             self.autocorrelation_time = sampler.get_autocorr_time()
         if convergence_diagnostics:
             if not convergence_check:
-                raise ValueError('MCMC diagnostics cannot be printed when convergence check is False.')
+                warnings.warn('MCMC diagnostics cannot be printed when convergence check is False.')
+                self.convergence_diagnostics = {}
             self.convergence_diagnostics = {'Autocorrelation time for each parameter':self.autocorrelation_time,
                                     'Acceptance fraction (fraction of steps that were accepted)':sampler.acceptance_fraction}
         # Write results

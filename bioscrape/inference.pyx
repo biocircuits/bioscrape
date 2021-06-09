@@ -6,6 +6,8 @@ from types import Model
 from types cimport Model
 from simulator cimport CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
 from simulator import CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
+from simulator cimport DelaySimulator, DelaySSASimulator, ArrayDelayQueue
+from simulator import DelaySimulator, DelaySSASimulator, ArrayDelayQueue
 from inference_setup import initialize_inference
 import sys
 
@@ -214,13 +216,12 @@ cdef class ModelLikelihood(Likelihood):
         else:
             print("Warning: No Data passed into likelihood constructor. Must call set_data seperately.")
 
-    def set_model(self, Model m, RegularSimulator prop, CSimInterface csim = None):
-        #print("m", m)
-        #print("csim", csim)
+    def set_model(self, Model m, RegularSimulator prop, CSimInterface csim = None, DelaySimulator prop_delay = None):
         if csim is None:
             self.csim = ModelCSimInterface(m)
         self.m = m
         self.propagator = prop
+        self.propagator_delay = prop_delay
 
     def set_init_species(self, dict sd = {}, list sds = []):
         if len(sd.keys()) == 0 and len(sds) == 0:
@@ -360,20 +361,22 @@ cdef class DeterministicLikelihood(ModelLikelihood):
         return -error
 
 cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
-    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None):
+    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None, DelaySimulator prop_delay = None):
         self.m = m
-        self.delay = False
+        self.has_delay = False
         if csim is None:
             csim = ModelCSimInterface(m)
         if prop is None:
             if m.has_delay:
-                prop = DelaySSASimulator()
-                self.delay = True
+                prop_delay = DelaySSASimulator()
+                self.has_delay = True
+                self.propagator_delay = prop_delay
             else:
                 prop = SSASimulator()
-
+                self.propagator = prop
+        else:
+            self.propagator = prop
         self.csim = csim
-        self.propagator = prop
 
     def set_data(self, StochasticTrajectories sd):
 
@@ -447,10 +450,10 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
                 elif self.Nx0 == self.N: #Different initial conditions for different simulations
                     for i in range(self.M):
                         species_vals[ self.init_state_indices[i, n] ] = self.init_state_vals[i, n]
-                if self.delay:
+                if self.has_delay:
                     q = ArrayDelayQueue.setup_queue(self.csim.py_get_num_reactions(), len(timepoints),timepoints[1]-timepoints[0])
-                    ans = self.propogator.py_delay_simulate(self.csim, q, timepoints).get_result()
-                else not self.delay:
+                    ans = self.propagator_delay.delay_simulate(self.csim, q, timepoints).get_result()
+                elif not self.has_delay:
                     ans = self.propagator.simulate(self.csim, timepoints).get_result()
 
                 for i in range(self.M):
@@ -473,19 +476,23 @@ cdef class StochasticTrajectoryMomentLikelihood(StochasticTrajectoriesLikelihood
         self.Moments = Moments
 
 cdef class StochasticStatesLikelihood(ModelLikelihood):
-    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None):
+    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None, DelaySimulator prop_delay = None):
         self.m = m
 
         if csim is None:
             csim = ModelCSimInterface(m)
         if prop is None:
             if m.has_delay:
-                raise NotImplementedError("Delay Simulation not yet implemented for inference.")
+                prop_delay = DelaySSASimulator()
+                self.has_delay = True
+                self.propagator_delay = prop_delay
             else:
                 prop = SSASimulator()
+                self.propagator = prop
+        else:
+            self.propagator = prop
 
         self.csim = csim
-        self.propagator = prop
 
     def set_data(self, FlowData fd):
         self.fd = fd
