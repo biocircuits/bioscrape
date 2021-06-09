@@ -625,7 +625,6 @@ cdef class SSAResult:
 
 cdef class DelaySSAResult(SSAResult):
     def __init__(self, np.ndarray timepoints, np.ndarray result, DelayQueue queue):
-        self.timepoints = timepoints
         self.final_delay_queue = queue
         self.simulation_result = result
 
@@ -2099,7 +2098,7 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
         if v == None:
             Sim = DelaySSASimulator()
             result = Sim.py_delay_simulate(Interface, q, timepoints)
-        else :
+        else:
             Sim = DelayVolumeSimulator()
             result = Sim.py_delay_volume_simulate(Interface, q, v, timepoints)
     elif stochastic:
