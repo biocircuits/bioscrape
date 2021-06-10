@@ -622,7 +622,16 @@ cdef class SSAResult:
 
 
     def py_empirical_distribution(self, start_time = None, species = None, Model = None, final_time = None, max_counts = None):
-        
+        """
+            calculates the empirical distribution of a trajectory over counts
+            start_time: the time to begin the empirical calculation
+            final_time: time to end the empirical marginalization
+            species: the list of species inds or names to calculate over. Marginalizes over non-included species
+            max_counts: a list (size N-species) of the maximum count expected for each species. 
+                 If max_counts[i] == 0, defaults to the maximum count found in the simulation: max(results[:, i]).
+                 Useful for getting distributions of a specific size/shape.
+            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """
         if species is None:
             species_inds = self.simulation_result.shape[1]
         else:
@@ -698,6 +707,14 @@ cdef class SSAResult:
 
     #Python wrapper of a fast cython function to compute the first moment (mean) of a set of Species
     def py_first_moment(self, start_time = None, species = None, Model = None, final_time = None):
+        """
+            calculates the first moment (mean) of a trajectory over counts
+            start_time: the time to begin the empirical calculation
+            final_time: time to end the empirical marginalization
+            species: the list of species inds or names to calculate over. Marginalizes over non-included species
+            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """
+
         if species is None:
             species_inds = self.simulation_result.shape[1]
         else:
@@ -743,6 +760,13 @@ cdef class SSAResult:
 
     #Python wrapper of a fast cython function to compute the standard deviation of a set of Species
     def py_standard_deviation(self, start_time = None, species = None, Model = None, final_time = None):
+        """
+            calculates the standard deviation of a trajectory over counts
+            start_time: the time to begin the empirical calculation
+            final_time: time to end the empirical marginalization
+            species: the list of species inds or names to calculate over. Marginalizes over non-included species
+            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """
         if species is None:
             species_inds = self.simulation_result.shape[1]
         else:
@@ -789,6 +813,15 @@ cdef class SSAResult:
 
     #Computes the correlations between species1 and species2
     def py_correlations(self, start_time = None, species1 = None, species2 = None, final_time = None, Model = None):
+        """
+            calculates the pairwise correlations (species1 x species2) of a trajectory over counts
+            start_time: the time to begin the empirical calculation
+            final_time: time to end the empirical marginalization
+            species1: a list of species names or indices. If None, defaults to all species.
+            species2: a second list of species indices or names. All pairs between species1 and species2 are computed
+            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """
+
         if species1 is None:
             species_inds1 = self.simulation_result.shape[1]
             species_inds2 = self.simulation_result.shape[1]
@@ -852,6 +885,15 @@ cdef class SSAResult:
 
     #Python wrapper of a fast cython function to compute the second moment (E[S1*S2]) pairwise between two lists of species
     def py_second_moment(self, start_time = None, species1 = None, species2 = None, final_time = None, Model = None):
+        """
+            calculates the pairwise second moments of a trajectory over counts
+            start_time: the time to begin the empirical calculation
+            final_time: time to end the empirical marginalization
+            species1: a list of species names or indices. If None, defaults to all species.
+            species2: a second list of species indices or names. All pairs between species1 and species2 are computed
+            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """
+
         if species1 is None:
             species_inds1 = self.simulation_result.shape[1]
             species_inds2 = self.simulation_result.shape[1]
