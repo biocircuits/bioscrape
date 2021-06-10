@@ -631,6 +631,335 @@ cdef class SSAResult:
             return self.py_get_result()
 
 
+    def py_empirical_distribution(self, start_time = None, species = None, Model = None, final_time = None, max_counts = None):
+        """
+            calculates the empirical distribution of a trajectory over counts
+            start_time: the time to begin the empirical calculation
+            final_time: time to end the empirical marginalization
+            species: the list of species inds or names to calculate over. Marginalizes over non-included species
+            max_counts: a list (size N-species) of the maximum count expected for each species. 
+                 If max_counts[i] == 0, defaults to the maximum count found in the simulation: max(results[:, i]).
+                 Useful for getting distributions of a specific size/shape.
+            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """
+        if species is None:
+            species_inds = [i for i in range(self.simulation_result.shape[1])]
+        else:
+            species_inds = []
+            for s in species:
+                if isinstance(s, int):
+                    species_inds.append(s)
+                elif isinstance(s, str) and Model is None:
+                    raise ValueError("Must pass in a Model along with species list if using species' names.")
+                elif isinstance(s, str) and s in Model.get_species2index():
+                    species_inds.append(Model.get_species2index()[s])
+                else:
+                    raise ValueError(f"Unknown species {s}.")
+
+        if start_time is None:
+            start_time = self.timepoints[0]
+        elif start_time < self.timepoints[0]:
+            raise ValueError(f"final_time={start_time} is greater than simulation_start={self.timepoints[0]}")
+
+        if final_time is None:
+            final_time = self.timepoints[-1]
+        elif final_time > self.timepoints[-1]:
+            raise ValueError(f"final_time={final_time} is greater than simulation_time={self.timepoints[-1]}")
+
+        if max_counts is None:
+            max_counts = [0 for s in species_inds]
+        elif len(max_counts) != len(species_inds):
+            raise ValueError("max_counts must be a list of the same length as species")
+
+        return self.empirical_distribution(start_time, species_inds, final_time, max_counts)
+
+    #calculates the empirical distribution of a trajectory over counts
+    #   start_time: the time to begin the empirical calculation
+    #   final_time: time to end the empirical marginalization
+    #   species_inds: the list of species inds to calculate over. Marginalizes over non-included inds
+    #   max_counts: a list (size N-species) of the maximum count expected for each species. 
+    #         If max_counts[i] == 0, defaults to the maximum count found in the simulation: max(results[:, i]).
+    #         Useful for getting distributions of a specific size/shape.
+    cdef np.ndarray empirical_distribution(self, double start_time, list species_inds, double final_time, list max_counts_list):
+        cdef unsigned s, t, ind, prod
+        cdef unsigned tstart = len(self.timepoints[self.timepoints < start_time])
+        cdef unsigned tend = len(self.timepoints[self.timepoints <= final_time])
+        cdef unsigned N_species = len(species_inds)
+        cdef double dP = 1./(tend - tstart)
+        cdef np.ndarray[np.int_t, ndim=1] index_ar = np.zeros(N_species, dtype = np.int_) #index array
+        cdef np.ndarray[np.double_t, ndim = 1] dist
+        cdef np.ndarray[np.int_t, ndim = 1] max_counts = np.zeros(N_species, dtype = np.int_) #max species counts
+
+        #Calculate max species counts
+        for i in range(N_species):
+            s = species_inds[i]
+            if max_counts_list[i] == 0: #the maximum number of each species is set for all 0 max species
+                max_counts[i] = np.amax(self.simulation_result[tstart:, s], 0)+1
+            else:
+                max_counts[i] += max_counts_list[i]+1
+
+        #dist = np.zeros(tuple(max_counts.astype(np.int_)+1))#store the distribution here
+        dist = np.zeros(np.prod(max_counts)) #Flattened array
+
+        for t in range(tstart, tend, 1):
+            #Code for Flat dist arrays
+            prod = 1 #a product to represent the size of different dimensions of the flattened array
+            ind = 0
+            for i in range(N_species, 0, -1):#Go through species index backwards
+                s = species_inds[i-1] 
+                if self.simulation_result[t, s] > max_counts[i-1]:
+                    raise RuntimeError("Encountered a species count greater than max_counts!")
+                ind = ind + prod*<np.int_t>self.simulation_result[t, s]
+                prod = prod * max_counts[i-1] #update the product for the next index
+            dist[ind] = dist[ind] + dP
+
+        return np.reshape(dist, tuple(max_counts))
+
+    #Python wrapper of a fast cython function to compute the first moment (mean) of a set of Species
+    def py_first_moment(self, start_time = None, species = None, Model = None, final_time = None):
+        """
+            calculates the first moment (mean) of a trajectory over counts
+            start_time: the time to begin the empirical calculation
+            final_time: time to end the empirical marginalization
+            species: the list of species inds or names to calculate over. Marginalizes over non-included species
+            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """
+
+        if species is None:
+            species_inds = [i for i in range(self.simulation_result.shape[1])]
+        else:
+            species_inds = []
+            for s in species:
+                if isinstance(s, int):
+                    species_inds.append(s)
+                elif isinstance(s, str) and Model is None:
+                    raise ValueError("Must pass in a Model along with species list if using species' names.")
+                elif isinstance(s, str) and s in Model.get_species2index():
+                    species_inds.append(Model.get_species2index()[s])
+                else:
+                    raise ValueError(f"Unknown species {s}.")
+
+        if start_time is None:
+            start_time = self.timepoints[0]
+        elif start_time < self.timepoints[0]:
+            raise ValueError(f"final_time={start_time} is greater than simulation_start={self.timepoints[0]}")
+
+        if final_time is None:
+            final_time = self.timepoints[-1]
+        elif final_time > self.timepoints[-1]:
+            raise ValueError(f"final_time={final_time} is greater than simulation_time={self.timepoints[-1]}")
+
+        return self.first_moment(start_time, final_time, species_inds)
+
+    #Computes the first moment (average) of all species in the list species_inds
+    cdef np.ndarray first_moment(self, double start_time, double final_time, list species_inds):
+        cdef unsigned s, i, t
+        cdef unsigned tstart = len(self.timepoints[self.timepoints < start_time])
+        cdef unsigned tend = len(self.timepoints[self.timepoints <= final_time])
+        cdef unsigned N_species = len(species_inds)
+        cdef np.ndarray[np.double_t, ndim = 1] means = np.zeros(N_species)
+
+        for i in range(N_species):
+            s = species_inds[i]
+            for t in range(tstart, tend, 1):
+                means[i] += self.simulation_result[t, s]
+            means[i] = means[i]/(tend - tstart)
+
+        return means
+
+
+    #Python wrapper of a fast cython function to compute the standard deviation of a set of Species
+    def py_standard_deviation(self, start_time = None, species = None, Model = None, final_time = None):
+        """
+            calculates the standard deviation of a trajectory over counts
+            start_time: the time to begin the empirical calculation
+            final_time: time to end the empirical marginalization
+            species: the list of species inds or names to calculate over. Marginalizes over non-included species
+            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """
+        if species is None:
+            species_inds = [i for i in range(self.simulation_result.shape[1])]
+        else:
+            species_inds = []
+            for s in species:
+                if isinstance(s, int):
+                    species_inds.append(s)
+                elif isinstance(s, str) and Model is None:
+                    raise ValueError("Must pass in a Model along with species list if using species' names.")
+                elif isinstance(s, str) and s in Model.get_species2index():
+                    species_inds.append(Model.get_species2index()[s])
+                else:
+                    raise ValueError(f"Unknown species {s}.")
+
+        if start_time is None:
+            start_time = self.timepoints[0]
+        elif start_time < self.timepoints[0]:
+            raise ValueError(f"final_time={start_time} is greater than simulation_start={self.timepoints[0]}")
+
+        if final_time is None:
+            final_time = self.timepoints[-1]
+        elif final_time > self.timepoints[-1]:
+            raise ValueError(f"final_time={final_time} is greater than simulation_time={self.timepoints[-1]}")
+
+        return self.standard_deviation(start_time, final_time, species_inds)
+
+    #Computes the standard deviation of all species in the list species_inds
+    cdef np.ndarray standard_deviation(self, double start_time, double final_time, list species_inds):
+        cdef unsigned s, i, t
+        cdef unsigned tstart = len(self.timepoints[self.timepoints < start_time])
+        cdef unsigned tend = len(self.timepoints[self.timepoints <= final_time])
+        cdef unsigned N_species = len(species_inds)
+        cdef np.ndarray[np.double_t, ndim = 1] stds = np.zeros(N_species)
+        cdef np.ndarray[np.double_t, ndim = 1] means = self.first_moment(start_time, final_time, species_inds)
+
+        for i in range(N_species):
+            s = species_inds[i]
+            for t in range(tstart, tend, 1):
+                stds[i] += (self.simulation_result[t, s]-means[i])**2
+            stds[i] = (stds[i]/(tend - tstart))**(1./2.)
+
+        return stds
+
+
+    #Computes the correlations between species1 and species2
+    def py_correlations(self, start_time = None, species1 = None, species2 = None, final_time = None, Model = None):
+        """
+            calculates the pairwise correlations (species1 x species2) of a trajectory over counts
+            start_time: the time to begin the empirical calculation
+            final_time: time to end the empirical marginalization
+            species1: a list of species names or indices. If None, defaults to all species.
+            species2: a second list of species indices or names. All pairs between species1 and species2 are computed
+            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """
+
+        if species1 is None:
+            species_inds1 = [i for i in range(self.simulation_result.shape[1])]
+            species_inds2 = [i for i in range(self.simulation_result.shape[1])]
+        else:
+            species_inds1 = []
+            for s in species1:
+                if isinstance(s, int):
+                    species_inds1.append(s)
+                elif isinstance(s, str) and Model is None:
+                    raise ValueError("Must pass in a Model along with species list if using species' names.")
+                elif isinstance(s, str) and s in Model.get_species2index():
+                    species_inds1.append(Model.get_species2index()[s])
+                else:
+                    raise ValueError(f"Unknown species {s}.")
+
+            species_inds2 = []
+            for s in species2:
+                if isinstance(s, int):
+                    species_inds2.append(s)
+                elif isinstance(s, str) and Model is None:
+                    raise ValueError("Must pass in a Model along with species list if using species' names.")
+                elif isinstance(s, str) and s in Model.get_species2index():
+                    species_inds2.append(Model.get_species2index()[s])
+                else:
+                    raise ValueError(f"Unknown species {s}.")
+
+        if start_time is None:
+            start_time = self.timepoints[0]
+        elif start_time < self.timepoints[0]:
+            raise ValueError(f"final_time={start_time} is greater than simulation_start={self.timepoints[0]}")
+
+        if final_time is None:
+            final_time = self.timepoints[-1]
+        elif final_time > self.timepoints[-1]:
+            raise ValueError(f"final_time={final_time} is greater than simulation_time={self.timepoints[-1]}")
+
+        return self.correlations(start_time, final_time, species_inds1, species_inds2)
+
+    #Computes the second moment of between the species in species_inds1 and species_inds2
+    cdef np.ndarray correlations(self, double start_time, double final_time, list species_inds1, list species_inds2):
+        cdef unsigned s1, s2, i1, i2, t
+        cdef unsigned tstart = len(self.timepoints[self.timepoints < start_time])
+        cdef unsigned tend = len(self.timepoints[self.timepoints <= final_time])
+        cdef unsigned N_species1 = len(species_inds1)
+        cdef unsigned N_species2 = len(species_inds2)
+        cdef np.ndarray[np.double_t, ndim = 2] cors = np.zeros((N_species1, N_species2))
+        cdef np.ndarray[np.double_t, ndim = 1] means1 = self.first_moment(start_time, final_time, species_inds1)
+        cdef np.ndarray[np.double_t, ndim = 1] means2 = self.first_moment(start_time, final_time, species_inds2)
+        cdef np.ndarray[np.double_t, ndim = 1] standard_devs1 = self.standard_deviation(start_time, final_time, species_inds1)
+        cdef np.ndarray[np.double_t, ndim = 1] standard_devs2 = self.standard_deviation(start_time, final_time, species_inds2)
+
+        for i1 in range(N_species1):
+            s1 = species_inds1[i1]
+            for i2 in range(N_species2):
+                s2 = species_inds2[i2]
+                for t in range(tstart, tend, 1):
+                    cors[i1, i2] += (self.simulation_result[t, s1]-means1[i1])*(self.simulation_result[t, s2]-means2[i2])
+                cors[i1, i2] = cors[i1, i2]/((tend - tstart)*standard_devs1[i1]*standard_devs2[i2])
+
+        return cors
+
+    #Python wrapper of a fast cython function to compute the second moment (E[S1*S2]) pairwise between two lists of species
+    def py_second_moment(self, start_time = None, species1 = None, species2 = None, final_time = None, Model = None):
+        """
+            calculates the pairwise second moments of a trajectory over counts
+            start_time: the time to begin the empirical calculation
+            final_time: time to end the empirical marginalization
+            species1: a list of species names or indices. If None, defaults to all species.
+            species2: a second list of species indices or names. All pairs between species1 and species2 are computed
+            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """
+
+        if species1 is None:
+            species_inds1 = [i for i in range(self.simulation_result.shape[1])]
+            species_inds2 = [i for i in range(self.simulation_result.shape[1])]
+        else:
+            species_inds1 = []
+            for s in species1:
+                if isinstance(s, int):
+                    species_inds1.append(s)
+                elif isinstance(s, str) and Model is None:
+                    raise ValueError("Must pass in a Model along with species list if using species' names.")
+                elif isinstance(s, str) and s in Model.get_species2index():
+                    species_inds1.append(Model.get_species2index()[s])
+                else:
+                    raise ValueError(f"Unknown species {s}.")
+
+            species_inds2 = []
+            for s in species2:
+                if isinstance(s, int):
+                    species_inds2.append(s)
+                elif isinstance(s, str) and Model is None:
+                    raise ValueError("Must pass in a Model along with species list if using species' names.")
+                elif isinstance(s, str) and s in Model.get_species2index():
+                    species_inds2.append(Model.get_species2index()[s])
+                else:
+                    raise ValueError(f"Unknown species {s}.")
+
+        if start_time is None:
+            start_time = self.timepoints[0]
+        elif start_time < self.timepoints[0]:
+            raise ValueError(f"final_time={start_time} is greater than simulation_start={self.timepoints[0]}")
+
+        if final_time is None:
+            final_time = self.timepoints[-1]
+        elif final_time > self.timepoints[-1]:
+            raise ValueError(f"final_time={final_time} is greater than simulation_time={self.timepoints[-1]}")
+
+        return self.second_moment(start_time, final_time, species_inds1, species_inds2)
+
+    #Computes the second moment of between the species in species_inds1 and species_inds2
+    cdef np.ndarray second_moment(self, double start_time, double final_time, list species_inds1, list species_inds2):
+        cdef unsigned s1, s2, i1, i2, t
+        cdef unsigned tstart = len(self.timepoints[self.timepoints < start_time])
+        cdef unsigned tend = len(self.timepoints[self.timepoints <= final_time])
+        cdef unsigned N_species1 = len(species_inds1)
+        cdef unsigned N_species2 = len(species_inds2)
+        cdef np.ndarray[np.double_t, ndim = 2] moments = np.zeros((N_species1, N_species2))
+
+        for i1 in range(N_species1):
+            s1 = species_inds1[i1]
+            for i2 in range(N_species2):
+                s2 = species_inds2[i2]
+                for t in range(tstart, tend, 1):
+                    moments[i1, i2] += self.simulation_result[t, s1]*self.simulation_result[t, s2]
+                moments[i1, i2] = moments[i1, i2]/(tend - tstart)
+
+        return moments
 
 cdef class DelaySSAResult(SSAResult):
     def __init__(self, np.ndarray timepoints, np.ndarray result, DelayQueue queue):
