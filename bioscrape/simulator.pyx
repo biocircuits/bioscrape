@@ -633,7 +633,7 @@ cdef class SSAResult:
             Model: the model used to produce the results. Required if species are referenced by name isntead of index
         """
         if species is None:
-            species_inds = self.simulation_result.shape[1]
+            species_inds = [i for i in range(self.simulation_result.shape[1])]
         else:
             species_inds = []
             for s in species:
@@ -716,7 +716,7 @@ cdef class SSAResult:
         """
 
         if species is None:
-            species_inds = self.simulation_result.shape[1]
+            species_inds = [i for i in range(self.simulation_result.shape[1])]
         else:
             species_inds = []
             for s in species:
@@ -768,7 +768,7 @@ cdef class SSAResult:
             Model: the model used to produce the results. Required if species are referenced by name isntead of index
         """
         if species is None:
-            species_inds = self.simulation_result.shape[1]
+            species_inds = [i for i in range(self.simulation_result.shape[1])]
         else:
             species_inds = []
             for s in species:
@@ -805,10 +805,10 @@ cdef class SSAResult:
         for i in range(N_species):
             s = species_inds[i]
             for t in range(tstart, tend, 1):
-                stds[i] += self.simulation_result[t, s]-means[i]
+                stds[i] += (self.simulation_result[t, s]-means[i])**2
             stds[i] = (stds[i]/(tend - tstart))**(1./2.)
 
-        return means
+        return stds
 
 
     #Computes the correlations between species1 and species2
@@ -823,8 +823,8 @@ cdef class SSAResult:
         """
 
         if species1 is None:
-            species_inds1 = self.simulation_result.shape[1]
-            species_inds2 = self.simulation_result.shape[1]
+            species_inds1 = [i for i in range(self.simulation_result.shape[1])]
+            species_inds2 = [i for i in range(self.simulation_result.shape[1])]
         else:
             species_inds1 = []
             for s in species1:
@@ -895,8 +895,8 @@ cdef class SSAResult:
         """
 
         if species1 is None:
-            species_inds1 = self.simulation_result.shape[1]
-            species_inds2 = self.simulation_result.shape[1]
+            species_inds1 = [i for i in range(self.simulation_result.shape[1])]
+            species_inds2 = [i for i in range(self.simulation_result.shape[1])]
         else:
             species_inds1 = []
             for s in species1:
