@@ -134,3 +134,5 @@ examples/models/txtl_model_sbml.xml
 inference examples/lmfit_results.csv
 inference examples/mcmc_results.csv
 MANIFEST
+mcmc_results.csv
+lmfit_results.csv
