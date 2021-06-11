@@ -106,7 +106,6 @@ ENV/
 interactive_testing.ipynb
 
 *.svg
-examples/mcmc_results.csv
 # *.py
 examples/models/generic_expressions.xml
 examples/models/integrase_control.xml
@@ -132,4 +131,6 @@ examples/models/sbml_test_bioscrape.xml
 examples/models/represillator_bioscrape.xml
 examples/models/represillator_sbml_back.xml
 examples/models/txtl_model_sbml.xml
+inference examples/lmfit_results.csv
+inference examples/mcmc_results.csv
 MANIFEST
