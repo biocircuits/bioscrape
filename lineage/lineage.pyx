@@ -1419,9 +1419,10 @@ cdef class LineageVolumeSplitter(VolumeSplitter):
 		for loop_index in range(self.perfect_indices.size()):
 			species_index = self.perfect_indices[loop_index]
 			d_value = p * dstate[species_index]
-			amount = <int> (d_value+0.5)
-			if d_value-amount <= 1E-8 and amount>0:
-				dstate[species_index] = <double> amount
+			amount = <int> d_value
+			#For rounding errors
+			if d_value-amount <= 1E-8 and amount>=0:
+				dstate[species_index] = <int> amount
 			elif amount <0:
 				raise ValueError('negative quantity in perfect partitioning')
 			else:
