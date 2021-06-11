@@ -1903,6 +1903,7 @@ cdef class Model:
                 error_string += p+"="+str(self.params_values[i])+', '
 
         if unspecified_parameters:
+            error_string += f" (params2index is {self.params2index}; param_values is {self.params_values})"
             raise ValueError(error_string[:-2])
 
     #Checks that species' values are all set. Unset values default to 0 and warning is raised.
