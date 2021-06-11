@@ -6,5 +6,5 @@ Cython
 python-libsbml
 beautifulsoup4
 sympy
-emcee
+emcee>=3.0.2
 pandas
