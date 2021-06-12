@@ -356,14 +356,17 @@ cdef class CSimInterface:
     def py_get_number_of_rules(self):
         return self.get_number_of_rules()
 
-    cdef void apply_repeated_rules(self, double *state, double time):
+    cdef void apply_repeated_rules(self, double *state, double time, unsigned rule_step):
         pass
 
-    cdef void apply_repeated_volume_rules(self, double *state, double volume, double time):
+    cdef void apply_repeated_volume_rules(self, double *state, double volume, double time, unsigned rule_step):
         pass
 
-    def py_apply_repeated_rules(self, np.ndarray[np.double_t, ndim=1] state, double time=0.0):
-        self.apply_repeated_rules(<double*> state.data,time)
+    def py_apply_repeated_rules(self, np.ndarray[np.double_t, ndim=1] state, double time=0.0, rule_step = True):
+        self.apply_repeated_rules(<double*> state.data,time, rule_step)
+
+    def py_apply_repeated_volume_rules(self, np.ndarray[np.double_t, ndim=1] state, double volume = 1.0, double time=0.0, rule_step = True):
+        self.apply_repeated_volume_rules(<double*> state.data, volume, time, rule_step)
 
 
     # Prepare for determinsitic simulation by creating propensity buffer and also doing the compressed stoich matrix
@@ -468,15 +471,15 @@ cdef class ModelCSimInterface(CSimInterface):
     cdef unsigned get_number_of_rules(self):
         return self.c_repeat_rules[0].size()
 
-    cdef void apply_repeated_rules(self, double *state, double time):
+    cdef void apply_repeated_rules(self, double *state, double time, unsigned rule_step):
         cdef unsigned rule_number
         for rule_number in range(self.c_repeat_rules[0].size()):
-            (<Rule> (self.c_repeat_rules[0][rule_number])).execute_rule(state, self.c_param_values, time)
+            (<Rule> (self.c_repeat_rules[0][rule_number])).execute_rule(state, self.c_param_values, time, self.dt, rule_step)
 
-    cdef void apply_repeated_volume_rules(self, double *state, double volume, double time):
+    cdef void apply_repeated_volume_rules(self, double *state, double volume, double time, unsigned rule_step):
         cdef unsigned rule_number
         for rule_number in range(self.c_repeat_rules[0].size()):
-            (<Rule> (self.c_repeat_rules[0][rule_number])).execute_volume_rule(state, self.c_param_values, volume, time)
+            (<Rule> (self.c_repeat_rules[0][rule_number])).execute_volume_rule(state, self.c_param_values, volume, time, self.dt, rule_step)
 
     cdef np.ndarray get_initial_state(self):
         return self.initial_state
@@ -489,6 +492,13 @@ cdef class ModelCSimInterface(CSimInterface):
 
     def py_get_param_values(self):
         return self.np_param_values
+
+    def py_set_param_values(self, params):
+        if len(params) != len(self.np_param_values):
+            raise ValueError(f"params must be a numpy array of length {len(self.np_param_values)}. Recieved {params}.")
+        self.np_param_values = params
+        self.c_param_values = <double*>(self.np_param_values.data)
+
 
     cdef unsigned get_num_parameters(self):
         return self.np_param_values.shape[0]
@@ -1592,6 +1602,39 @@ cdef class CustomSplitter(VolumeSplitter):
 ######################################              CS                        ################################
 #################################################                     ################################################
 
+#Global Simulation Variables for Deterministic Simulation
+cdef void* global_simulator
+cdef np.ndarray global_derivative_buffer
+cdef double global_dt
+
+def py_global_derivative_buffer():
+    global global_derivative_buffer
+    return global_derivative_buffer
+
+def py_set_globals(CSimInterface sim):
+    global global_simulator
+    global global_derivative_buffer
+    global_simulator = <void*> sim
+    global_derivative_buffer = np.empty(sim.py_get_num_species(),)
+
+def rhs_global(np.ndarray[np.double_t,ndim=1] state, double t):
+    global global_simulator
+    global global_derivative_buffer
+    cdef int rule_step
+
+    #Assumption is that rules occur every dt so t = N*dt where N is an integer is a valid point to apply a rule
+    #this tacitly assumes we are not using irrational initial conditions...
+    rule_step = (<int> (t / (<CSimInterface>global_simulator).get_dt())) == (t / (<CSimInterface>global_simulator).get_dt())
+
+    (<CSimInterface>global_simulator).apply_repeated_rules(<double*> state.data,t, rule_step)
+    (<CSimInterface>global_simulator).calculate_deterministic_derivative( <double*> state.data,
+                                                                         <double*> global_derivative_buffer.data, t)
+    return global_derivative_buffer
+
+def rhs_ode(double t, np.ndarray[np.double_t, ndim=1] state):
+    return rhs_global(state,t)
+
+
 # Regular simulations with no volume or delay involved.
 cdef class RegularSimulator:
     cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints):
@@ -1610,30 +1653,6 @@ cdef class RegularSimulator:
         sim.check_interface()
         return self.simulate(sim,timepoints)
 
-
-cdef void* global_simulator
-cdef np.ndarray global_derivative_buffer
-
-def py_global_derivative_buffer():
-    global global_derivative_buffer
-    return global_derivative_buffer
-
-def py_set_globals(CSimInterface sim):
-    global global_simulator
-    global global_derivative_buffer
-    global_simulator = <void*> sim
-    global_derivative_buffer = np.empty(sim.py_get_num_species(),)
-
-def rhs_global(np.ndarray[np.double_t,ndim=1] state, double t):
-    global global_simulator
-    global global_derivative_buffer
-    (<CSimInterface>global_simulator).apply_repeated_rules(<double*> state.data,t)
-    (<CSimInterface>global_simulator).calculate_deterministic_derivative( <double*> state.data,
-                                                                         <double*> global_derivative_buffer.data, t)
-    return global_derivative_buffer
-
-def rhs_ode(double t, np.ndarray[np.double_t, ndim=1] state):
-    return rhs_global(state,t)
 
 cdef class DeterministicSimulator(RegularSimulator):
     """
@@ -1659,6 +1678,8 @@ cdef class DeterministicSimulator(RegularSimulator):
         """
         cdef np.ndarray S = sim.get_update_array() + sim.get_delay_update_array()
         cdef np.ndarray x0 = sim.get_initial_state().copy()
+        cdef np.ndarray p0 = sim.py_get_param_values().copy()
+        print("p0", p0)
 
         cdef unsigned num_species = S.shape[0]
         cdef unsigned num_reactions = S.shape[1]
@@ -1679,8 +1700,10 @@ cdef class DeterministicSimulator(RegularSimulator):
 
             if full_output['message'] == 'Integration successful.':
                 if sim.get_number_of_rules() > 0:
+                    print("p0", p0)
+                    sim.py_set_param_values(p0) #reset the parameter values before reapplying rules
                     for index in range(timepoints.shape[0]):
-                        sim.apply_repeated_rules( &(results[index,0]),timepoints[index] )
+                        sim.apply_repeated_rules( &(results[index,0]),timepoints[index], True)
                 return SSAResult(timepoints,results)
 
             logging.info('odeint failed with mxstep=%d...' % (steps_allowed))
@@ -1718,9 +1741,10 @@ cdef class SSASimulator(RegularSimulator):
         cdef double final_time = timepoints[num_timepoints-1]
 
         cdef double current_time = sim.get_initial_time()
-        cdef double dt = sim.get_dt()
         cdef double proposed_time = 0.0
+        cdef double dt = sim.get_dt()
         cdef double Lambda = 0.0
+        cdef unsigned reaction_fired = 0
 
         cdef np.ndarray[np.double_t,ndim=2] c_results = np.zeros((num_timepoints, num_species),dtype=np.double)
         cdef np.ndarray[np.double_t,ndim=1] c_propensity = np.zeros(num_reactions)
@@ -1729,28 +1753,42 @@ cdef class SSASimulator(RegularSimulator):
         cdef unsigned current_index = 0
         cdef unsigned reaction_choice = 0
         cdef unsigned species_index = 0
+        cdef unsigned rule_step = 1
 
 
         while current_index < num_timepoints:
             # Compute propensity in place
-            sim.apply_repeated_rules(<double*> c_current_state.data,current_time)
+            sim.apply_repeated_rules(<double*> c_current_state.data,current_time, rule_step)
             sim.compute_stochastic_propensities(<double*> c_current_state.data, <double*> c_propensity.data,current_time)
             # Sample the next reaction time and update
             Lambda = cyrandom.array_sum(<double*> c_propensity.data,num_reactions)
 
             if Lambda == 0:
-                current_time = current_time + dt
+                proposed_time = c_timepoints[current_index]
+                reaction_fired = 0
+                rule_step = 1
             else:
-                current_time = current_time + cyrandom.exponential_rv(Lambda)
+                proposed_time = current_time + cyrandom.exponential_rv(Lambda)
+                reaction_fired = 1
+                rule_step = 0
+
+
+            #Go to the next reaction or the next timepoint, whichever is closer
+            if proposed_time > c_timepoints[current_index]:
+                current_time = c_timepoints[current_index]
+                reaction_fired = 0
+                rule_step = 1
+            else:
+                current_time = proposed_time
 
             # Update previous states
-            while current_index < num_timepoints and c_timepoints[current_index] < current_time:
+            while current_index < num_timepoints and c_timepoints[current_index] <= current_time:
                 for species_index in range(num_species):
                     c_results[current_index,species_index] = c_current_state[species_index]
                 current_index += 1
 
             # Choose a reaction and update the state accordingly.
-            if Lambda > 0:
+            if Lambda > 0 and reaction_fired:
                 reaction_choice = cyrandom.sample_discrete(num_reactions, <double*> c_propensity.data , Lambda)
 
                 for species_index in range(num_species):
@@ -1798,6 +1836,7 @@ cdef class DelaySSASimulator(DelaySimulator):
         cdef unsigned num_timepoints = c_timepoints.shape[0]
 
 
+        cdef double dt = sim.get_dt()
         cdef double current_time = sim.get_initial_time()
         q.set_current_time(current_time)
         cdef double final_time = c_timepoints[num_timepoints-1]
@@ -1814,32 +1853,46 @@ cdef class DelaySSASimulator(DelaySimulator):
         cdef unsigned reaction_index = 4294967295
 
         cdef unsigned move_to_queued_time = 0
-        cdef next_queue_time = -10.0
+        cdef unsigned reaction_fired = 0
+        cdef double next_queue_time = -10.0
+        cdef unsigned rule_step = 1 #whether or not to fire rules
 
         # Do the SSA part now
 
         while current_index < num_timepoints:
             # Compute the propensity in place
-            sim.apply_repeated_rules(<double*> c_current_state.data, current_time)
+            sim.apply_repeated_rules(<double*> c_current_state.data, current_time, rule_step)
             sim.compute_stochastic_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data), current_time)
             Lambda = cyrandom.array_sum(<double*> (c_propensity.data), num_reactions)
 
             # Either we are going to move to the next queued time, or we move to the next reaction time.
             if Lambda == 0:
-                proposed_time = final_time+1
+                proposed_time = c_timepoints[current_index]
+                reaction_fired = 0
+                rule_step = 1
             else:
                 proposed_time = current_time + cyrandom.exponential_rv(Lambda)
+                reaction_fired = 1
+                rule_step = 0
+
+            #Go to the next reaction or the next timepoint, whichever is closer
+            if proposed_time > c_timepoints[current_index]:
+                proposed_time = c_timepoints[current_index]
+                reaction_fired = 0
+                rule_step = 1
 
             next_queue_time = q.get_next_queue_time()
             if next_queue_time < proposed_time:
                 current_time = next_queue_time
                 move_to_queued_time = 1
+                reaction_fired = 0
+                rule_step = 0
             else:
                 current_time = proposed_time
                 move_to_queued_time = 0
 
             # Update the results array with the state for the time period that we just jumped through.
-            while current_index < num_timepoints and c_timepoints[current_index] < current_time:
+            while current_index < num_timepoints and c_timepoints[current_index] <= current_time:
                 for species_index in range(num_species):
                     c_results[current_index,species_index] = c_current_state[species_index]
                 current_index += 1
@@ -1861,7 +1914,7 @@ cdef class DelaySSASimulator(DelaySimulator):
 
 
             # if an actual reaction happened, do the reaction and maybe update the queue as well.
-            else:
+            elif reaction_fired:
                 # select a reaction
                 reaction_choice = cyrandom.sample_discrete(num_reactions, <double*> c_propensity.data, Lambda )
                 # Compute the delay for the reaction.
@@ -1937,6 +1990,8 @@ cdef class VolumeSSASimulator(VolumeSimulator):
         cdef double delta_t = sim.get_dt()
         cdef double next_queue_time = delta_t+current_time
         cdef unsigned move_to_queued_time = 0
+        cdef unsigned reaction_fired = 0
+        cdef unsigned rule_step = 1
 
         cdef double current_volume = v.get_volume()
         cdef unsigned cell_divided = 0
@@ -1946,26 +2001,34 @@ cdef class VolumeSSASimulator(VolumeSimulator):
 
         while current_index < num_timepoints:
             # Compute the propensity in place
-            sim.apply_repeated_volume_rules(<double*> c_current_state.data, current_volume, current_time)
+            sim.apply_repeated_volume_rules(<double*> c_current_state.data, current_volume, current_time, rule_step)
             sim.compute_stochastic_volume_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data),
                                             current_volume, current_time)
             Lambda = cyrandom.array_sum(<double*> (c_propensity.data), num_reactions)
 
             # Either we are going to move to the next queued time, or we move to the next reaction time.
             if Lambda == 0:
-                proposed_time = final_time+1
+                proposed_time = c_timepoints[current_index]
+                reaction_fired = 0
+                rule_step = 1
+                move_to_queued_time = 1
             else:
                 proposed_time = current_time + cyrandom.exponential_rv(Lambda)
+                reaction_fired = 1
+                rule_step = 0
+                move_to_queued_time = 0
+
             if next_queue_time < proposed_time:
                 current_time = next_queue_time
                 next_queue_time += delta_t
                 move_to_queued_time = 1
+                reaction_fired = 0
+                rule_step = 1
             else:
                 current_time = proposed_time
-                move_to_queued_time = 0
 
             # Update the results array with the state for the time period that we just jumped through.
-            while current_index < num_timepoints and c_timepoints[current_index] < current_time:
+            while current_index < num_timepoints and c_timepoints[current_index] <= current_time:
                 for species_index in range(num_species):
                     c_results[current_index,species_index] = c_current_state[species_index]
                 c_volume_trace[current_index] = current_volume
@@ -1987,7 +2050,7 @@ cdef class VolumeSSASimulator(VolumeSimulator):
                     break
 
             # if an actual reaction happened, do the reaction and maybe update the queue as well.
-            else:
+            elif reaction_fired:
                 # select a reaction
                 reaction_choice = cyrandom.sample_discrete(num_reactions, <double*> c_propensity.data, Lambda )
 
@@ -2073,12 +2136,13 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
         cdef double computed_delay = 0.0
 
         cdef unsigned short step_type = 0 # this variable is 0 if reaction, 1 if volume, 2 if delayed reaction
+        cdef unsigned rule_step = 1
 
         # Do the SSA part now
 
         while current_index < num_timepoints:
             # Compute the propensity in place
-            sim.apply_repeated_volume_rules(<double*> c_current_state.data, current_volume, current_time)
+            sim.apply_repeated_volume_rules(<double*> c_current_state.data, current_volume, current_time, rule_step)
             sim.compute_stochastic_volume_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data),
                                             current_volume, current_time)
             Lambda = cyrandom.array_sum(<double*> (c_propensity.data), num_reactions)
@@ -2086,25 +2150,33 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
             # Either we are going to move to the next volume time, delay time, or reaction time.
 
             if Lambda == 0:
-                proposed_time = final_time + 1
+                proposed_time = c_timepoints[current_index]
+                step_type = 2
+                rule_step = 1
             else:
                 proposed_time = current_time + cyrandom.exponential_rv(Lambda)
+                step_type = 0
+                rule_step = 0
+
             next_queued_reaction_time = q.get_next_queue_time()
 
             if proposed_time < next_vol_time and proposed_time < next_queued_reaction_time:
                 current_time = proposed_time
                 step_type = 0
+
             elif next_vol_time < next_queued_reaction_time:
                 current_time = next_vol_time
                 next_vol_time += delta_t
                 step_type = 1
+                rule_step = 1
             else:
                 current_time = next_queued_reaction_time
                 step_type = 2
+                rule_step = 0
 
 
             # Update the results array with the state for the time period that we just jumped through.
-            while current_index < num_timepoints and c_timepoints[current_index] < current_time:
+            while current_index < num_timepoints and c_timepoints[current_index] <= current_time:
                 for species_index in range(num_species):
                     c_results[current_index,species_index] = c_current_state[species_index]
                 c_volume_trace[current_index] = current_volume
@@ -2170,7 +2242,9 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
 
 #A wrapper function to allow easy simulation of Models
 def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = False, 
-                    delay = None, safe = False, volume = False, return_dataframe = True, simulation_timestep = .01):
+                    delay = None, safe = False, volume = False, return_dataframe = True):
+    
+
     #Check model and interface
     if Model is None and Interface is None:
         raise ValueError("py_simulate_model requires either a Model or CSimInterface to be passed in.")
@@ -2182,10 +2256,15 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
         else:
             Interface = ModelCSimInterface(Model)
 
-        Interface.py_set_dt(simulation_timestep)
-
     elif not Interface is None and safe:
         logging.info("Cannot gaurantee that the interface passed in is safe. Simulating anyway.")
+
+    #check timestep
+    dt = timepoints[1]-timepoints[0]
+    if not np.allclose(timepoints[1:] - timepoints[:-1], dt):
+        raise ValueError("the timestep in timepoints is not uniform! Timepoints must be a linear set of points.")
+    else:
+        Interface.py_set_dt(dt)
 
     #Create Volume (if necessary)
     if isinstance(volume, Volume):

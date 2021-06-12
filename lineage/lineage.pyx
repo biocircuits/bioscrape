@@ -153,8 +153,8 @@ cdef class DeathEvent(Event):
 		return 1
 
 #Dummy class to help with inheritance, compilation, and code simplification. Does nothing
-cdef class LineageRule:
-	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+cdef class LineageRule(Rule):
+	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
 		raise NotImplementedError("LineageRule must be subclassed")
 
 	def get_species_and_parameters(self, dict fields, dict species2index, dict params2index):
@@ -175,7 +175,8 @@ cdef class LinearVolumeRule(VolumeRule):
 		else:
 			return volume + params[self.growth_rate_ind]*dt
 
-	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
+		self.set_frequency_flag(rule_frequency)
 		self.has_noise = 0
 		for (k, v) in param_dictionary.items():
 			if k == "growth_rate":
@@ -202,7 +203,8 @@ cdef class MultiplicativeVolumeRule(VolumeRule):
 		else:
 			return volume+volume*params[self.growth_rate_ind]*dt
 
-	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
+		self.set_frequency_flag(rule_frequency)
 		self.has_noise = 0
 		for (k, v) in param_dictionary.items():
 			if k == "growth_rate":
@@ -224,7 +226,8 @@ cdef class AssignmentVolumeRule(VolumeRule):
 	cdef double get_volume(self, double* state, double *params, double volume, double time, double dt):
 		return (<Term>self.volume_equation).volume_evaluate(state,params,volume,time)
 
-	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
+		self.set_frequency_flag(rule_frequency)
 		for (k, v) in param_dictionary.items():
 			if k == "equation":
 				self.volume_equation = parse_expression(v, species_indices, parameter_indices)
@@ -241,7 +244,8 @@ cdef class ODEVolumeRule(VolumeRule):
 	cdef double get_volume(self, double* state, double *params, double volume, double time, double dt):
 		return volume+(<Term>self.volume_equation).volume_evaluate(state,params,volume,time)*dt
 
-	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
+		self.set_frequency_flag(rule_frequency)
 		for (k, v) in param_dictionary.items():
 			if k == "equation":
 				self.volume_equation = parse_expression(v, species_indices, parameter_indices)
@@ -260,7 +264,7 @@ cdef class DivisionRule(LineageRule):
 	cdef int check_divide(self, double* state, double *params, double time, double volume, double initial_time, double initial_volume):
 		raise NotImplementedError("check_divide must be implemented in DivisionRule subclasses")
 
-	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
 		raise NotImplementedError("DivisionRule must be subclassed!")
 
 	def get_species_and_parameters(self, dict fields, dict species2index, dict params2index):
@@ -283,7 +287,8 @@ cdef class TimeDivisionRule(DivisionRule):
 			else:
 				return 0
 
-	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
+		self.set_frequency_flag(rule_frequency)
 		for (k, v) in param_dictionary.items():
 			if k == "threshold":
 				self.threshold_ind = parameter_indices[v]
@@ -318,7 +323,8 @@ cdef class VolumeDivisionRule(DivisionRule):
 			else:
 				return 0
 
-	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
+		self.set_frequency_flag(rule_frequency)
 		for (k, v) in param_dictionary.items():
 			if k == "threshold":
 				self.threshold_ind = parameter_indices[v]
@@ -354,7 +360,8 @@ cdef class DeltaVDivisionRule(DivisionRule):
 			else:
 				return 0
 
-	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
+		self.set_frequency_flag(rule_frequency)
 		for (k, v) in param_dictionary.items():
 			if k == "threshold":
 				self.threshold_ind = parameter_indices[v]
@@ -382,7 +389,8 @@ cdef class GeneralDivisionRule(DivisionRule):
 		else:
 			return 0
 
-	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
+		self.set_frequency_flag(rule_frequency)
 		for (k, v) in param_dictionary.items():
 			if k == "equation":
 				self.equation = parse_expression(v, species_indices, parameter_indices)
@@ -399,7 +407,7 @@ cdef class DeathRule(LineageRule):
 	cdef int check_dead(self, double* state, double *params, double time, double volume, double initial_time, double initial_volume):
 		raise NotImplementedError("check_dead must be implemented in DeathRule subclasses.")
 
-	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
 		raise NotImplementedError("DeathRule must be Subclassed!")
 
 	def get_species_and_parameters(self, dict fields, dict species2index, dict params2index):
@@ -427,7 +435,8 @@ cdef class SpeciesDeathRule(DeathRule):
 		else:
 			return 0
 
-	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
+		self.set_frequency_flag(rule_frequency)
 		for (k, v) in param_dictionary.items():
 			if k == "specie":
 				self.species_ind = species_indices[v]
@@ -480,7 +489,8 @@ cdef class ParamDeathRule(DeathRule):
 		else:
 			return 0
 
-	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
+		self.set_frequency_flag(rule_frequency)
 		for (k, v) in param_dictionary.items():
 			if k == "param":
 				self.param_ind = parameter_indices[v]
@@ -519,7 +529,8 @@ cdef class GeneralDeathRule(DeathRule):
 		else:
 			return 0
 
-	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
+	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
+		self.set_frequency_flag(rule_frequency)
 		for (k, v) in param_dictionary.items():
 			if k == "equation":
 				self.equation = parse_expression(v, species_indices, parameter_indices)
@@ -1089,7 +1100,7 @@ cdef class LineageCSimInterface(ModelCSimInterface):
 			propensity_destination[self.num_reactions+ind] = (<Propensity>(self.c_lineage_propensities[0][ind])).get_stochastic_volume_propensity(&state[0], self.c_param_values, volume, time)
 
 	#Applies all rules that change the volume of a cell
-	cdef double apply_volume_rules(self, double* state, double volume, double time, double dt):
+	cdef double apply_volume_rules(self, double* state, double volume, double time, double dt, unsigned rule_step):
 		cdef int ind
 		#print("num_volume_rules", self.num_volume_rules, "state", state[0], "volume", volume, "time", time, "dt", dt)
 		for ind in range(self.num_volume_rules):
@@ -1099,7 +1110,7 @@ cdef class LineageCSimInterface(ModelCSimInterface):
 		return volume
 
 	#Applies death rules in the order they were added to the model. Returns the index of the first death rule that returns True. -1 otherwise.
-	cdef int apply_death_rules(self, double* state, double volume, double time, double start_volume, double start_time):
+	cdef int apply_death_rules(self, double* state, double volume, double time, double start_volume, double start_time, unsigned rule_step):
 		cdef int isdead = 0
 		cdef int ind
 		for ind in range(self.num_death_rules):
@@ -1109,7 +1120,7 @@ cdef class LineageCSimInterface(ModelCSimInterface):
 		return -1
 
 	#Applies divison rules in the order they were added to the model. Returns the index of the first division rule that returns True. -1 otherwise
-	cdef int apply_division_rules(self, double* state, double volume, double time, double start_volume, double start_time):
+	cdef int apply_division_rules(self, double* state, double volume, double time, double start_volume, double start_time, unsigned rule_step):
 		cdef int divided = 0
 		cdef int ind
 		#print("state", state[0], "volume", volume, "time", time, "start_volume", start_volume, "start_time", start_time)
@@ -1722,6 +1733,7 @@ cdef class LineageSSASimulator:
 		cdef int cell_divided = -1
 		cdef int cell_dead = -1
 		cdef double Lambda = 0
+		cdef unsigned rule_step = 1
 
 		# print("single cell simulation starting at ", current_time, "till", final_time)
 
@@ -1762,15 +1774,15 @@ cdef class LineageSSASimulator:
 		while current_index < num_timepoints:
 			# print("a1")
 			# Compute rules in place
-			self.interface.apply_repeated_volume_rules(&self.c_current_state[0], current_volume, current_time)
+			self.interface.apply_repeated_volume_rules(&self.c_current_state[0], current_volume, current_time, rule_step)
 			# print("a2")
 			#returns the index of the first DeathRule that returned True and -1 otherwise
-			cell_dead = self.interface.apply_death_rules(&self.c_current_state[0], current_volume, current_time, initial_volume, initial_time)
+			cell_dead = self.interface.apply_death_rules(&self.c_current_state[0], current_volume, current_time, initial_volume, initial_time, rule_step)
 			# print("a3", len(self.c_current_state))
 			# print("self.c_current_state", self.c_current_state[0], self.c_current_state[1], self.c_current_state[2])
 			# print("current_time", current_time, "initial_volume", initial_volume, "initial_time", initial_time)
 			#returns the index of the first DivisionRule that returned True and -1 otherwise
-			cell_divided = self.interface.apply_division_rules(&self.c_current_state[0], current_volume, current_time, initial_volume, initial_time)
+			cell_divided = self.interface.apply_division_rules(&self.c_current_state[0], current_volume, current_time, initial_volume, initial_time, rule_step)
 
 			# print("A", "prop len", len(self.c_propensity))
 			#Break the loop cell dead or divided
@@ -1797,18 +1809,22 @@ cdef class LineageSSASimulator:
 			# Either we are going to move to the next queued time, or we move to the next reaction time.
 			# print("B")
 			if Lambda == 0:
-				proposed_time = final_time+1
+				proposed_time = current_time + delta_t
+				rule_step = 1
 			else:
 				proposed_time = current_time + cyrandom.exponential_rv(Lambda)
+				rule_step = 0
 			if next_queue_time < proposed_time and next_queue_time < final_time:
 				# print("Branch: next_queue_time < proposed_time and next_queue_time < final_time")
 				current_time = next_queue_time
 				next_queue_time += delta_t
 				move_to_queued_time = 1
+				rule_step = 1
 			elif proposed_time > final_time-10e-8:
 				# print(f"(current time, Final time) when current_time = final_time: ({current_time}, {final_time})")
 				current_time = final_time
 				move_to_queued_time = 1
+				rule_step = 1
 			else:
 				# print("Branch: else")
 				current_time = proposed_time
@@ -1827,7 +1843,7 @@ cdef class LineageSSASimulator:
 			# IF the queue won, then update the volume and continue on or stop if the cell divided.
 			if move_to_queued_time == 1:
 				# Update the volume every dtyp
-				current_volume = self.interface.apply_volume_rules(&self.c_current_state[0], current_volume, current_time, delta_t)
+				current_volume = self.interface.apply_volume_rules(&self.c_current_state[0], current_volume, current_time, delta_t, rule_step)
 				# v.set_volume(current_volume)
 
 			# if an actual reaction happened, do the reaction and maybe update the queue as well.
