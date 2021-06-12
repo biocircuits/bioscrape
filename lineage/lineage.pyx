@@ -2109,7 +2109,7 @@ cdef class LineageSSASimulator:
 			self.daughter_schnitz1 = self.r.get_schnitz()
 
 		# Add on the new daughter if final time wasn't reached.
-		if self.d1final.get_time() < final_time + 1E-9:
+		if self.d1final.get_time() < final_time + 1E-12:
 			self.old_cell_states.append(self.d1final)
 
 			if create_schnitzes:
@@ -2123,7 +2123,7 @@ cdef class LineageSSASimulator:
 		if add_to_lineage or create_schnitzes:
 			self.daughter_schnitz2 = self.r.get_schnitz()
 
-		if self.d2final.get_time() < final_time + 1E-9:
+		if self.d2final.get_time() < final_time + 1E-12:
 			self.old_cell_states.append(self.d2final)
 
 			if create_schnitzes:
@@ -3224,8 +3224,9 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 				period_time = period_time + self.global_sync_period
 
 			self.c_period_timepoints = self.truncate_timepoints_greater_than(self.c_timepoints, period_time)
+			self.c_period_timepoints = self.truncate_timepoints_less_than(self.c_period_timepoints, current_time)
 
-			print("simulating interacting lineage from ", self.c_timepoints[0], " to ", period_time)
+			print("simulating interacting lineage from ", self.c_period_timepoints[0], " to ", period_time)
 			#Calculate global volume and synchronize global species across all cells in self.old_cell_state_list
 			self.synchronize_global_species() #calculates global values and redistributes the species
 			self.simulate_interacting_lineage_period(self.c_period_timepoints, 1) #create_schnitzes toggled to 1
