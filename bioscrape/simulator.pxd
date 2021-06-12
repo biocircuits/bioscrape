@@ -448,17 +448,3 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
     """
     cdef DelayVolumeSSAResult delay_volume_simulate(self, CSimInterface sim, DelayQueue q,
                                                     Volume v, np.ndarray timepoints)
-
-
-
-# Simulation functions for doing cell division related stuff.
-cdef Lineage simulate_cell_lineage(CSimInterface sim, Volume v, np.ndarray timepoints,
-                                    VolumeSimulator vsim, VolumeSplitter vsplit)
-cdef Lineage simulate_delay_cell_lineage(CSimInterface sim, DelayQueue q, Volume v, np.ndarray timepoints,
-                                   DelayVolumeSimulator dvsim, DelayVolumeSplitter dvsplit)
-
-
-cdef list propagate_cell(ModelCSimInterface sim, VolumeCellState cell, double end_time,
-                               VolumeSimulator vsim, VolumeSplitter vsplit)
-cdef list propagate_cells(ModelCSimInterface sim, list cells, double end_time,
-                          VolumeSimulator vsim, VolumeSplitter vsplit)
