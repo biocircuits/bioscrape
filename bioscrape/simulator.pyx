@@ -504,7 +504,7 @@ cdef class ModelCSimInterface(CSimInterface):
         return self.np_param_values.shape[0]
 
 cdef class SafeModelCSimInterface(ModelCSimInterface):
-    def __init__(self, external_model, max_volume = 1000, max_species_count = 1000):
+    def __init__(self, external_model, max_volume = 10000, max_species_count = 10000):
         self.max_volume = max_volume
         self.max_species_count = max_species_count
         super().__init__(external_model)

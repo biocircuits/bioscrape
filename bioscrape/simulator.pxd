@@ -146,8 +146,8 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
     cdef unsigned s_ind
     cdef unsigned prop_is_0
     cdef int[:, :, :] reaction_input_indices
-    cdef int max_species_count
-    cdef int max_volume
+    cdef double max_species_count
+    cdef double max_volume
 
     cdef void initialize_reaction_inputs(self)
     cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time)

@@ -546,22 +546,22 @@ cdef class GeneralDeathRule(DeathRule):
 cdef class LineageModel(Model):
 
 	############################################################################
-    # DEVELOPER WARNING 
-    # 
-    # In order to be copiable and usable with multiprocessing, Model must be 
-    # picklable. To do that, Model implements a __getstate__ method and a 
-    # __setstate__ method, which respectively compress all of the Model's state 
-    # variables into a picklable tuple and use those tuples to make a new Model 
-    # identical to the old one. 
-    # 
-    # IF YOU ADD, REMOVE, OR CHANGE ANY VARIABLES HERE, YOU MUST REFLECT THOSE 
-    # CHANGES IN THE __getstate__ AND __setstate__ METHODS.
-    #
-    # This is especially important for newly-added variables. If you add 
-    # variables but don't update the pickling methods, then you will introduce 
-    # SILENT bugs whenever a user makes a copy of a Model or tries to use a 
-    # Model in multiple threads/processes with multiprocessing. 
-    ############################################################################
+	# DEVELOPER WARNING 
+	# 
+	# In order to be copiable and usable with multiprocessing, Model must be 
+	# picklable. To do that, Model implements a __getstate__ method and a 
+	# __setstate__ method, which respectively compress all of the Model's state 
+	# variables into a picklable tuple and use those tuples to make a new Model 
+	# identical to the old one. 
+	# 
+	# IF YOU ADD, REMOVE, OR CHANGE ANY VARIABLES HERE, YOU MUST REFLECT THOSE 
+	# CHANGES IN THE __getstate__ AND __setstate__ METHODS.
+	#
+	# This is especially important for newly-added variables. If you add 
+	# variables but don't update the pickling methods, then you will introduce 
+	# SILENT bugs whenever a user makes a copy of a Model or tries to use a 
+	# Model in multiple threads/processes with multiprocessing. 
+	############################################################################
 
 	cdef unsigned num_division_events
 	cdef unsigned num_division_rules
@@ -946,8 +946,8 @@ cdef class LineageModel(Model):
 		pointers to the objects in lineage_propensities, death_events, etc.,
 		respectively, so only the latter are needed to fully represent the 
 		LineageModel's state.
-        '''
-        # Everything covered by the Model class...
+		'''
+		# Everything covered by the Model class...
 		superclass_state = list(super().__getstate__())
 
 		# ...plus everything covered by this class.
@@ -1171,6 +1171,84 @@ cdef class LineageCSimInterface(ModelCSimInterface):
 		return self.num_death_rules
 	cdef unsigned get_num_division_rules(self):
 		return self.num_division_rules
+
+#A safe-mode CSimInterface for Lineages
+cdef class SafeLineageCSimInterface(LineageCSimInterface):
+	cdef unsigned rxn_ind
+	cdef unsigned s_ind
+	cdef unsigned prop_is_0
+	cdef int[:, :, :] reaction_input_indices
+	cdef double max_species_count
+	cdef double max_volume
+
+	def __init__(self, external_model, max_volume = 10000, max_species_count = 10000):
+		self.max_volume = max_volume
+		self.max_species_count = max_species_count
+		super().__init__(external_model)
+		self.initialize_reaction_inputs()
+		
+	cdef void initialize_reaction_inputs(self):
+		self.rxn_ind = 0
+		self.s_ind = 0
+		cdef unsigned ind = 0
+
+		#Stores a list of the species index that are inputs to reaction r in a numpy array. List is over when -1 is reached
+		empty_array = -np.ones((self.num_reactions, self.num_species, 2), dtype = np.int32)
+		self.reaction_input_indices = empty_array.data
+		#Parallel array to the one above
+		for self.rxn_ind in range(self.num_reactions):
+			ind = 0
+			for self.s_ind in range(self.num_species):
+				#IF a species s is consumed either by the reaction or delay reaction
+				if (self.update_array[self.s_ind, self.rxn_ind] < 0) or (self.delay_update_array[self.s_ind, self.rxn_ind] < 0):
+					#add s to the reaction_update_indices[rxn_ind, :, 0] vector
+					self.reaction_input_indices[self.rxn_ind, ind, 0] = self.s_ind
+
+					#set self.reaction_input_indices[self.rxn_ind, ind, 1] vector the maximum amount of the species that could be consumed
+					if (self.update_array[self.s_ind, self.rxn_ind] < 0) and (self.delay_update_array[self.s_ind, self.rxn_ind] < 0):
+						self.reaction_input_indices[self.rxn_ind, ind, 1] = -(self.update_array[self.s_ind, self.rxn_ind]+self.delay_update_array[self.s_ind, self.rxn_ind])
+					else:
+						self.reaction_input_indices[self.rxn_ind, ind, 1] = -min(self.update_array[self.s_ind, self.rxn_ind], self.delay_update_array[self.s_ind, self.rxn_ind])
+					ind += 1
+
+	cdef void compute_lineage_propensities(self, double *state, double *propensity_destination, double volume, double time):
+		self.check_count_function(state, volume)
+		self.rxn_ind = 0
+		for self.rxn_ind in range(self.num_reactions):
+			self.prop_is_0 = 0
+			self.s_ind = 0
+			while self.reaction_input_indices[self.rxn_ind, self.s_ind, 0] != -1 and self.prop_is_0 == 0:
+				if state[self.reaction_input_indices[self.rxn_ind, self.s_ind, 0]] < self.reaction_input_indices[self.rxn_ind, self.s_ind, 1]:
+					propensity_destination[self.rxn_ind] = 0
+					self.prop_is_0 = 1
+				self.s_ind+=1
+			if self.prop_is_0 == 0:
+				propensity_destination[self.rxn_ind] = (<Propensity> (self.c_propensities[0][self.rxn_ind]) ).get_stochastic_volume_propensity(state, self.c_param_values, volume, time)
+
+				#Issue a warning of a propensity goes negative
+				if propensity_destination[self.rxn_ind] < 0:
+					warnings.warn("Propensity #"+str(self.rxn_ind)+" is negative with value "+str(propensity_destination[self.rxn_ind]) + " setting to 0.")
+					propensity_destination[self.rxn_ind] = 0
+
+		for self.rxn_ind in range(self.num_lineage_propensities):
+			propensity_destination[self.num_reactions+self.rxn_ind] = (<Propensity>(self.c_lineage_propensities[0][self.rxn_ind])).get_stochastic_volume_propensity(&state[0], self.c_param_values, volume, time)
+
+			if propensity_destination[self.num_reactions+self.rxn_ind] < 0:
+				warnings.warn("Event Propensity #"+str(self.rxn_ind)+" is negative with value "+str(propensity_destination[self.rxn_ind]) + " setting to 0.")
+				propensity_destination[self.num_reactions+self.rxn_ind] = 0
+
+	cdef void check_count_function(self, double *state, double volume):
+		self.s_ind = 0
+
+		for self.s_ind in range(self.num_species):
+			if state[self.s_ind] > self.max_species_count:
+				warnings.warn("Species #"+str(self.s_ind)+"="+str(state[self.s_ind])+" > Max Count="+str(self.max_species_count))
+			elif state[self.s_ind] < 0:
+				warnings.warn("Species #"+str(self.s_ind)+"="+str(state[self.s_ind])+" < 0")
+		if volume > self.max_volume:
+			warnings.warn("Volume="+str(volume)+" > Max Volume="+str(self.max_volume))
+		elif volume <= 0:
+			warnings.warn("Volume="+str(volume)+" > Max Volume="+str(self.max_volume))
 
 #A new wrapper for the VolumeCellState with new internal variables
 cdef class LineageVolumeCellState(DelayVolumeCellState):
@@ -1942,12 +2020,15 @@ cdef class LineageSSASimulator:
 		# print("Simulate Single Cell Complete")
 		return SCR
 
-	def py_SimulateSingleCell(self, np.ndarray timepoints, LineageModel Model = None, LineageCSimInterface interface = None, LineageVolumeCellState v = None):
+	def py_SimulateSingleCell(self, np.ndarray timepoints, LineageModel Model = None, LineageCSimInterface interface = None, LineageVolumeCellState v = None, safe = False):
 
 		if Model == None and interface == None:
 			raise ValueError('py_SimulateSingleCell requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 		elif interface == None:
-			interface = LineageCSimInterface(Model)
+			if safe:
+				interface = SafeLineageCSimInterface(Model)
+			else:
+				interface = LineageCSimInterface(Model)
 			interface.py_set_initial_time(timepoints[0])
 		if v == None:
 			v = LineageVolumeCellState(v0 = 1, t0 = 0, state = Model.get_species_array())
@@ -2411,11 +2492,14 @@ cdef class LineageSSASimulator:
 #Auxilary wrapper functions for quick access to Lineage Simulations
 
 #SingleCellLineage simulates the trajectory of a single cell, randomly discarding one of its daughters every division.
-def py_SingleCellLineage(timepoints, initial_cell_state = None, LineageModel Model = None, LineageCSimInterface interface = None, LineageSSASimulator simulator = None, return_dataframes = True):
+def py_SingleCellLineage(timepoints, initial_cell_state = None, LineageModel Model = None, LineageCSimInterface interface = None, LineageSSASimulator simulator = None, return_dataframes = True, safe = False):
 	if Model == None and interface == None:
 		raise ValueError('py_PropagateCells requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 	elif interface == None:
-		interface = LineageCSimInterface(Model)
+		if safe:
+			interface = SafeLineageCSimInterface(Model)
+		else:
+			interface = LineageCSimInterface(Model)
 		interface.py_set_initial_time(timepoints[0])
 
 	if initial_cell_state is None:
@@ -2440,12 +2524,15 @@ def py_SingleCellLineage(timepoints, initial_cell_state = None, LineageModel Mod
 #py_PropagateCells simulates an ensemble of growing dividing cells, returning only the cell states at the end of timepoints
 #include_dead_cells toggles whether all dead cells accumulated along the way will also be returned.
 #return data_frames returns all the results as a pandas dataframe. Otherwise results are returned as a list of LineageVolumeCellStates
-def  py_PropagateCells(timepoints, initial_cell_states = [], LineageModel Model = None, LineageCSimInterface interface = None, LineageSSASimulator simulator = None, sample_times = 1, include_dead_cells = False, return_dataframes = True, return_sample_times = True):
+def  py_PropagateCells(timepoints, initial_cell_states = [], LineageModel Model = None, LineageCSimInterface interface = None, LineageSSASimulator simulator = None, sample_times = 1, include_dead_cells = False, return_dataframes = True, return_sample_times = True, safe = False):
 
 	if Model == None and interface == None:
 		raise ValueError('py_PropagateCells requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 	elif interface == None:
-		interface = LineageCSimInterface(Model)
+		if safe:
+			interface = SafeLineageCSimInterface(Model)
+		else:
+			interface = LineageCSimInterface(Model)
 		interface.py_set_initial_time(timepoints[0])
 
 	if isinstance(initial_cell_states, int):
@@ -2491,13 +2578,16 @@ def  py_PropagateCells(timepoints, initial_cell_states = [], LineageModel Model 
 
 #SimulateCellLineage simulates a lineage of growing, dividing, and dieing cells over timepoints.
 #The entire time trajectory of the simulation is returned as a Lineage which contains a binary tree of Schnitzes each containing a LineageSingleCellSSAResult.
-def py_SimulateCellLineage(timepoints, initial_cell_states = [], initial_cell_count = 1, interface = None, Model = None):
+def py_SimulateCellLineage(timepoints, initial_cell_states = [], initial_cell_count = 1, interface = None, Model = None, safe = False):
 
 	simulator = LineageSSASimulator()
 	if Model == None and interface == None:
 		raise ValueError('py_SimulateCellLineage requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 	elif interface == None:
-		interface = LineageCSimInterface(Model)
+		if safe:
+			interface = SafeLineageCSimInterface(Model)
+		else:
+			interface = LineageCSimInterface(Model)
 		interface.py_set_initial_time(timepoints[0])
 
 	if isinstance(initial_cell_states, int):
@@ -2511,12 +2601,15 @@ def py_SimulateCellLineage(timepoints, initial_cell_states = [], initial_cell_co
 
 
 #SimulateSingleCell performs an SSA simulation on a single cell until it divides, dies, or the final timepoint arrives.
-def py_SimulateSingleCell(timepoints, Model = None, interface = None, initial_cell_state = None, return_dataframes = True):
+def py_SimulateSingleCell(timepoints, Model = None, interface = None, initial_cell_state = None, return_dataframes = True, safe = False):
 	simulator = LineageSSASimulator()
 	if Model == None and interface == None:
 		raise ValueError('py_SimulateSingleCell requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 	elif interface == None:
-		interface = LineageCSimInterface(Model)
+		if safe:
+			interface = SafeLineageCSimInterface(Model)
+		else:
+			interface = LineageCSimInterface(Model)
 		interface.py_set_initial_time(timepoints[0])
 
 	if initial_cell_state == None:
@@ -2530,12 +2623,15 @@ def py_SimulateSingleCell(timepoints, Model = None, interface = None, initial_ce
 		return result
 
 #Python class-free wrapper of LinageSSASimulator' SimulateTurbidostat function.
-def py_SimulateTurbidostat(initial_cell_states, timepoints, sample_times, population_cap, Model = None, interface = None, debug = False):
+def py_SimulateTurbidostat(initial_cell_states, timepoints, sample_times, population_cap, Model = None, interface = None, debug = False, safe = False):
 	simulator = LineageSSASimulator()
 	if Model == None and interface == None:
 		raise ValueError('py_SimulateTurbidostat requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 	elif interface == None:
-		interface = LineageCSimInterface(Model)
+		if safe:
+			interface = SafeLineageCSimInterface(Model)
+		else:
+			interface = LineageCSimInterface(Model)
 		interface.py_set_initial_time(timepoints[0])
 
 	if initial_cell_states == None:
@@ -3129,6 +3225,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 			self.c_period_timepoints = self.truncate_timepoints_greater_than(self.c_timepoints, period_time)
 
+			print("simulating interacting lineage from ", self.c_timepoints[0], " to ", period_time)
 			#Calculate global volume and synchronize global species across all cells in self.old_cell_state_list
 			self.synchronize_global_species() #calculates global values and redistributes the species
 			self.simulate_interacting_lineage_period(self.c_period_timepoints, 1) #create_schnitzes toggled to 1
@@ -3346,7 +3443,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			#Enter Simulation Queue
 			self.simulate_interacting_lineage_period(self.c_timepoints, 0) #create_schnitzes toggled to off
 
-#
+
 
 		#print("about to return samples", "len samples, len samples[0], len samples[1]", len(self.samples), len(self.samples[0]), len(self.samples[1]))
 		return self.samples
@@ -3374,7 +3471,7 @@ def py_set_up_InteractingLineage(global_species = [], interface_list = [],
 								t0 = 0, simulator = None,
 								global_species_inds = None,
 								global_volume_simulator = "stochastic",
-								global_volume_model = None):
+								global_volume_model = None, safe = False):
 	#Set up main simulator if needed
 	if simulator == None:
 		simulator = InteractingLineageSSASimulator()
@@ -3416,11 +3513,15 @@ def py_set_up_InteractingLineage(global_species = [], interface_list = [],
 	if len(model_list) == 0 and len(interface_list) == 0:
 		raise ValueError("Missing Required Keyword Arguments:models = [LineageModel] or interface_list = [LineageCSimInterface]")
 	elif len(interface_list) == 0:
-		interface_list = [LineageCSimInterface(m) for m in model_list]
+
+		if safe:
+			interface_list = [SafeLineageCSimInterface(m) for m in model_list]
+		else:
+			interface_list = [LineageCSimInterface(m) for m in model_list]
 		for m in model_list: #Initialize models
 			m.py_initialize()
 		global_species_inds = np.zeros((len(global_species), len(model_list)),
-									    dtype = np.int32)
+										dtype = np.int32)
 		for i in range(len(global_species)):
 			for j in range(len(model_list)):
 				m = model_list[j]
@@ -3469,7 +3570,7 @@ def py_PropagateInteractingCells(timepoints, global_sync_period,
 								 interface_list = None, model_list = None,
 								 initial_cell_states = None,
 								 return_dataframes = False,
-								 return_sample_times = True):
+								 return_sample_times = True, safe = False):
 	if global_species is None:
 		global_species = []
 	if interface_list is None:
@@ -3488,7 +3589,7 @@ def py_PropagateInteractingCells(timepoints, global_sync_period,
 									 global_species_inds = global_species_inds,
 									 global_volume_simulator = global_volume_simulator,
 									 global_volume_model = global_volume_model,
-									 t0 = timepoints[0])
+									 t0 = timepoints[0], safe = safe)
 
 	if isinstance(sample_times, int): #Return N=sample_times evenly spaced samples starting at the end of the simulation
 		if sample_times == 1:
@@ -3528,10 +3629,10 @@ def py_PropagateInteractingCells(timepoints, global_sync_period,
 def py_SimulateInteractingCellLineage(timepoints, global_sync_period,
 	simulator = None, global_volume_simulator = "stochastic", global_volume_model = None,
 	global_volume = 0, global_species = [], global_species_inds = None, average_dist_threshold = 1.0,
-	interface_list = [], model_list = [], initial_cell_states = [], return_dataframes = False):
+	interface_list = [], model_list = [], initial_cell_states = [], return_dataframes = False, safe = False):
 
 	interface_list, simulator, initial_cell_states, global_species_inds = py_set_up_InteractingLineage(global_species = global_species, interface_list = interface_list, model_list = model_list, initial_cell_states = initial_cell_states,
-		simulator = simulator, global_species_inds = global_species_inds, global_volume_simulator = global_volume_simulator, global_volume_model = global_volume_model, t0 = timepoints[0])
+		simulator = simulator, global_species_inds = global_species_inds, global_volume_simulator = global_volume_simulator, global_volume_model = global_volume_model, t0 = timepoints[0], safe = safe)
 
 	lineage_list = simulator.py_SimulateInteractingCellLineage(timepoints, interface_list, initial_cell_states, global_sync_period, global_species_inds, global_volume, average_dist_threshold)
 	#print("auxilary func lineage_list returned")
