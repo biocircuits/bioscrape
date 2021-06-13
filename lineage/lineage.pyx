@@ -3226,7 +3226,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			self.c_period_timepoints = self.truncate_timepoints_greater_than(self.c_timepoints, period_time)
 			self.c_period_timepoints = self.truncate_timepoints_less_than(self.c_period_timepoints, current_time)
 
-			print("simulating interacting lineage from ", self.c_period_timepoints[0], " to ", period_time)
+			#print("simulating interacting lineage from ", self.c_period_timepoints[0], " to ", period_time)
 			#Calculate global volume and synchronize global species across all cells in self.old_cell_state_list
 			self.synchronize_global_species() #calculates global values and redistributes the species
 			self.simulate_interacting_lineage_period(self.c_period_timepoints, 1) #create_schnitzes toggled to 1

@@ -1458,7 +1458,6 @@ cdef class DeterministicSimulator(RegularSimulator):
         cdef np.ndarray S = sim.get_update_array() + sim.get_delay_update_array()
         cdef np.ndarray x0 = sim.get_initial_state().copy()
         cdef np.ndarray p0 = sim.py_get_param_values().copy()
-        print("p0", p0)
 
         cdef unsigned num_species = S.shape[0]
         cdef unsigned num_reactions = S.shape[1]
@@ -1479,7 +1478,6 @@ cdef class DeterministicSimulator(RegularSimulator):
 
             if full_output['message'] == 'Integration successful.':
                 if sim.get_number_of_rules() > 0:
-                    print("p0", p0)
                     sim.py_set_param_values(p0) #reset the parameter values before reapplying rules
                     for index in range(timepoints.shape[0]):
                         sim.apply_repeated_rules( &(results[index,0]),timepoints[index], True)
