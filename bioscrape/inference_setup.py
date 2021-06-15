@@ -398,7 +398,7 @@ class InferenceSetup(object):
         import csv
         with open('mcmc_results.csv','w', newline = "") as f:
             writer = csv.writer(f)
-            writer.writerows(sampler.flatchain)
+            writer.writerows(sampler.get_chain(flat = True))
             if convergence_diagnostics:
                 writer.writerow('\nMCMC convrgence diagnostics\n')
                 writer.writerow(self.convergence_diagnostics)
