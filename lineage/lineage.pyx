@@ -695,8 +695,16 @@ cdef class LineageModel(Model):
 			self.rule_volume_splitters.append(volume_splitter)
 
 		#Propensity Order:
-		# Reactionns, Divison Events, Volume Events, Death Events
+		# Reactionns, Volume Events, Division Events, Death Events
 		self.lineage_propensities = []
+
+		self.num_volume_events = len(self.volume_events_list)
+		for i in range(self.num_volume_events):
+			event, prop_object = self.volume_events_list[i]
+			self.lineage_propensities.append(prop_object)
+			self.c_lineage_propensities.push_back(<void*>prop_object)
+			self.volume_events.append(event)
+			self.c_volume_events.push_back(<void*>event)
 
 		self.num_division_events = len(self.division_events_list)
 		for i in range(self.num_division_events):
@@ -707,13 +715,7 @@ cdef class LineageModel(Model):
 			self.c_lineage_propensities.push_back(<void*>prop_object)
 			self.event_volume_splitters.append(volume_splitter)
 
-		self.num_volume_events = len(self.volume_events_list)
-		for i in range(self.num_volume_events):
-			event, prop_object = self.volume_events_list[i]
-			self.lineage_propensities.append(prop_object)
-			self.c_lineage_propensities.push_back(<void*>prop_object)
-			self.volume_events.append(event)
-			self.c_volume_events.push_back(<void*>event)
+		
 
 		self.num_death_events = len(self.death_events_list)
 		for i in range(self.num_death_events):
@@ -1869,21 +1871,14 @@ cdef class LineageSSASimulator:
 				cell_divided = -1
 				break
 			elif cell_dead >= 0:
-				# print("\t is dead")
 				break
 			elif cell_divided >= 0:
-				# print("\t is divided")
 				break
 			#Compute Reaction and Event propensities in-place
 			self.interface.compute_lineage_propensities(&self.c_current_state[0], &self.c_propensity[0], current_volume, current_time)
-			# print("b1 self.num_propensities", self.num_propensities)
+
 			Lambda = cyrandom.array_sum(&self.c_propensity[0], self.num_propensities)
-			# if not Lambda > 0:
-				# print(f"Lambda has nonpositive value {Lambda}")
-				# print(f"num_propensities: {self.num_propensities}")
-				# print(f"c_propensity:")
-				# for i in range(len(self.c_propensity)):
-				# 	print(f"\t{self.c_propensity[i]}")
+
 			# Either we are going to move to the next queued time, or we move to the next reaction time.
 			# print("B")
 			if Lambda == 0:
@@ -1928,7 +1923,7 @@ cdef class LineageSSASimulator:
 			else:
 				# print("D")
 				# select a reaction
-				reaction_choice = cyrandom.sample_discrete(self.num_propensities, &self.c_propensity[0], Lambda )
+				reaction_choice = cyrandom.sample_discrete(self.num_propensities, &self.c_propensity[0], Lambda)
 				#Propensities are Ordered:
 				# Reactions, Divison Events, Volume Events, Death Events
 
@@ -1944,22 +1939,22 @@ cdef class LineageSSASimulator:
 
 				#Propensity is a VolumeEvent
 				elif reaction_choice >= self.num_reactions and reaction_choice < self.num_reactions + self.num_volume_events:
-					# print("d2", "num_reactions", self.num_reactions)
-					# print("volume event! volume before", current_volume)
+
 					current_volume = self.interface.apply_volume_event(reaction_choice - self.num_reactions, &self.c_current_state[0], current_time, current_volume)
-					# v.set_volume(current_volume)
-					# print("volume after", v.get_volume())
+
 				#Propensity is a DivisionEvent.
 				elif reaction_choice >= self.num_reactions+self.num_volume_events and reaction_choice < self.num_reactions + self.num_volume_events+self.num_division_events:
 					# print("d3")
 					#Cell Divided = DivisionEvent Index + num_division_rules
 					cell_divided = reaction_choice - self.num_reactions - self.num_volume_events + self.num_division_rules
+					#print("Cell Divided! ", cell_divided, " reaction choice=", reaction_choice, " event prob=", self.c_propensity[reaction_choice]/Lambda)
 					break
 				#Propensity is a Death Event
 				elif reaction_choice >= self.num_reactions + self.num_volume_events+self.num_division_events:
 					# print("d4")
 					#Cell Divided = DeathEvent Index + num_death_rules
-					cell_dead = reaction_choice - self.num_reactions + self.num_volume_events+self.num_division_events+self.num_death_rules
+					cell_dead = reaction_choice - self.num_reactions - self.num_volume_events-self.num_division_events+self.num_death_rules
+					#print("Cell Dead! ", cell_dead, " reaction choice=", reaction_choice, " event prob=", self.c_propensity[reaction_choice]/Lambda)
 					break
 				else:
 					raise ValueError("More reaction propensities than expected!")
@@ -2570,6 +2565,7 @@ def  py_PropagateCells(timepoints, initial_cell_states = [], LineageModel Model 
 				return_data.append(df)
 		except ModuleNotFoundError:
 			warnings.warn("return_dataframes=True requires that pandas be installed. Instead a numpy array is being returned (each column is a species, the last column is volume, and rows are cell states)")
+			return_data = np.array(return_data)
 	else:
 		return_data = final_cell_state_samples
 
@@ -2625,7 +2621,8 @@ def py_SimulateSingleCell(timepoints, Model = None, interface = None, initial_ce
 		return result
 
 #Python class-free wrapper of LinageSSASimulator' SimulateTurbidostat function.
-def py_SimulateTurbidostat(initial_cell_states, timepoints, sample_times, population_cap, Model = None, interface = None, debug = False, safe = False):
+def py_SimulateTurbidostat(initial_cell_states, timepoints, sample_times, population_cap, 
+	Model = None, interface = None, debug = False, safe = False, return_dataframes = True, return_sample_times = True):
 	simulator = LineageSSASimulator()
 	if Model == None and interface == None:
 		raise ValueError('py_SimulateTurbidostat requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
@@ -2643,15 +2640,38 @@ def py_SimulateTurbidostat(initial_cell_states, timepoints, sample_times, popula
 	elif not isinstance(initial_cell_states, list):
 		raise ValueError("Initial Cell States must be a list of LineageVolumeCell states or and positive integer")
 
-
 	if isinstance(sample_times, int): #Return N=sample_times evenly spaced samples starting at the end of the simulation
 		sample_times = timepoints[::-int(len(timepoints)/sample_times)]
 		sample_times = np.flip(sample_times) #reverse the order
 	else:
 		sample_times = np.array(sample_times, dtype = np.double) #convert sample_times into doubles
-		
-	result = simulator.py_SimulateTurbidostat(initial_cell_states, timepoints, sample_times, population_cap, interface, debug)
-	return result
+
+	final_cell_state_samples = simulator.py_SimulateTurbidostat(initial_cell_states, timepoints, sample_times, population_cap, interface, debug)
+
+	return_data = None
+	if return_dataframes:#Converts list of cell states into a Pandas dataframe
+		try:
+			import pandas
+			return_data = []
+			for L in final_cell_state_samples:
+				if len(L) > 0: darray = np.array([np.append(cs.py_get_state(), cs.py_get_volume()) for cs in L])
+				if Model == None:
+					warnings.warn("Without passing in a model, the data frame will not be indexable by species name.")
+					df = pandas.DataFrame(darray)
+				else:
+					columns = Model.get_species_list()+["volume"]
+					df = pandas.DataFrame(darray, columns = columns)
+				return_data.append(df)
+		except ModuleNotFoundError:
+			warnings.warn("return_dataframes=True requires that pandas be installed. Instead a numpy array is being returned (each column is a species, the last column is volume, and rows are cell states)")
+			return_data = np.array(return_data)
+	else:
+		return_data = final_cell_state_samples
+
+	if return_sample_times:
+		return return_data, sample_times
+	else:
+		return return_data
 
 
 #A simulator class for interacting cell lineages
