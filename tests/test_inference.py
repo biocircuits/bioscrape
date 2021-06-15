@@ -262,3 +262,4 @@ def test_lmfit_inference(birth_death_process):
                                 params_to_estimate = ['k1'], prior = prior, 
                                 inference_type = 'lmfit', method = 'leastsq', plot_show = False)
     assert(isinstance(minimizer_result[0], MinimizerResult) == True)
+    
