@@ -1,7 +1,7 @@
 matplotlib
 pytest
 numpy>=1.16.5
-scipy>=1.6.3
+scipy>=1.5.4
 Cython
 python-libsbml
 beautifulsoup4
