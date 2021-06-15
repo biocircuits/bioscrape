@@ -1398,7 +1398,7 @@ cdef class PerfectBinomialVolumeSplitter(VolumeSplitter):
         e.set_state(estate)
 
         # create return structure
-        cdef np.ndarray ans = np.empty(2, dtype=np.object)
+        cdef np.ndarray ans = np.empty(2, dtype=object)
         ans[0] = d
         ans[1] = e
 
@@ -1517,7 +1517,7 @@ cdef class GeneralVolumeSplitter(VolumeSplitter):
         e.set_state(estate)
 
         # create return structure
-        cdef np.ndarray ans = np.empty(2, dtype=np.object)
+        cdef np.ndarray ans = np.empty(2, dtype=object)
         ans[0] = d
         ans[1] = e
 
@@ -1567,7 +1567,7 @@ cdef class PerfectBinomialDelayVolumeSplitter(DelayVolumeSplitter):
         e.set_delay_queue(q2)
 
         # create return structure
-        cdef np.ndarray ans = np.empty(2, dtype=np.object)
+        cdef np.ndarray ans = np.empty(2, dtype=object)
         ans[0] = d
         ans[1] = e
 

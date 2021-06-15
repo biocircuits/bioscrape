@@ -1449,7 +1449,7 @@ cdef class LineageVolumeSplitter(VolumeSplitter):
 			estate[species_index] = <double> c2
 
 		# create return structure
-		cdef np.ndarray ans = np.empty(2, dtype=np.object)
+		cdef np.ndarray ans = np.empty(2, dtype=object)
 		cdef LineageVolumeCellState d = LineageVolumeCellState(v0 = v0d, t0 = parent.get_time(), state = dstate)
 		cdef LineageVolumeCellState e = LineageVolumeCellState(v0 = v0e, t0 = parent.get_time(), state = estate)
 		ans[0] = d
