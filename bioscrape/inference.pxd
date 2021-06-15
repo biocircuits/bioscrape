@@ -1,8 +1,11 @@
 cimport numpy as np
+from libcpp cimport bool
 from types import Model
 from types cimport Model
 from simulator cimport CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
 from simulator import CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
+from simulator cimport DelaySimulator, DelaySSASimulator, ArrayDelayQueue
+from simulator import DelaySimulator, DelaySSASimulator, ArrayDelayQueue
 
 
 ##################################################                ####################################################
@@ -69,10 +72,12 @@ cdef class StochasticTrajectories(Data):
 cdef class Likelihood:
     cdef double get_log_likelihood(self)
 
+
 cdef class ModelLikelihood(Likelihood):
     cdef Model m
     cdef CSimInterface csim
     cdef RegularSimulator propagator
+    cdef DelaySimulator propagator_delay
     cdef np.ndarray meas_indices
     cdef np.ndarray init_state_indices
     cdef np.ndarray init_state_vals
@@ -97,6 +102,7 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
     cdef unsigned norm_order
     cdef np.ndarray timepoints
     cdef double get_log_likelihood(self)
+    cdef bool has_delay 
     
 
 cdef class StochasticTrajectoryMomentLikelihood(StochasticTrajectoriesLikelihood):

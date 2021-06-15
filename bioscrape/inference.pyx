@@ -6,7 +6,9 @@ from types import Model
 from types cimport Model
 from simulator cimport CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
 from simulator import CSimInterface, RegularSimulator, ModelCSimInterface, DeterministicSimulator, SSASimulator
-from emcee_interface import initialize_mcmc
+from simulator cimport DelaySimulator, DelaySSASimulator, ArrayDelayQueue
+from simulator import DelaySimulator, DelaySSASimulator, ArrayDelayQueue
+from inference_setup import initialize_inference
 import sys
 
 import emcee
@@ -214,13 +216,12 @@ cdef class ModelLikelihood(Likelihood):
         else:
             print("Warning: No Data passed into likelihood constructor. Must call set_data seperately.")
 
-    def set_model(self, Model m, RegularSimulator prop, CSimInterface csim = None):
-        #print("m", m)
-        #print("csim", csim)
+    def set_model(self, Model m, RegularSimulator prop, CSimInterface csim = None, DelaySimulator prop_delay = None):
         if csim is None:
             self.csim = ModelCSimInterface(m)
         self.m = m
         self.propagator = prop
+        self.propagator_delay = prop_delay
 
     def set_init_species(self, dict sd = {}, list sds = []):
         if len(sd.keys()) == 0 and len(sds) == 0:
@@ -229,7 +230,6 @@ cdef class ModelLikelihood(Likelihood):
             sds = [sd]
         elif len(sd.keys()) > 0 and len(sds) > 0:
             raise ValueError("set_init_species requires either a list of initial condition dictionaries sds or a single initial condition dictionary sd as parameters, not both.")
-        
         self.Nx0 = len(sds)
 
         if len(sds)>1:
@@ -313,7 +313,6 @@ cdef class DeterministicLikelihood(ModelLikelihood):
         return self.norm_order
 
     cdef double get_log_likelihood(self):
-        
         # Write in the specific parameters and species values.
         cdef np.ndarray[np.double_t, ndim = 1] species_vals = self.m.get_species_values()
         cdef np.ndarray[np.double_t, ndim = 1] param_vals = self.m.get_params_values()
@@ -362,18 +361,22 @@ cdef class DeterministicLikelihood(ModelLikelihood):
         return -error
 
 cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
-    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None):
+    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None, DelaySimulator prop_delay = None):
         self.m = m
+        self.has_delay = False
         if csim is None:
             csim = ModelCSimInterface(m)
         if prop is None:
             if m.has_delay:
-                raise NotImplementedError("Delay Simulation not yet implemented for inference.")
+                prop_delay = DelaySSASimulator()
+                self.has_delay = True
+                self.propagator_delay = prop_delay
             else:
                 prop = SSASimulator()
-
+                self.propagator = prop
+        else:
+            self.propagator = prop
         self.csim = csim
-        self.propagator = prop
 
     def set_data(self, StochasticTrajectories sd):
 
@@ -447,7 +450,11 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
                 elif self.Nx0 == self.N: #Different initial conditions for different simulations
                     for i in range(self.M):
                         species_vals[ self.init_state_indices[i, n] ] = self.init_state_vals[i, n]
-                ans = self.propagator.simulate(self.csim, timepoints).get_result()
+                if self.has_delay:
+                    q = ArrayDelayQueue.setup_queue(self.csim.py_get_num_reactions(), len(timepoints),timepoints[1]-timepoints[0])
+                    ans = self.propagator_delay.delay_simulate(self.csim, q, timepoints).get_result()
+                elif not self.has_delay:
+                    ans = self.propagator.simulate(self.csim, timepoints).get_result()
 
                 for i in range(self.M):
                     # Compare the data using norm and return the likelihood.
@@ -469,19 +476,23 @@ cdef class StochasticTrajectoryMomentLikelihood(StochasticTrajectoriesLikelihood
         self.Moments = Moments
 
 cdef class StochasticStatesLikelihood(ModelLikelihood):
-    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None):
+    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None, DelaySimulator prop_delay = None):
         self.m = m
 
         if csim is None:
             csim = ModelCSimInterface(m)
         if prop is None:
             if m.has_delay:
-                raise NotImplementedError("Delay Simulation not yet implemented for inference.")
+                prop_delay = DelaySSASimulator()
+                self.has_delay = True
+                self.propagator_delay = prop_delay
             else:
                 prop = SSASimulator()
+                self.propagator = prop
+        else:
+            self.propagator = prop
 
         self.csim = csim
-        self.propagator = prop
 
     def set_data(self, FlowData fd):
         self.fd = fd
@@ -493,18 +504,20 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
 
 def py_inference(Model = None, params_to_estimate = None, exp_data = None, initial_conditions = None,
                 measurements = None, time_column = None, nwalkers = None, nsteps = None,
-                init_seed = None, prior = None, sim_type = None, plot_show = True, **kwargs):
+                init_seed = None, prior = None, sim_type = None, inference_type = 'emcee',
+                method = 'mcmc', plot_show = True, **kwargs):
     
     if Model is None:
         raise ValueError('Model object cannot be None.')
         
-    pid = initialize_mcmc(Model = Model, **kwargs)
+    pid = initialize_inference(Model = Model, **kwargs)
     if exp_data is not None:
         pid.set_exp_data(exp_data)
     if measurements is not None:
         pid.set_measurements(measurements)
-    if initial_conditions is not None:
-        pid.set_initial_conditions(initial_conditions)
+    if initial_conditions is None:
+        initial_conditions = dict(Model.get_species_dictionary())
+    pid.set_initial_conditions(initial_conditions)
     if time_column is not None:
         pid.set_time_column(time_column)
     if nwalkers is not None:
@@ -519,8 +532,14 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
         pid.set_params_to_estimate(params_to_estimate)
     if prior is not None:
         pid.set_prior(prior)
-
-    sampler = pid.run_mcmc(plot_show = plot_show, **kwargs)
-    if plot_show:
-        pid.plot_mcmc_results(sampler, **kwargs)
-    return sampler, pid
+    if inference_type == 'emcee' and method == 'mcmc':
+        sampler = pid.run_mcmc(plot_show = plot_show, **kwargs)
+        if plot_show:
+            pid.plot_mcmc_results(sampler, **kwargs)
+        return sampler, pid
+    elif inference_type == 'lmfit':
+        minimizer_result = pid.run_lmfit(method = method, plot_show = plot_show, **kwargs)
+        pid.write_lmfit_results(minimizer_result, **kwargs)
+        return minimizer_result
+    else:
+        raise ValueError("Set inference_type keyword argument to your preferred inference package name. Currently emcee and lmfit are supported.")
