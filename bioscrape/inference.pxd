@@ -72,6 +72,7 @@ cdef class StochasticTrajectories(Data):
 cdef class Likelihood:
     cdef double get_log_likelihood(self)
 
+
 cdef class ModelLikelihood(Likelihood):
     cdef Model m
     cdef CSimInterface csim
