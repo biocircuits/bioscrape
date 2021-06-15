@@ -2494,7 +2494,7 @@ cdef class LineageSSASimulator:
 #SingleCellLineage simulates the trajectory of a single cell, randomly discarding one of its daughters every division.
 def py_SingleCellLineage(timepoints, initial_cell_state = None, LineageModel Model = None, LineageCSimInterface interface = None, LineageSSASimulator simulator = None, return_dataframes = True, safe = False):
 	if Model == None and interface == None:
-		raise ValueError('py_PropagateCells requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
+		raise ValueError('py_SingleCellLineage requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 	elif interface == None:
 		if safe:
 			interface = SafeLineageCSimInterface(Model)
@@ -2524,7 +2524,9 @@ def py_SingleCellLineage(timepoints, initial_cell_state = None, LineageModel Mod
 #py_PropagateCells simulates an ensemble of growing dividing cells, returning only the cell states at the end of timepoints
 #include_dead_cells toggles whether all dead cells accumulated along the way will also be returned.
 #return data_frames returns all the results as a pandas dataframe. Otherwise results are returned as a list of LineageVolumeCellStates
-def  py_PropagateCells(timepoints, initial_cell_states = [], LineageModel Model = None, LineageCSimInterface interface = None, LineageSSASimulator simulator = None, sample_times = 1, include_dead_cells = False, return_dataframes = True, return_sample_times = True, safe = False):
+def  py_PropagateCells(timepoints, initial_cell_states = [], LineageModel Model = None, 
+	LineageCSimInterface interface = None, LineageSSASimulator simulator = None, 
+	sample_times = 1, include_dead_cells = False, return_dataframes = True, return_sample_times = True, safe = False):
 
 	if Model == None and interface == None:
 		raise ValueError('py_PropagateCells requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
@@ -2641,6 +2643,13 @@ def py_SimulateTurbidostat(initial_cell_states, timepoints, sample_times, popula
 	elif not isinstance(initial_cell_states, list):
 		raise ValueError("Initial Cell States must be a list of LineageVolumeCell states or and positive integer")
 
+
+	if isinstance(sample_times, int): #Return N=sample_times evenly spaced samples starting at the end of the simulation
+		sample_times = timepoints[::-int(len(timepoints)/sample_times)]
+		sample_times = np.flip(sample_times) #reverse the order
+	else:
+		sample_times = np.array(sample_times, dtype = np.double) #convert sample_times into doubles
+		
 	result = simulator.py_SimulateTurbidostat(initial_cell_states, timepoints, sample_times, population_cap, interface, debug)
 	return result
 
