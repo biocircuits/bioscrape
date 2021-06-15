@@ -1922,10 +1922,8 @@ cdef class LineageSSASimulator:
 				cell_divided = -1
 				break
 			elif cell_dead >= 0:
-				# print("\t is dead")
 				break
 			elif cell_divided >= 0:
-				# print("\t is divided")
 				break
 			#Compute Reaction and Event propensities in-place
 			self.interface.compute_lineage_propensities(&self.c_current_state[0], &self.c_propensity[0], current_volume, current_time)
