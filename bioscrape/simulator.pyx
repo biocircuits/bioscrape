@@ -1036,6 +1036,12 @@ cdef class DelayVolumeSSAResult(VolumeSSAResult):
 # Cell state classes
 
 cdef class CellState:
+    def __init__(self, time = None, state = None):
+        if time is not None:
+            self.py_set_time(time)
+        if state is not None:
+            self.py_set_state(state)
+
     def py_set_state(self, np.ndarray state):
         self.state = state
 
@@ -1070,6 +1076,11 @@ cdef class CellState:
             return self.state
 
 cdef class DelayCellState(CellState):
+    def __init__(self, time = None, state = None, queue = None):
+        super().__init__(time, state)
+        if queue is not None:
+            self.py_set_delay_queue(queue)
+
     def py_get_delay_queue(self):
         return self.delay_queue
 
@@ -1077,8 +1088,16 @@ cdef class DelayCellState(CellState):
         self.delay_queue = q
 
 cdef class VolumeCellState(CellState):
-    def __init__(self):
+    def __init__(self, time = None, state = None, volume = None):
+        super().__init__(time, state)
         self.volume_object = None
+        if volume is not None:
+            if isinstance(volume, float):
+                self.py_set_volume(volume)
+            elif isinstance(volume, Volume):
+                self.py_set_volume_object(volume)
+            else:
+                raise TypeError(f"VolumeCellState volume argument must be a double or Volume (was {type(volume)}.")
 
     def py_set_volume(self, double volume):
         self.volume = volume
@@ -1110,7 +1129,14 @@ cdef class VolumeCellState(CellState):
             pass
         return df
 
+
+# DEV NOTE: Should be able to just inherit from DelayCellState as well as here, right?
 cdef class DelayVolumeCellState(VolumeCellState):
+    def __init__(self, time = None, state = None, volume = None, queue = None):
+        super().__init__(time, state, volume)
+        if queue is not None:
+            self.py_set_delay_queue(queue)
+
     def py_get_delay_queue(self):
         return self.delay_queue
 

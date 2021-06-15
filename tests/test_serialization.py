@@ -90,7 +90,7 @@ def test_random_complex_model():
     # time 75.
 	M.create_parameter("I0", 10) #Inducer concentration
 	M.create_parameter("T_I0", 2) #Initial time inducer is added
-	M.create_rule("assignment", {"equation":"I = _I0*Heaviside(t-_T_I0)"})
+	M.create_rule("assignment", {"equation":"I = I0*Heaviside(t-T_I0)"})
 
 
 	###############################
@@ -196,7 +196,7 @@ def test_random_complex_lineagemodel():
     # time 100.
 	M.create_parameter("I0", 10) #Inducer concentration
 	M.create_parameter("T_I0", 2.5) #Initial time inducer is added
-	M.create_rule("assignment", {"equation":"I = _I0*Heaviside(t-_T_I0)"})
+	M.create_rule("assignment", {"equation":"I = I0*Heaviside(t-T_I0)"})
 
 	# Add lineage-specific features.
 	M.create_volume_event("linear volume", {"growth_rate":1}, 
@@ -209,7 +209,8 @@ def test_random_complex_lineagemodel():
 	vsplit = LineageVolumeSplitter(M, options = vsplit_options)
 	M.create_division_rule("deltaV", {"threshold":1}, vsplit)
 
-	M.create_death_event("death", {}, "hillpositive", {"k":1, "s1":"I", "n":2, "K":5})
+	M.create_death_event("death", {}, "hillpositive", {"k":1, "s1":"I", "n":2, 
+													   "K":5})
 
 
 
