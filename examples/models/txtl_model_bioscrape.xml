@@ -12,8 +12,6 @@
 <parameter name="DummyVar_PositiveHillPropensity_n_0" value="1.0" />
 <parameter name="ktl" value="10.0" />
 <parameter name="delta" value="0.1" />
-<parameter name="_I0" value="nan" />
-<parameter name="_T_I0" value="nan" />
 <parameter name="I0" value="10.0" />
 <parameter name="T_I0" value="50.0" />
 
@@ -34,6 +32,6 @@
 	<delay type="none" />
 </reaction>
 
-<rule type="assignment" frequency="repeated" frequency="repeated" equation="I = _I0*Heaviside(t-_T_I0)"  />
+<rule type="assignment" frequency="repeated" frequency="repeated" equation="I = I0*Heaviside(t-T_I0)"  />
 <rule type="assignment" frequency="repeated" frequency="repeated" equation="S = 50*X/(1+.2*X)"  />
 </model>
