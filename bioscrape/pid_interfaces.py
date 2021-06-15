@@ -2,6 +2,8 @@ from bioscrape.inference import DeterministicLikelihood as DLL
 from bioscrape.inference import StochasticTrajectoriesLikelihood as STLL
 from bioscrape.inference import StochasticTrajectories
 from bioscrape.inference import BulkData
+from bioscrape.simulator import py_simulate_model
+import matplotlib.pyplot as plt
 import warnings
 import numpy as np
 
@@ -9,7 +11,7 @@ class PIDInterface():
     '''
     PID Interface : Parameter identification interface.
     Super class to create parameter identification (PID) interfaces. Two PID interfaces currently implemented: 
-    Deterministic and Stochastic inference using time-series data.
+    Deterministic and Stochastic Bayesian inference using time-series data.
     To add a new PIDInterface - simply add a new subclass of this parent class with your desired 
     log-likelihood functions. You can even have your own check_prior function in that class if you do not 
     prefer to use the built in priors with this package.
@@ -153,8 +155,8 @@ class PIDInterface():
             raise ValueError('No prior found')
         alpha = prior_dict[param_name][1]
         beta = prior_dict[param_name][2]
-        import scipy.special.beta as beta_func
-        prob = (param_value**(alpha-1) * (1 - param_value)**(beta - 1) )/beta_func(alpha, beta)
+        from scipy import special
+        prob = (param_value**(alpha-1) * (1 - param_value)**(beta - 1) )/special.beta(alpha, beta)
         if prob < 0:
             warnings.warn('Probability less than 0 while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
@@ -270,8 +272,6 @@ class DeterministicInference(PIDInterface):
             print('The measurmenets is {0}'.format(measurements))
             print('The N is {0}'.format(N))
             print('Using the initial conditions: {0}'.format(initial_conditions))
-
-
         #Create Likelihood object
         self.LL_det = DLL(model = self.M, init_state = initial_conditions, data = self.dataDet, norm_order = norm_order)
 
@@ -283,19 +283,86 @@ class DeterministicInference(PIDInterface):
         for key, p in zip(self.params_to_estimate, params):
             params_dict[key] = p
         self.LL_det.set_init_params(params_dict)
-
         # Check prior
         lp = 0
         lp = self.check_prior(params_dict)
         if not np.isfinite(lp):
             return -np.inf
-
         #apply cost function
         LL_det_cost = self.LL_det.py_log_likelihood()
         ln_prob = lp + LL_det_cost
         return ln_prob
         
+class LMFitInference(PIDInterface):
+    
+    def __init__(self, params_to_estimate, M, prior):
+        self.residual_function = None
+        self.dataLMFit = None
+        super().__init__(params_to_estimate, M, prior)
+        return
 
-
-
-
+    def get_minimizer_results(self, data, timepoints, measurements, initial_conditions, 
+                                method = 'leastsq', stochastic = False, debug = False, 
+                                plot_show = True, **kwargs):
+        # In this case the timepoints should be a list of timepoints vectors for each iteration
+        #If there are multiple initial conditions in a data-set, should correspond to multiple initial conditions for inference.
+        #Note len(initial_conditions) must be equal to the number of trajectories N
+        try:
+            import lmfit
+        except:
+            raise ImportError('LMFit package not found.')
+        if debug:
+            print('The LMFit inference attributes:')
+            print('The timepoints shape is {0}'.format(np.shape(timepoints)))
+            print('The data shape is {0}'.format(np.shape(data)))
+            print('The measurmenets is {0}'.format(measurements))
+            print('The N is {0}'.format(N))
+            print('Using the initial conditions: {0}'.format(initial_conditions))
+        def residual_function(params, data = data):
+            # Integrate ODEs
+            params_values_dict = {}
+            for p in dict(params).keys():
+                params_values_dict[params[p].name] = params[p].value
+                self.M.set_parameter(p, params[p].value)
+            # Check prior
+            lp = 0
+            lp = self.check_prior(params_values_dict)
+            if not np.isfinite(lp):
+                nans_array = np.array([np.nan]*len(timepoints))
+                return nans_array
+            self.M.set_species(initial_conditions)
+            model_sim = py_simulate_model(timepoints, self.M, stochastic = stochastic)
+            residual_value = np.zeros(len(timepoints))
+            measurements_counter = 0
+            for species in measurements:
+                residual_value += lp + np.reshape(np.array(model_sim[species]), (len(timepoints))) - data[:,measurements_counter]
+                measurements_counter += 1 
+            return residual_value
+        model_param_dict = self.M.get_parameter_dictionary()
+        # Create LMFit parameter objects
+        params = lmfit.Parameters()
+        for param_name in self.params_to_estimate:
+            if self.prior[param_name][0] == 'uniform':
+                param_min = self.prior[param_name][1]
+                param_max = self.prior[param_name][2]
+            elif self.prior[param_name][-1] == 'positive':
+                param_min = 0
+                param_max = np.inf
+            else:
+                param_min = -np.inf
+                param_max = np.inf
+            params[param_name] = lmfit.Parameter(name=param_name, value=model_param_dict[param_name], min = param_min, max = param_max)
+        # Use the residual function above (that needs to be minimized)
+        result = lmfit.minimize(residual_function, params, kws = {'data': data}, method = method, nan_policy = 'propagate', **kwargs)
+        if plot_show:
+            self.M.set_species(initial_conditions)
+            self.M.set_params(dict(result.params.valuesdict()))
+            model_sim_fit = py_simulate_model(timepoints, Model = self.M, stochastic = stochastic, delay = self.M.has_delays())
+            measurements_counter = 0
+            for species in measurements:
+                plt.plot(timepoints, model_sim_fit[species], color = 'orange', lw = 2, alpha = 0.5)
+                plt.plot(timepoints, data[:,measurements_counter], lw = 2)
+                measurements_counter += 1 
+            plt.xlabel('Time', fontsize = 14)
+            plt.ylabel('Species', fontsize = 14)
+        return result

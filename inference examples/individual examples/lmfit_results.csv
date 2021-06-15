@@ -1,0 +1,43 @@
+   DummyVar_GaussianDelay_mean_0  DummyVar_GammaDelay_k_3  delta        ktx  \
+0                      10.000005                 5.000001    0.1  15.000001   
+
+         ktl    KR    KI  
+0  99.999987  20.0  10.0  
+For trajectory: 0
+[[Fit Statistics]]
+    # fitting method   = leastsq
+    # function evals   = 9
+    # data points      = 800
+    # variables        = 7
+    chi-square         = 65600687.0
+    reduced chi-square = 82724.6999
+    Akaike info crit   = 9065.58800
+    Bayesian info crit = 9098.38028
+[[Variables]]
+    DummyVar_GaussianDelay_mean_0:  10.0000048 +/- 1.0047e-06 (0.00%) (init = 10)
+    DummyVar_GammaDelay_k_3:        5.00000062 +/- 1.7696e-07 (0.00%) (init = 5)
+    delta:                          0.09999994 +/- 6.3615e-09 (0.00%) (init = 0.1)
+    ktx:                            15.0000012 +/- 1.9510e-07 (0.00%) (init = 15)
+    ktl:                            99.9999874 +/- 3.3891e-06 (0.00%) (init = 100)
+    KR:                             20.0000000 +/- 1.5919e-07 (0.00%) (init = 20)
+    KI:                             9.99999987 +/- 2.3437e-07 (0.00%) (init = 10)
+[[Correlations]] (unreported correlations are < 0.100)
+    C(ktl, KI)                               = -0.881
+    C(delta, KI)                               =  0.633
+    C(delta, ktl)                               = -0.616
+    C(DummyVar_GaussianDelay_mean_0, ktx)                     = -0.603
+    C(DummyVar_GaussianDelay_mean_0, delta)                   =  0.579
+    C(DummyVar_GaussianDelay_mean_0, ktl)                     = -0.540
+    C(delta, ktx)                               = -0.539
+    C(ktl, KR)                               = -0.517
+    C(DummyVar_GaussianDelay_mean_0, DummyVar_GammaDelay_k_3) = -0.502
+    C(ktx, KI)                               = -0.461
+    C(ktx, ktl)                               =  0.449
+    C(DummyVar_GaussianDelay_mean_0, KI)                      =  0.415
+    C(KR, KI)                               =  0.373
+    C(ktx, KR)                               = -0.303
+    C(DummyVar_GammaDelay_k_3, delta)                         = -0.251
+    C(DummyVar_GammaDelay_k_3, KR)                            = -0.198
+    C(DummyVar_GammaDelay_k_3, ktl)                           =  0.144
+    C(DummyVar_GaussianDelay_mean_0, KR)                      =  0.143
+    C(DummyVar_GammaDelay_k_3, KI)                            = -0.118
