@@ -1,6 +1,6 @@
 matplotlib
 pytest
-numpy
+numpy>=1.16.5
 scipy
 Cython
 python-libsbml

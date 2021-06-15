@@ -2567,6 +2567,9 @@ cdef class Lineage:
         :param index: (unsigned) the Schnitz to retrieve 0 <= index < size()
         :return: (Schnitz) the requested Schnitz
         """
+        if index >= self.py_size():
+            raise IndexError(f"index {index} > lineage.py_size() = {self.py_size()}")
+
         return (<Schnitz> (self.c_schnitzes[index]))
 
     def py_add_schnitz(self, Schnitz s):
