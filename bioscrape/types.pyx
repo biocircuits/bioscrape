@@ -1455,8 +1455,6 @@ cdef class Model:
         self.repeat_rules = []
         self.params_values = np.array([])
         self.species_values = np.array([])
-        self.txt_dict = {'reactions':"", 'rules':""} # A dictionary to store XML
-                                                     #txt to write bioscrape xml
         self.reaction_definitions = [] # List of reaction tuples useful for writing SBML
         self.rule_definitions = [] #A list of rule tuples useful for writing SBML
 
@@ -1835,54 +1833,7 @@ cdef class Model:
         delay_param_dict.pop('type',None)
 
         self._add_reaction(reaction_update_dict, prop_object, propensity_param_dict, delay_reaction_update_dict, delay_object, delay_param_dict)
-        self.write_rxn_txt(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict)
         self.reaction_definitions.append((reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict))
-
-    def write_rxn_txt(self, reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict):
-        #Write bioscrape XML and save it to the xml dictionary
-        rxn_txt = '<reaction text= "'
-        for r in reactants:
-            if r is not None:
-                rxn_txt += r +" + "
-        if len(reactants)>0:
-            rxn_txt = rxn_txt[:-2]
-        rxn_txt += "-- "
-        for p in products:
-            if p is not None:
-                rxn_txt += p+" + "
-        if len(products)>0:
-            rxn_txt = rxn_txt[:-2]
-        rxn_txt +='"'
-        if len(delay_reactants) > 0 or len(delay_products)> 0:
-            rxn_txt += ' after= "'
-            if len(delay_reactants) > 0:
-                for r in delay_reactants:
-                    if r is not None:
-                        rxn_txt += r +" + "
-                if len(delay_reactants) > 0:
-                    rxn_txt = rxn_txt[:-2]
-            rxn_txt += "-- "
-            if len(delay_products)> 0:
-                for p in delay_products:
-                    if p is not None:
-                        rxn_txt += p+" + "
-                if len(delay_products)>0:
-                    rxn_txt = rxn_txt[:-2]
-                rxn_txt +='"'
-        rxn_txt += '>\n\t<propensity type="'
-        rxn_txt += propensity_type+'" '
-        for k in propensity_param_dict:
-            rxn_txt+=k+'="'+str(propensity_param_dict[k])+'" '
-        rxn_txt += '/>\n\t<delay type="'
-        if delay_type == None:
-            rxn_txt += 'none" />'
-        else:
-            rxn_txt += delay_type+'" '
-            for k in delay_param_dict:
-                rxn_txt += 'k="'+str(delay_param_dict[k])+'" '
-            rxn_txt+='/>'
-        rxn_txt += '\n</reaction>\n'
-        self.txt_dict['reactions']+=rxn_txt
 
 
 
@@ -1909,7 +1860,6 @@ cdef class Model:
     #   rule_type (str): The type of rule. Supported: "additive" and "assignment"
     #   rule_attributes (dict): A dictionary of rule parameters / attributes.
     #       NOTE: the only attributes used by additive/assignment rules are 'equation'
-    #   rule_frequency: must be 'repeated'
     #Rule Types Supported:
     def create_rule(self, rule_type, rule_attributes, rule_frequency = "repeated", input_printout = False):
         if input_printout:
@@ -1939,19 +1889,8 @@ cdef class Model:
         rule_object.initialize(rule_attributes,self.species2index,self.params2index, rule_frequency = rule_frequency)
         # Add the rule to the right place
         self.repeat_rules.append(rule_object)
-
-
-
-        self.write_rule_txt(rule_type, rule_attributes, rule_frequency)
         self.rule_definitions.append((rule_type, rule_attributes, rule_frequency))
 
-    def write_rule_txt(self, rule_type, rule_attributes, rule_frequency):
-        rule_txt = '<rule type="'+rule_type+'" frequency="'+rule_frequency+'" '
-        for k in rule_attributes:
-            rule_txt += k+'="'+rule_attributes[k]+'" '
-
-        rule_txt += " />\n"
-        self.txt_dict["rules"]+=rule_txt
 
     #Sets the value of a parameter in the model
     def set_parameter(self, param_name, param_value):
@@ -2347,31 +2286,6 @@ cdef class Model:
         return parse_expression(instring,self.species2index,self.params2index)
 
 
-    def write_bioscrape_xml(self, file_name):
-        warnings.warn("Depricated Warning: Bioscrape XML is being replaced by SBML and will no longer be supported in a future version of the software.")
-        #Writes Bioscrape XML
-        txt = "<model>\n"
-        species = self.get_species_list()
-
-        #Write the Species
-        for s in species:
-            v = self.get_species_value(s)
-            txt+='<species name="'+s+'" value="'+str(v)+'" />\n'
-        txt+='\n'
-        parameters = self.get_param_list()
-        for p in parameters:
-            v = self.get_param_value(p)
-            txt+='<parameter name="'+p+'" value="'+str(v)+'" />\n'
-        txt+='\n'
-        txt += self.txt_dict["reactions"]
-        txt+='\n'
-        txt += self.txt_dict["rules"]
-        txt += "</model>"
-
-        f = open(file_name, 'w')
-        f.write(txt)
-        f.close()
-
     #Generates an SBML Model
     def generate_sbml_model(self, stochastic_model = False, **keywords):
         if self.has_delay:
@@ -2459,7 +2373,6 @@ cdef class Model:
                 self.reaction_updates,
                 self.delay_reaction_updates,
                 self.initialized,
-                self.txt_dict,
                 self.reaction_definitions,
                 self.rule_definitions)
 
@@ -2504,9 +2417,8 @@ cdef class Model:
         self.reaction_updates = state[14]
         self.delay_reaction_updates = state[15]
         self.initialized = state[16]
-        self.txt_dict = state[17]
-        self.reaction_definitions = state[18]
-        self.rule_definitions = state[19]
+        self.reaction_definitions = state[17]
+        self.rule_definitions = state[18]
 
 
 
