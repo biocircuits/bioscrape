@@ -392,7 +392,8 @@ class InferenceSetup(object):
             if not convergence_check:
                 warnings.warn('MCMC diagnostics cannot be printed when convergence check is False.')
                 self.convergence_diagnostics = {}
-            self.convergence_diagnostics = {'Autocorrelation time for each parameter':self.autocorrelation_time,
+            else:
+                self.convergence_diagnostics = {'Autocorrelation time for each parameter':self.autocorrelation_time,
                                     'Acceptance fraction (fraction of steps that were accepted)':sampler.acceptance_fraction}
         # Write results
         import csv
