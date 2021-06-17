@@ -995,21 +995,29 @@ cdef class Rule:
     A class for doing rules that must be done either at the beginning of a simulation or repeatedly at each step of
     the simulation.
     """
-    cdef void execute_rule(self, double *state, double *params, double time):
+    cdef void rule_operation(self, double *state, double *params, double time, double dt):
         raise NotImplementedError('Creating base Rule class. This should be subclassed.')
 
-    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time):
-        self.execute_rule(state, params, time)
+    cdef void rule_volume_operation(self, double *state, double *params, double volume, double time, double dt):
+        self.rule_operation(state, params, time, dt)
+
+    cdef void execute_rule(self, double *state, double *params, double time, double dt, unsigned rule_step):
+        if self.frequency_flag == -1 or self.frequency_flag == time or (rule_step and self.frequency_flag == -2):
+            self.rule_operation(state, params, time, dt)
+
+    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time, double dt, unsigned rule_step):
+        if self.frequency_flag == -1 or self.frequency_flag == time or (rule_step and self.frequency_flag == -2):
+            self.rule_volume_operation(state, params, volume, time, dt)
 
     def py_execute_rule(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params,
-                        double time = 0.0):
-        self.execute_rule(<double*> state.data, <double*> params.data,time)
+                        double time = 0.0, double dt = .01, rule_step = True):
+        self.execute_rule(<double*> state.data, <double*> params.data,time, dt, rule_step)
 
     def py_execute_volume_rule(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params,
-                               double volume, double time=0.0 ):
-        self.execute_volume_rule(<double*> state.data, <double*> params.data, volume,time)
+                               double volume, double time=0.0, double dt = .01, rule_step = True):
+        self.execute_volume_rule(<double*> state.data, <double*> params.data, volume,time, dt, rule_step)
 
-    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices):
+    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
         """
         Initializes the parameters and species to look at the right indices in the state
         :param dictionary: (dict:str--> str) the fields for the propensity 'k','s1' etc map to the actual parameter
@@ -1028,13 +1036,29 @@ cdef class Rule:
         """
         return (None,None)
 
+    def set_frequency_flag(self, rule_frequency):
+        if rule_frequency == "start":
+            self.frequency_flag = 0.0
+
+        elif rule_frequency == "repeat" or rule_frequency == "repeated":
+            self.frequency_flag = -1.0
+
+        elif rule_frequency == "dt":
+            self.frequency_flag = -2.0
+
+        elif float(rule_frequency) >= 0:
+            self.frequency_flag = float(rule_frequency)
+
+        else:
+            raise ValueError(f"Invalid rule frequency: {rule_frequency} for {self}.")
+
 
 cdef class AdditiveAssignmentRule(Rule):
     """
     A class for assigning a species to a sum of a bunch of other species.
     """
 
-    cdef void execute_rule(self, double *state, double *params, double time):
+    cdef void rule_operation(self, double *state, double *params, double time, double dt):
         cdef unsigned i = 0
         cdef double answer = 0.0
         for i in range(self.species_source_indices.size()):
@@ -1042,7 +1066,8 @@ cdef class AdditiveAssignmentRule(Rule):
 
         state[self.dest_index] = answer
 
-    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices):
+    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
+        self.set_frequency_flag(rule_frequency)
         equation = dictionary['equation']
         split_eqn = [s.strip() for s in equation.split('=') ]
         assert(len(split_eqn) == 2)
@@ -1069,19 +1094,20 @@ cdef class GeneralAssignmentRule(Rule):
     A class for doing rules that must be done either at the beginning of a simulation or repeatedly at each step of
     the simulation.
     """
-    cdef void execute_rule(self, double *state, double *params, double time):
+    cdef void rule_operation(self, double *state, double *params, double time, double dt):
         if self.param_flag > 0:
             params[self.dest_index] = self.rhs.evaluate(state,params,time)
         else:
             state[self.dest_index] = self.rhs.evaluate(state,params,time)
 
-    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time):
+    cdef void rule_volume_operation(self, double *state, double *params, double volume, double time, double dt):
         if self.param_flag > 0:
             params[self.dest_index] = self.rhs.volume_evaluate(state,params,volume, time)
         else:
             state[self.dest_index] = self.rhs.volume_evaluate(state,params,volume, time)
 
-    def initialize(self, dict fields, species2index, params2index):
+    def initialize(self, dict fields, species2index, params2index, rule_frequency = "repeat"):
+        self.set_frequency_flag(rule_frequency)
         self.rhs = parse_expression(fields['equation'].split('=')[1], species2index, params2index)
 
         dest_name = fields['equation'].split('=')[0].strip()
@@ -1114,7 +1140,54 @@ cdef class GeneralAssignmentRule(Rule):
         return species_names, param_names
 
 
+cdef class GeneralODERule(Rule):
+    """
+    A class for rules that implement Euler's method every dt. These rules are of the form dest = dest + f(state, params, time)*dt
+    """
+    cdef void rule_operation(self, double *state, double *params, double time, double dt):
+        if self.param_flag > 0:
+            params[self.dest_index] = params[self.dest_index] + self.rhs.evaluate(state,params,time)*dt
+        else:
+            state[self.dest_index] = state[self.dest_index] + self.rhs.evaluate(state,params,time)*dt
 
+    cdef void rule_volume_operation(self, double *state, double *params, double volume, double time, double dt):
+        if self.param_flag > 0:
+            params[self.dest_index] = params[self.dest_index] + self.rhs.volume_evaluate(state,params,volume, time)*dt
+        else:
+            state[self.dest_index] = state[self.dest_index] + self.rhs.volume_evaluate(state,params,volume, time)*dt
+
+    def initialize(self, dict fields, species2index, params2index, rule_frequency = "dt"):
+        print("Initializing ODE Rule")
+        self.set_frequency_flag(rule_frequency)
+        self.rhs = parse_expression(fields['equation'], species2index, params2index)
+
+        dest_name = fields['target'].strip()
+
+        #if dest_name[0] == '_' or dest_name[0] == '|':
+        if dest_name[0] == '_':
+            dest_name = dest_name[1:]
+        if dest_name in params2index:
+            self.param_flag = 1
+            self.dest_index = params2index[dest_name]
+        else:
+            self.param_flag = 0
+            self.dest_index = species2index[dest_name]
+
+    def get_species_and_parameters(self, dict fields, dict species2index, dict params2index):
+        dest_name = fields['target'].strip()
+        instring = fields['equation']
+
+        species_names, param_names = sympy_species_and_parameters(instring, species2index, params2index)
+
+        if dest_name[0] == '_' or dest_name[0] == '|':
+            dest_name = dest_name[1:]
+
+        if dest_name in species2index:
+            species_names.append(dest_name)
+        else:
+            param_names.append(dest_name)
+
+        return species_names, param_names
 
 
 
@@ -1849,6 +1922,9 @@ cdef class Model:
             rule_object = AdditiveAssignmentRule()
         elif rule_type == 'assignment':
             rule_object = GeneralAssignmentRule()
+        elif rule_type == "ode":
+            rule_frequency = "dt"
+            rule_object = GeneralODERule()
         else:
             raise SyntaxError('Invalid type of Rule: ' + rule_type)
 
@@ -1860,12 +1936,10 @@ cdef class Model:
         # initialize the rule
         if 'type' in rule_attributes:
             rule_attributes.pop('type')
-        rule_object.initialize(rule_attributes,self.species2index,self.params2index)
+        rule_object.initialize(rule_attributes,self.species2index,self.params2index, rule_frequency = rule_frequency)
         # Add the rule to the right place
-        if rule_frequency == 'repeated':
-            self.repeat_rules.append(rule_object)
-        else:
-            raise SyntaxError('Invalid Rule Frequency: ' + str(rule_frequency))
+        self.repeat_rules.append(rule_object)
+
 
 
         self.write_rule_txt(rule_type, rule_attributes, rule_frequency)
@@ -2572,6 +2646,9 @@ cdef class Lineage:
         :param index: (unsigned) the Schnitz to retrieve 0 <= index < size()
         :return: (Schnitz) the requested Schnitz
         """
+        if index >= self.py_size():
+            raise IndexError(f"index {index} > lineage.py_size() = {self.py_size()}")
+
         return (<Schnitz> (self.c_schnitzes[index]))
 
     def py_add_schnitz(self, Schnitz s):

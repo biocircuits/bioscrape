@@ -139,7 +139,7 @@ def test_random_propensity_sbml(prop_type):
 
 	test_utils.check_sbml_IO(TEST_NAME, model_dict)
 
-def debug_random_prop_tests():
+def debug_random_prop_tests(ind = 2):
 	'''
 	This is not a test.
 
@@ -162,14 +162,16 @@ def debug_random_prop_tests():
 	for prop_type in propensity_types:
 		results_d = np.load(os.path.join(test_loc, 
 										 prop_type + "_deterministic.npy"))
-		plt.plot(results_d[:,0], results_d[:,3],
+
+		print(results_d.shape)
+		plt.plot(results_d[:,0], results_d[:,ind],
 				label = "deterministic "+str(prop_type),
 						# +"params = "+str(param_dict),
 				color = colors[prop_type])
 
 		results_s = np.load(os.path.join(test_loc, 
 										 prop_type + "_stochastic.npy"))
-		plt.plot(results_s[:,0], results_s[:,3], ":",
+		plt.plot(results_s[:,0], results_s[:,ind], ":",
 			       label = "stochastic "+str(prop_type),
 			       		   # +"params = "+str(param_dict),
 			       color = colors[prop_type])
