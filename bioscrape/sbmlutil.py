@@ -445,7 +445,7 @@ def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, **kwargs):
 # propensity_params is a dictionary with keyword 'rate' for general propensity
 def add_reaction(model, inputs_list, outputs_list,
                  reaction_id, propensity_type, propensity_params,
-                 stochastic = False, delay_annotation = None):
+                 stochastic = False, delay_annotation_dict = None):
 
     # Create the reaction
     # We cast to an OrderedDict and back to remove duplicates.
@@ -464,7 +464,7 @@ def add_reaction(model, inputs_list, outputs_list,
     reaction.setId(trans.getValidIdForName(reaction_id))
     reaction.setName(reaction.getId())
     ratestring = "" #Stores the string representing the rate function
-    annotation_dict = {"type":propensity_type}
+    propensity_annotation_dict = {"type":propensity_type}
     allspecies = []
     for s in model.getListOfSpecies():
         sid = s.getId()
@@ -478,19 +478,19 @@ def add_reaction(model, inputs_list, outputs_list,
     ratelaw = reaction.createKineticLaw()
     #Create Local Propensity Parameters
     if propensity_type=="massaction":
-        annotation_dict["k"] = propensity_params['k']
+        propensity_annotation_dict["k"] = propensity_params['k']
         ratestring = propensity_params['k']
 
     #Hill Function Propensities
     elif propensity_type in ["hillpositive", "hillnegative", "proportionalhillpositive", "proportionalhillnegative"]:
         ratestring = propensity_params['k']
-        annotation_dict["k"] = propensity_params['k']
-        annotation_dict["K"] = propensity_params['K']
-        annotation_dict["n"] = propensity_params['n']
+        propensity_annotation_dict["k"] = propensity_params['k']
+        propensity_annotation_dict["K"] = propensity_params['K']
+        propensity_annotation_dict["n"] = propensity_params['n']
 
     elif propensity_type == "general":
         pass
-        #annotation_dict["rate"] = propensity_params['rate']
+        #propensity_annotation_dict["rate"] = propensity_params['rate']
     else:
         raise ValueError(propensity_type+" is not a supported propensity_type")
 
@@ -554,7 +554,7 @@ def add_reaction(model, inputs_list, outputs_list,
         K = propensity_params['K']
         ratestring+=f"*{s_species_id}^n/({s_species_id}^{n}+{K})"
 
-        annotation_dict["s1"] = s_species_id
+        propensity_annotation_dict["s1"] = s_species_id
 
     elif propensity_type == "hillnegative":
         if not ("s1" in propensity_params):
@@ -569,7 +569,7 @@ def add_reaction(model, inputs_list, outputs_list,
         n = propensity_params['n']
         K = propensity_params['K']
         ratestring+=f"/({s_species_id}^{n}+{K})"
-        annotation_dict["s1"] = s_species_id
+        propensity_annotation_dict["s1"] = s_species_id
 
     elif propensity_type == "proportionalhillpositive":
         if not ("s1" in propensity_params and "d" in propensity_params):
@@ -593,8 +593,8 @@ def add_reaction(model, inputs_list, outputs_list,
 
         ratestring+=f"*{d_species_id}*{s_species_id}^n/({s_species_id}^{n} + {K})"
 
-        annotation_dict["s1"] = s_species_id
-        annotation_dict["d"] = d_species_id
+        propensity_annotation_dict["s1"] = s_species_id
+        propensity_annotation_dict["d"] = d_species_id
 
     elif propensity_type == "proportionalhillnegative":
         if not ("s1" in propensity_params and "d" in propensity_params):
@@ -618,8 +618,8 @@ def add_reaction(model, inputs_list, outputs_list,
 
         ratestring+=f"*{d_species_id}/({s_species_id}^{n}+{K})"
 
-        annotation_dict["s1"] = s_species_id
-        annotation_dict["d"] = d_species_id
+        propensity_annotation_dict["s1"] = s_species_id
+        propensity_annotation_dict["d"] = d_species_id
     elif propensity_type == "general":
         ratestring = propensity_params['rate']
 
@@ -638,13 +638,16 @@ def add_reaction(model, inputs_list, outputs_list,
 
     #Add propensity annotation
     if propensity_type != "general":
-        annotation_string = "<PropensityType>"
-        for k in annotation_dict:
-            annotation_string += " "+k + "=" + str(annotation_dict[k])
-        annotation_string += "</PropensityType>"
-        reaction.appendAnnotation(annotation_string)
-    if delay_annotation not None:
-        delay_annotation_string = 
+        propensity_annotation_string = "<PropensityType>"
+        for k in propensity_annotation_dict:
+            annotation_string += " "+k + "=" + str(propensity_annotation_dict[k])
+        propensity_annotation_string += "</PropensityType>"
+        reaction.appendAnnotation(propensity_annotation_string)
+    if delay_annotation_dict not None:
+        delay_annotation_string = "<DelayType>"
+        for k in delay_annotation_dict:
+            delay_annotation_string += " "+k + "=" + str(delay_annotation_dict[k])
+        delay_annotation_string += "</DelayType>"
         reaction.appendAnnotation(delay_annotation_string)
     return reaction
 

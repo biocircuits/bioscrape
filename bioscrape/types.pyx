@@ -1722,7 +1722,7 @@ cdef class Model:
             raise SyntaxError('Propensity Type is not supported: ' + propensity_type)
 
         return prop_object
-    #A function to programatically create a reaction (and add automatically add it to the model).
+    #A function to programatically create a reaction (and automatically add it to the model).
     #   Supports all native propensity types and delay types.
     #Required Inputs:
     #   reactants (list): a list of reactant specie names (strings)
@@ -2315,9 +2315,11 @@ cdef class Model:
 
             (reactants, products, propensity_type, propensity_param_dict,
              delay_type, delay_reactants, delay_products, delay_param_dict) = rxn_tuple
-
+            delay_dict = {'type':delay_type, 'reactants':delay_reactants, 
+                        'products':delay_products, 'parameters':delay_param_dict}
             add_reaction(model, reactants, products, rxn_id, propensity_type,
-                         propensity_param_dict, stochastic = stochastic_model)
+                         propensity_param_dict, stochastic = stochastic_model,
+                         delay_annotation_dict = delay_dict)
             rxn_count += 1
 
         rule_count = 0
