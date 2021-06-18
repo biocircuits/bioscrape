@@ -445,7 +445,7 @@ def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, **kwargs):
 # propensity_params is a dictionary with keyword 'rate' for general propensity
 def add_reaction(model, inputs_list, outputs_list,
                  reaction_id, propensity_type, propensity_params,
-                 stochastic = False, propensity_annotation = True):
+                 stochastic = False, delay_annotation = None):
 
     # Create the reaction
     # We cast to an OrderedDict and back to remove duplicates.
@@ -637,13 +637,15 @@ def add_reaction(model, inputs_list, outputs_list,
         raise ValueError("Could not write the rate law for reaction to SBML. Check the reaction definition.")
 
     #Add propensity annotation
-    if propensity_annotation and propensity_type != "general":
+    if propensity_type != "general":
         annotation_string = "<PropensityType>"
         for k in annotation_dict:
             annotation_string += " "+k + "=" + str(annotation_dict[k])
         annotation_string += "</PropensityType>"
         reaction.appendAnnotation(annotation_string)
-
+    if delay_annotation not None:
+        delay_annotation_string = 
+        reaction.appendAnnotation(delay_annotation_string)
     return reaction
 
 #  # Returns a list of all ids from the given list of elements
