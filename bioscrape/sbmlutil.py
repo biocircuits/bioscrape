@@ -154,10 +154,13 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
                 # Annotation could not be read
                 if input_printout:
                     print('Annotation could not be read properly, adding reaction with general propensity.')
-                propensity_type = 'general'
-                general_kl_formula = {}
-                general_kl_formula['rate'] = rate_string
-                rxn = (reactant_list, product_list, propensity_type, general_kl_formula)
+                propensity_params = {}
+                propensity_params['type'] = 'general'
+                propensity_params['rate'] = rate_string
+                # propensity_type = 'general'
+                # general_kl_formula = {}
+                # general_kl_formula['rate'] = rate_string
+                # rxn = (reactant_list, product_list, propensity_params['type'], propensity_params)
             else:
                 # propensity_definition = {}
                 annotation_list = annotation_string[ind0:ind1].split(" ")
@@ -174,17 +177,47 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
                 if input_printout:
                     print("Reaction found:", reactant_list, "->", product_list)
                     print("Annotated propensity found with params:", propensity_params)
-                rxn  = (reactant_list, product_list, propensity_params['type'], propensity_params)
-
+                # rxn  = (reactant_list, product_list, propensity_params['type'], propensity_params)
         else: #No annotation found
-            propensity_type = 'general'
-            general_kl_formula = {}
-            general_kl_formula['rate'] = rate_string
-            rxn = (reactant_list, product_list, propensity_type, general_kl_formula)
+            propensity_params = {}
+            propensity_params['type'] = 'general'
+            propensity_params['rate'] = rate_string
+            # rxn = (reactant_list, product_list, propensity_params['type'], propensity_params)
             if input_printout:
                 print("Reaction found:", reactant_list, "->", product_list)
                 print("Propensity found with general ratestring:", rate_string)
-
+        
+        # Identify delays from annotations
+        if "DelayType" in annotation_string:
+            ind0 = annotation_string.find("<DelayType>")
+            ind1 = annotation_string.find("</DelayType>")
+            if ind0 == -1 or ind1 == -1:
+                # Annotation could not be read
+                if input_printout:
+                    print('Annotation could not be read properly, adding reaction without delays.')
+                # Add reaction without delays
+                delay_type, delay_reactants, delay_products, delay_params = [None]*4
+            else:
+                # propensity_definition = {}
+                annotation_list = annotation_string[ind0:ind1].split(" ")
+                key_vals = [(i.split("=")[0], i.split("=")[1]) for i in annotation_list if "=" in i]
+                delay_params = {}
+                for (k, v) in key_vals:
+                    #Change the name of a parameter if it was renamed earlier
+                    if v in renamed_params:
+                        v = renamed_params[v]
+                    if k == 'type':
+                        delay_type = v
+                    if k == 'reactants':
+                        delay_reactants = v
+                    if k == 'products':
+                        delay_products = v 
+                    if k == 'parameters':
+                        delay_params = v 
+                if input_printout:
+                    print("Annotated delay found with params:", delay_params)
+        rxn  = (reactant_list, product_list, propensity_params['type'], propensity_params, 
+                delay_type, delay_reactants, delay_products, delay_params)
         allreactions.append(rxn)
 
     # Go through rules one at a time
