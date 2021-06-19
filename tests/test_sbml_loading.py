@@ -175,4 +175,16 @@ def test_sbml_resaving_global_params_no_bs_annotation():
     assert all(R4["X"] == R4l["X"])
     assert all(R4["Y"] == R4l["Y"])
     assert all(R4["Z"] == R4l["Z"])
-    
+
+def test_delay_annotation():
+    """Tests reaction annotation in SBML file for Bioscrape delays, and load accordingly.
+    """
+    species = ["G", "T", "X", "I"]
+    params = [("ktx", 1.5), ("ktl", 10.0), ("KI", 10), ("n", 2.0), ("KR", 20), ("delta", .1)]
+    rxn1d = (["G"], ["G"], "proportionalhillpositive", {"d":"G", "s1":"I", "k":"ktx", "K":"KI", "n":"n"},
+       "gaussian", [], ["T"], {"mean":10.0, "std":1.0})
+    rxn2d = (["T"], ["T"], "hillpositive", {"s1":"T", "k":"ktl", "K":"KR", "n":1},
+            "gamma", [], ["X"], {"k":10.0, "theta":3.0})
+    rxns_delay = [rxn1d, rxn2d]            
+    M_delay = Model(species = species, parameters = params, reactions = rxns_delay)
+    M_delay.write_sbml_model('temp/delay_model.xml')

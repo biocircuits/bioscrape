@@ -676,7 +676,7 @@ def add_reaction(model, inputs_list, outputs_list,
             annotation_string += " "+k + "=" + str(propensity_annotation_dict[k])
         propensity_annotation_string += "</PropensityType>"
         reaction.appendAnnotation(propensity_annotation_string)
-    if delay_annotation_dict not None:
+    if delay_annotation_dict != None:
         delay_annotation_string = "<DelayType>"
         for k in delay_annotation_dict:
             delay_annotation_string += " "+k + "=" + str(delay_annotation_dict[k])
