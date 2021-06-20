@@ -2288,9 +2288,6 @@ cdef class Model:
 
     #Generates an SBML Model
     def generate_sbml_model(self, stochastic_model = False, **keywords):
-        if self.has_delay:
-            raise NotImplementedError("Writing SBML for bioscrape models with delay has not been implemented.")
-
         # Create an empty SBMLDocument object to hold the bioscrape model
         document, model = create_sbml_model(**keywords)
 
