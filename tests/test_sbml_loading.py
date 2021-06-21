@@ -187,4 +187,4 @@ def test_delay_annotation():
             "gamma", [], ["X"], {"k":10.0, "theta":3.0})
     rxns_delay = [rxn1d, rxn2d]
     M_delay = Model(species = species, parameters = params, reactions = rxns_delay)
-    M_delay.write_sbml_model('frozen_sbml_outputs/models/delay_model.xml')
+    M_delay.write_sbml_model('tests/frozen_sbml_outputs/models/delay_model.xml')
