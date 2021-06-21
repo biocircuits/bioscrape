@@ -28,8 +28,10 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
 
     reader = libsbml.SBMLReader()
     doc = reader.readSBML(sbml_file)
-
-    if doc.getNumErrors() > 1:
+    errors = doc.getNumErrors()
+    if errors > 0:
+        err_message = doc.getErrorLog().toString()
+        print(err_message)
         raise SyntaxError("SBML File {0} cannot be read without errors".format(sbml_file))
 
     model = doc.getModel()
@@ -148,8 +150,8 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         #Identify propensities based upon annotations
         annotation_string = reaction.getAnnotationString()
         if "PropensityType" in annotation_string:
-            ind0 = annotation_string.find("<PropensityType>")
-            ind1 = annotation_string.find("</PropensityType>")
+            ind0 = annotation_string.find("{PropensityType}")
+            ind1 = annotation_string.find("{/PropensityType}")
             if ind0 == -1 or ind1 == -1:
                 # Annotation could not be read
                 if input_printout:
@@ -189,8 +191,8 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         
         # Identify delays from annotations
         if "DelayType" in annotation_string:
-            ind0 = annotation_string.find("<DelayType>")
-            ind1 = annotation_string.find("</DelayType>")
+            ind0 = annotation_string.find("{DelayType}")
+            ind1 = annotation_string.find("{/DelayType}")
             if ind0 == -1 or ind1 == -1:
                 # Annotation could not be read
                 if input_printout:
@@ -216,6 +218,8 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
                         delay_params = v 
                 if input_printout:
                     print("Annotated delay found with params:", delay_params)
+        else:
+            delay_type, delay_reactants, delay_products, delay_params = [None]*4
         rxn  = (reactant_list, product_list, propensity_params['type'], propensity_params, 
                 delay_type, delay_reactants, delay_products, delay_params)
         allreactions.append(rxn)
@@ -671,17 +675,36 @@ def add_reaction(model, inputs_list, outputs_list,
 
     #Add propensity annotation
     if propensity_type != "general":
-        propensity_annotation_string = "<PropensityType>"
+        propensity_annotation_string = '<PropensityType>'
         for k in propensity_annotation_dict:
-            annotation_string += " "+k + "=" + str(propensity_annotation_dict[k])
+            propensity_annotation_string += " "+k + "=" + str(propensity_annotation_dict[k])
         propensity_annotation_string += "</PropensityType>"
-        reaction.appendAnnotation(propensity_annotation_string)
+    else:
+        propensity_annotation_string = ""
     if delay_annotation_dict != None:
         delay_annotation_string = "<DelayType>"
-        for k in delay_annotation_dict:
-            delay_annotation_string += " "+k + "=" + str(delay_annotation_dict[k])
-        delay_annotation_string += "</DelayType>"
-        reaction.appendAnnotation(delay_annotation_string)
+        for k, val in delay_annotation_dict.items():
+            if k == "type":
+                val_str = str(val)
+            if k == "reactants" or k == "products":
+                val_str = "["
+                val_str += "".join(val)
+                val_str += "]"
+            if k == "parameters":
+                val_str = "{"
+                for param_key, param_value in val.items():
+                    val_str += str(param_key) + ":" + str(param_value)
+                    if param_key != list(val.keys())[-1]:
+                        val_str += ","
+                val_str += "}"
+            delay_annotation_string += " "+k + "=" + str(val_str)
+        delay_annotation_string += '</DelayType>'
+    else:
+        delay_annotation_string = ""
+    annotation_string = "<BioscrapeAnnotation>\n" + propensity_annotation_string + delay_annotation_string + "\n</BioscrapeAnnotation>"
+    ret = reaction.setAnnotation(annotation_string)
+    if ret != libsbml.LIBSBML_OPERATION_SUCCESS:
+        warnings.warn("Could not write Bioscrape annotation to SBML file.")
     return reaction
 
 #  # Returns a list of all ids from the given list of elements

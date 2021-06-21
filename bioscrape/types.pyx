@@ -2312,8 +2312,11 @@ cdef class Model:
 
             (reactants, products, propensity_type, propensity_param_dict,
              delay_type, delay_reactants, delay_products, delay_param_dict) = rxn_tuple
-            delay_dict = {'type':delay_type, 'reactants':delay_reactants, 
-                        'products':delay_products, 'parameters':delay_param_dict}
+            if delay_type != None:
+                delay_dict = {'type':delay_type, 'reactants':delay_reactants, 
+                            'products':delay_products, 'parameters':delay_param_dict}
+            else:
+                delay_dict = None
             add_reaction(model, reactants, products, rxn_id, propensity_type,
                          propensity_param_dict, stochastic = stochastic_model,
                          delay_annotation_dict = delay_dict)
