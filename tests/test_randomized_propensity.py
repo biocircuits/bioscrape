@@ -115,7 +115,7 @@ def random_prop_model(prop_type):
 
 # def test_debug():
 # 	import bioscrape.sbmlutil
-# 	bioscrape.sbmlutil.import_sbml("frozen_sbml_outputs/random_propensities/hillnegative.sbml.tmp")
+# 	bioscrape.sbmlutil.import_sbml("frozen_sbml_outputs/random_propensities/hillnegative.xml.tmp")
 
 @pytest.mark.parametrize('prop_type', all_prop_types)
 def test_random_propensity_outputs(prop_type):

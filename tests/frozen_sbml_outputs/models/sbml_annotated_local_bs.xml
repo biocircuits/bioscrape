@@ -27,7 +27,7 @@
     <listOfReactions>
       <reaction id="r0" name="r0" reversible="false">
         <annotation>
-          <PropensityType> type=massaction k=k_forward</PropensityType>
+          <BioscrapeAnnotation/>
         </annotation>
         <listOfReactants>
           <speciesReference species="Y" stoichiometry="1" constant="false"/>
@@ -44,7 +44,7 @@
       </reaction>
       <reaction id="r1" name="r1" reversible="false">
         <annotation>
-          <PropensityType> type=massaction k=k_reverse</PropensityType>
+          <BioscrapeAnnotation/>
         </annotation>
         <listOfProducts>
           <speciesReference species="Y" stoichiometry="1" constant="false"/>
@@ -57,7 +57,7 @@
       </reaction>
       <reaction id="r2" name="r2" reversible="false">
         <annotation>
-          <PropensityType> type=massaction k=k_forward_r1</PropensityType>
+          <BioscrapeAnnotation/>
         </annotation>
         <listOfReactants>
           <speciesReference species="X" stoichiometry="1" constant="false"/>
@@ -74,7 +74,7 @@
       </reaction>
       <reaction id="r3" name="r3" reversible="false">
         <annotation>
-          <PropensityType> type=massaction k=k_reverse_r1rev</PropensityType>
+          <BioscrapeAnnotation/>
         </annotation>
         <listOfProducts>
           <speciesReference species="X" stoichiometry="1" constant="false"/>
@@ -87,7 +87,7 @@
       </reaction>
       <reaction id="r4" name="r4" reversible="false">
         <annotation>
-          <PropensityType> type=massaction k=k_forward_r2</PropensityType>
+          <BioscrapeAnnotation/>
         </annotation>
         <listOfReactants>
           <speciesReference species="Z" stoichiometry="1" constant="false"/>
@@ -104,7 +104,7 @@
       </reaction>
       <reaction id="r5" name="r5" reversible="false">
         <annotation>
-          <PropensityType> type=massaction k=k_reverse_r2rev</PropensityType>
+          <BioscrapeAnnotation/>
         </annotation>
         <listOfProducts>
           <speciesReference species="Z" stoichiometry="1" constant="false"/>

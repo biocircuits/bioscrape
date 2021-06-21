@@ -17,14 +17,16 @@
       <species id="C" name="C" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
     </listOfSpecies>
     <listOfParameters>
-      <parameter id="DummyVar_PositiveProportionalHillPropensity_K_1" name="DummyVar_PositiveProportionalHillPropensity_K_1" value="0.133" constant="true"/>
-      <parameter id="DummyVar_PositiveProportionalHillPropensity_k_0" name="DummyVar_PositiveProportionalHillPropensity_k_0" value="0.038" constant="true"/>
-      <parameter id="DummyVar_PositiveProportionalHillPropensity_n_2" name="DummyVar_PositiveProportionalHillPropensity_n_2" value="2.053" constant="true"/>
+      <parameter id="DummyVar_PositiveHillPropensity_K_1" name="DummyVar_PositiveHillPropensity_K_1" value="0.133" constant="true"/>
+      <parameter id="DummyVar_PositiveHillPropensity_k_0" name="DummyVar_PositiveHillPropensity_k_0" value="0.038" constant="true"/>
+      <parameter id="DummyVar_PositiveHillPropensity_n_2" name="DummyVar_PositiveHillPropensity_n_2" value="2.053" constant="true"/>
     </listOfParameters>
     <listOfReactions>
       <reaction id="r0" name="r0" reversible="false">
         <annotation>
-          <PropensityType> type=proportionalhillpositive k=DummyVar_PositiveProportionalHillPropensity_k_0 K=DummyVar_PositiveProportionalHillPropensity_K_1 n=DummyVar_PositiveProportionalHillPropensity_n_2 s1=A d=B</PropensityType>
+          <BioscrapeAnnotation>
+            <PropensityType> type=hillpositive k=DummyVar_PositiveHillPropensity_k_0 K=DummyVar_PositiveHillPropensity_K_1 n=DummyVar_PositiveHillPropensity_n_2 s1=A</PropensityType>
+          </BioscrapeAnnotation>
         </annotation>
         <listOfReactants>
           <speciesReference species="A" stoichiometry="1" constant="false"/>
@@ -44,17 +46,16 @@
                   <ci> A </ci>
                   <ci> n </ci>
                 </apply>
-                <ci> B </ci>
-                <ci> DummyVar_PositiveProportionalHillPropensity_k_0 </ci>
+                <ci> DummyVar_PositiveHillPropensity_k_0 </ci>
               </apply>
               <apply>
                 <plus/>
                 <apply>
                   <power/>
                   <ci> A </ci>
-                  <ci> DummyVar_PositiveProportionalHillPropensity_n_2 </ci>
+                  <ci> DummyVar_PositiveHillPropensity_n_2 </ci>
                 </apply>
-                <ci> DummyVar_PositiveProportionalHillPropensity_K_1 </ci>
+                <ci> DummyVar_PositiveHillPropensity_K_1 </ci>
               </apply>
             </apply>
           </math>

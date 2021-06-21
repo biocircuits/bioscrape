@@ -18,6 +18,9 @@
     </listOfSpecies>
     <listOfReactions>
       <reaction id="r0" name="r0" reversible="false">
+        <annotation>
+          <BioscrapeAnnotation/>
+        </annotation>
         <listOfReactants>
           <speciesReference species="A" stoichiometry="1" constant="false"/>
           <speciesReference species="B" stoichiometry="1" constant="false"/>

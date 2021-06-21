@@ -26,6 +26,9 @@
     </listOfParameters>
     <listOfReactions>
       <reaction id="r0" name="r0" reversible="false">
+        <annotation>
+          <BioscrapeAnnotation/>
+        </annotation>
         <listOfReactants>
           <speciesReference species="Y" stoichiometry="1" constant="false"/>
         </listOfReactants>
@@ -40,6 +43,9 @@
         </kineticLaw>
       </reaction>
       <reaction id="r1" name="r1" reversible="false">
+        <annotation>
+          <BioscrapeAnnotation/>
+        </annotation>
         <listOfProducts>
           <speciesReference species="Y" stoichiometry="1" constant="false"/>
         </listOfProducts>
@@ -50,6 +56,9 @@
         </kineticLaw>
       </reaction>
       <reaction id="r2" name="r2" reversible="false">
+        <annotation>
+          <BioscrapeAnnotation/>
+        </annotation>
         <listOfReactants>
           <speciesReference species="X" stoichiometry="1" constant="false"/>
         </listOfReactants>
@@ -64,6 +73,9 @@
         </kineticLaw>
       </reaction>
       <reaction id="r3" name="r3" reversible="false">
+        <annotation>
+          <BioscrapeAnnotation/>
+        </annotation>
         <listOfProducts>
           <speciesReference species="X" stoichiometry="1" constant="false"/>
         </listOfProducts>
@@ -74,6 +86,9 @@
         </kineticLaw>
       </reaction>
       <reaction id="r4" name="r4" reversible="false">
+        <annotation>
+          <BioscrapeAnnotation/>
+        </annotation>
         <listOfReactants>
           <speciesReference species="Z" stoichiometry="1" constant="false"/>
         </listOfReactants>
@@ -88,6 +103,9 @@
         </kineticLaw>
       </reaction>
       <reaction id="r5" name="r5" reversible="false">
+        <annotation>
+          <BioscrapeAnnotation/>
+        </annotation>
         <listOfProducts>
           <speciesReference species="Z" stoichiometry="1" constant="false"/>
         </listOfProducts>

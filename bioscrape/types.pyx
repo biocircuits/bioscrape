@@ -1984,7 +1984,7 @@ cdef class Model:
         :return: None
         """
         # open XML file from the filename and use BeautifulSoup to parse it
-        warnings.warn("Depricated Warning: Bioscrape XML is being replaced by SBML and will no longer be supported in a future version of the software.")
+        warnings.warn("Deprecated Warning: Bioscrape XML is being replaced by SBML and will no longer be supported in a future version of the software.")
 
         if type(filename) == str:
             xml_file = open(filename,'r')
