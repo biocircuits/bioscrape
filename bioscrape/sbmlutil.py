@@ -675,7 +675,7 @@ def add_reaction(model, inputs_list, outputs_list,
 
     #Add propensity annotation
     if propensity_type != "general":
-        propensity_annotation_string = '<PropensityType>'
+        propensity_annotation_string = "<PropensityType>"
         for k in propensity_annotation_dict:
             propensity_annotation_string += " "+k + "=" + str(propensity_annotation_dict[k])
         propensity_annotation_string += "</PropensityType>"
@@ -698,7 +698,7 @@ def add_reaction(model, inputs_list, outputs_list,
                         val_str += ","
                 val_str += "}"
             delay_annotation_string += " "+k + "=" + str(val_str)
-        delay_annotation_string += '</DelayType>'
+        delay_annotation_string += "</DelayType>"
     else:
         delay_annotation_string = ""
     annotation_string = "<BioscrapeAnnotation>\n" + propensity_annotation_string + delay_annotation_string + "\n</BioscrapeAnnotation>"
