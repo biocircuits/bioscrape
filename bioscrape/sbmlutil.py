@@ -448,7 +448,6 @@ def add_parameter(model, param_name, param_value, debug=False):
     return parameter
 
 # Helper function to add a rule to an sbml model
-# rule must be a chemical_reaction_network.reaction object
 # propensity params is a dictionary of the parameters for non-massaction propensities.
 def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, **kwargs):
     # Create SBML equivalent of bioscrape rule:
@@ -458,17 +457,17 @@ def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, **kwargs):
         # Simply create SBML assignment rule type. For additive rule type as well,
         # AssignmentRule type of SBML will work as $s_0$ is the artificial species that
         # exists in the bioscrape model.
-        if rule_variable[0] == '_':
-            rule_variable = rule_variable.replace('_','',1)
+        # if rule_variable[0] == '_':
+        #     rule_variable = rule_variable.replace('_','',1)
         for param in model.getListOfParameters():
             if rule_variable == param.getId():
                 param.setConstant(False)
         allparams = {}
         for p in model.getListOfParameters():
             pid = p.getId()
-            pid = '_' + pid
+            # pid = '_' + pid
             allparams[pid] = p.getValue()
-        rule_formula = _remove_underscore_from_parameters(rule_formula, allparams)
+        # rule_formula = _remove_underscore_from_parameters(rule_formula, allparams)
         rule = model.createAssignmentRule()
         rule.setId(rule_id)
         rule.setName(rule_id)
