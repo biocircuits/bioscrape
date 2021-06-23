@@ -2334,11 +2334,13 @@ cdef class Model:
             # Extract the rule formula for the variable above from rule_dict:
             rule_formula = split_eqn[1]
             rule_variable = split_eqn[0]
-            add_rule(model, rule_id, rule_type, rule_variable, rule_formula)
+            add_rule(model, rule_id, rule_type, rule_variable, rule_formula, rule_frequency)
             rule_count += 1
 
         if document.getNumErrors():
-            warnings.warn('SBML model generated has errors. Use document.getErrorLog() to print all errors.')
+            warnings.warn('The generated SBML model has errors:')
+            err_message = document.getErrorLog().toString()
+            print(err_message)
         return document, model
 
     #write an SBML Model

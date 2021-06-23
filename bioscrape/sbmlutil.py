@@ -11,18 +11,20 @@ def read_model_from_sbml(sbml_file):
 
 def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwargs):
     """
-    Convert SBML document to bioscrape Model object. Note that events, compartments, non-standard function definitions,
+    Convert SBML model (in the sbml_file) to bioscrape Model object. Note that events, compartments, non-standard function definitions,
     and some kinds of rules will be ignored.
     Adds mass action kinetics based reactions with the appropriate mass action propensity in bioscrape.
     Propensities with the correct annotation are added as compiled propensity types.
     All other propensities are added as general propensity.
+    Bioscrape delays are imported if SBML reaction has appropriate annotation.
+    All SBML rules (except Algebraic) are imported. Bioscrape rule settings are imported as annotation.
     Local parameters are renamed if there is a conflict since bioscrape does not have a local environment.
     """
     # Attempt to import libsbml and read the SBML model.
     try:
         import libsbml
     except:
-        raise ImportError("libsbml not found. See sbml.org for installation help!\n" +
+        raise ImportError('libsbml not found. See sbml.org for installation help!\n' +
                         'If you are using anaconda you can run the following:\n' +
                             'conda install -c SBMLTeam python-libsbml\n\n\n')
 
@@ -43,34 +45,104 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         sbml_warnings = False
     else:
         sbml_warnings = True
-    # Parse through species and parameters and keep a set of both along with their values.
-    allspecies = {}
-    allparams = {}
-    allreactions = []
-    for s in model.getListOfSpecies():
-        sid = s.getId()
-        if sid == "volume" or sid == "t":
-            warnings.warn("You have defined a species called '" + sid +
-                            ". This species is being ignored and treated as a keyword.")
-            continue
-        allspecies[sid] = 0.0
-        if np.isfinite(s.getInitialAmount()):
-            allspecies[sid] = s.getInitialAmount()
-        if np.isfinite(s.getInitialConcentration()) and allspecies[sid] == 0:
-            allspecies[sid] = s.getInitialConcentration()
+    # Parse through model components one by one
+    allspecies = import_sbml_species(model)
+    allparams = import_sbml_parameters(model)
+    allreactions = import_sbml_reactions(model)
+    allrules = import_sbml_rules(model)
+    # Check and warn if there are any unrecognized components (function definitions, packages, etc.)
+    if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0: 
+        if sbml_warnings:
+            warnings.warn('Compartments, UnitDefintions, Events, and some other SBML model components are not recognized by bioscrape. ' + 
+                        'Refer to the bioscrape wiki for more information.')
+    #If no Model is passed into the function, a Model is returned
+    if bioscrape_model == None:
+        bioscrape_model = Model()
+    #If a Model is passed into the function, that Model is modified
+    if isinstance(bioscrape_model, Model):
+        for species in allspecies.keys():
+            bioscrape_model._add_species(species)
 
-    for p in model.getListOfParameters():
+        for (param, val) in allparams.items():
+            bioscrape_model._add_param(param)
+            bioscrape_model.set_parameter(param, val)
+            if input_printout:
+                print("Adding Parameter:", param, "=", val)
+
+        for rxn in allreactions:
+            if len(rxn) == 4:
+                reactants, products, propensity_type, propensity_param_dict = rxn
+                delay_type, delay_reactants, delay_products, delay_param_dict = None, None,  None, None
+            elif len(rxn) == 8:
+                reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict = rxn
+            bioscrape_model.create_reaction(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict, input_printout = input_printout)
+
+        for rule in allrules:
+            if len(rule) == 2:
+                rule_type, rule_attributes = rule
+                bioscrape_model.create_rule(rule_type, rule_attributes, input_printout = input_printout)
+            elif len(rule) == 3:
+                rule_type, rule_attributes, rule_frequency = rule
+                bioscrape_model.create_rule(rule_type, rule_attributes, rule_frequency = rule_frequency, input_printout = input_printout)
+        bioscrape_model.set_species(allspecies)
+        bioscrape_model.py_initialize()
+        return bioscrape_model
+    else:
+        raise ValueError("bioscrape_model keyword must be a Bioscrape Model object or None (in which case a Model object is returned).")
+
+def import_sbml_species(sbml_model):
+    """Import species from SBML model
+
+    Args:
+        sbml_model ([Model]): libsbml Model object
+
+    Returns:
+        [dict]: Dictionary of species identifiers with their initial concentration
+    """
+    allspecies = {}
+    for s in sbml_model.getListOfSpecies():
+        sid = s.getId()
+    if sid == "volume" or sid == "t":
+        warnings.warn("You have defined a species called '" + sid +
+                        ". This species is being ignored and treated as a keyword.")
+        continue
+    allspecies[sid] = 0.0
+    if np.isfinite(s.getInitialAmount()):
+        allspecies[sid] = s.getInitialAmount()
+    if np.isfinite(s.getInitialConcentration()) and allspecies[sid] == 0:
+        allspecies[sid] = s.getInitialConcentration()
+    return allspecies
+
+def import_sbml_parameters(sbml_model):
+    """Import parameters from SBML model
+
+    Args:
+        sbml_model ([Model]): libsbml Model object
+    Returns:
+        [dict]: Dictionary of parameter identifiers with their initial values
+    """
+    allparams = {}
+    for p in sbml_model.getListOfParameters():
         pid = p.getId()
         allparams[pid] = 0.0
         if np.isfinite(p.getValue()):
             allparams[pid] = p.getValue()
+    return allparams
 
+def import_sbml_reactions(sbml_model):
+    """Import reactions from SBML model
+
+    Args:
+        sbml_model ([Model]): libsbml Model object
+
+    Returns:
+        List: List of all reaction tuples.
+    """
+    allreactions = []
     # Now go through reactions one at a time to get stoich and rates, then append to reaction_list.
-    for reaction in model.getListOfReactions():
+    for reaction in sbml_model.getListOfReactions():
         # get the propensity
         kl = reaction.getKineticLaw()
-
-
         # capture any local parameters
         # also must save renamed local parameters to rename annotations later
         renamed_params = {}
@@ -88,7 +160,6 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
                 for element in reaction.getListOfAllElements():
                     element.renameSIdRefs(oldid, newid)
                 pid = newid
-
             allparams[pid] = 0.0
             if np.isfinite(p.getValue()):
                 allparams[pid] = p.getValue()
@@ -111,7 +182,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         reactant_list = []
         product_list = []
         for reactant in reaction.getListOfReactants():
-            reactantspecies = model.getSpecies(reactant.getSpecies())
+            reactantspecies = sbml_model.getSpecies(reactant.getSpecies())
             reactantspecies_id = reactantspecies.getId()
             if reactantspecies_id in allspecies:
                 if np.isfinite(reactant.getStoichiometry()):
@@ -129,7 +200,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
                 else:
                     reactant_list.append(reactantspecies_id)
         for product in reaction.getListOfProducts():
-            productspecies = model.getSpecies(product.getSpecies())
+            productspecies = sbml_model.getSpecies(product.getSpecies())
             productspecies_id = productspecies.getId()
             if productspecies_id in allspecies:
                 if np.isfinite(product.getStoichiometry()):
@@ -150,8 +221,8 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         #Identify propensities based upon annotations
         annotation_string = reaction.getAnnotationString()
         if "PropensityType" in annotation_string:
-            ind0 = annotation_string.find("{PropensityType}")
-            ind1 = annotation_string.find("{/PropensityType}")
+            ind0 = annotation_string.find("<PropensityType>")
+            ind1 = annotation_string.find("</PropensityType>")
             if ind0 == -1 or ind1 == -1:
                 # Annotation could not be read
                 if input_printout:
@@ -191,8 +262,8 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         
         # Identify delays from annotations
         if "DelayType" in annotation_string:
-            ind0 = annotation_string.find("{DelayType}")
-            ind1 = annotation_string.find("{/DelayType}")
+            ind0 = annotation_string.find("<DelayType>")
+            ind1 = annotation_string.find("</DelayType>")
             if ind0 == -1 or ind1 == -1:
                 # Annotation could not be read
                 if input_printout:
@@ -223,18 +294,26 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         rxn  = (reactant_list, product_list, propensity_params['type'], propensity_params, 
                 delay_type, delay_reactants, delay_products, delay_params)
         allreactions.append(rxn)
+    return allreactions
 
+def import_sbml_rules(sbml_model):
+    """Import rules from SBML model.
+
+    Args:
+        sbml_model (Model): libsbml Model object
+
+    Returns:
+        List : List of all rule tuples
+    """
     # Go through rules one at a time
     allrules = []
     #"Rules must be a tuple: (rule_type (string), rule_attributes (dict), rule_frequency (optional))")
-    for rule in model.getListOfRules():
+    for rule in sbml_model.getListOfRules():
         rule_formula = libsbml.formulaToL3String(rule.getMath())
         rulevariable = rule.getVariable()
         if rulevariable in allspecies:
-            #rule_string = rulevariable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
             rule_string = rulevariable + '=' + rule_formula
         elif rulevariable in allparams:
-            #rule_string = '_' + rulevariable + '=' + _add_underscore_to_parameters(rule_formula,allparams)
             rule_string = rulevariable + '=' + rule_formula
         else:
             warnings.warn('SBML: Attempting to assign something that is not a parameter or species %s'
@@ -246,60 +325,39 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         elif rule.getElementName() == 'assignmentRule':
             rule_type = 'assignment'
         elif rule.getElementName() == 'rateRule':
-            #rate_rule_formula = _add_underscore_to_parameters(rule_formula, allparams)
             rate_rule_formula = rule_formula
             rule_rxn = ([''], [rulevariable], 'general', rate_rule_formula) # Create --> X type reaction to model rate rules.
             allreactions.append(rule_rxn)
             continue
         else:
             raise ValueError('Invalid SBML Rule type.')
+        if "BioscrapeRule" in annotation_string:
+            ind0 = annotation_string.find("<BioscrapeRule>")
+            ind1 = annotation_string.find("</BioscrapeRule>")
+            if ind0 == -1 or ind1 == -1:
+                # Annotation could not be read
+                if input_printout:
+                    print('Annotation could not be read properly, adding Rule without annotation may miss key information.')
+                # Add reaction without delays
+                rule_frequency = "repeated"
+            else:
+                # propensity_definition = {}
+                annotation_list = annotation_string[ind0:ind1].split(" ")
+                key_vals = [(i.split("=")[0], i.split("=")[1]) for i in annotation_list if "=" in i]
+                for (k, v) in key_vals:
+                    #Change the name of a parameter if it was renamed earlier
+                    if k == "rule_frequency":
+                        rule_frequency = v
+                if input_printout:
+                    print("Annotated rule found with rule_frequency:", rule_frequency)
+        else:
+            rule_frequency = "repeated"
         rule_dict = {}
         rule_dict['equation'] = rule_string
-        rule_frequency = 'repeated'
         rule_tuple = (rule_type, rule_dict, rule_frequency)
         allrules.append(rule_tuple)
+    return allrules
     
-    # Check and warn if there are any unrecognized components (function definitions, packages, etc.)
-    if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0: 
-        if sbml_warnings:
-            warnings.warn('Compartments, UnitDefintions, Events, and some other SBML model components are not recognized by bioscrape. ' + 
-                        'Refer to the bioscrape wiki for more information.')
-
-    #If no Model is passed into the function, a Model is returned
-    if bioscrape_model == None:
-        bioscrape_model = Model()
-    #If a Model is passed into the function, that Model is modified
-    if isinstance(bioscrape_model, Model):
-        for species in allspecies.keys():
-            bioscrape_model._add_species(species)
-
-        for (param, val) in allparams.items():
-            bioscrape_model._add_param(param)
-            bioscrape_model.set_parameter(param, val)
-            if input_printout:
-                print("Adding Parameter:", param, "=", val)
-
-        for rxn in allreactions:
-            if len(rxn) == 4:
-                reactants, products, propensity_type, propensity_param_dict = rxn
-                delay_type, delay_reactants, delay_products, delay_param_dict = None, None,  None, None
-            elif len(rxn) == 8:
-                reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict = rxn
-            bioscrape_model.create_reaction(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict, input_printout = input_printout)
-
-        for rule in allrules:
-            if len(rule) == 2:
-                rule_type, rule_attributes = rule
-                bioscrape_model.create_rule(rule_type, rule_attributes, input_printout = input_printout)
-            elif len(rule) == 3:
-                rule_type, rule_attributes, rule_frequency = rule
-                bioscrape_model.create_rule(rule_type, rule_attributes, rule_frequency = rule_frequency, input_printout = input_printout)
-        bioscrape_model.set_species(allspecies)
-        bioscrape_model.py_initialize()
-        return bioscrape_model
-    else:
-        raise ValueError("bioscrape_model keyword must be a Bioscrape Model object or None (in which case a Model object is returned).")
-
 
 
 # Helpful utility functions start here
@@ -448,31 +506,27 @@ def add_parameter(model, param_name, param_value, debug=False):
     return parameter
 
 # Helper function to add a rule to an sbml model
-# propensity params is a dictionary of the parameters for non-massaction propensities.
-def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, **kwargs):
+def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, rule_frequeny, **kwargs):
     # Create SBML equivalent of bioscrape rule:
-    if rule_type == 'algebraic':
-        raise NotImplementedError
+    # Set constant attribute for parameter to False if rule is on a parameter.
+    for param in model.getListOfParameters():
+        if rule_variable == param.getId():
+            param.setConstant(False)
     if rule_type == 'assignment' or rule_type == 'additive':
         # Simply create SBML assignment rule type. For additive rule type as well,
         # AssignmentRule type of SBML will work as $s_0$ is the artificial species that
         # exists in the bioscrape model.
-        # if rule_variable[0] == '_':
-        #     rule_variable = rule_variable.replace('_','',1)
-        for param in model.getListOfParameters():
-            if rule_variable == param.getId():
-                param.setConstant(False)
-        allparams = {}
-        for p in model.getListOfParameters():
-            pid = p.getId()
-            # pid = '_' + pid
-            allparams[pid] = p.getValue()
-        # rule_formula = _remove_underscore_from_parameters(rule_formula, allparams)
         rule = model.createAssignmentRule()
-        rule.setId(rule_id)
-        rule.setName(rule_id)
-        rule.setVariable(rule_variable)
-        rule.setFormula(rule_formula)
+    elif rule_type == 'GeneralODERule':
+        rule = model.createRateRule()
+    rule.setId(rule_id)
+    rule.setName(rule_id)
+    rule.setVariable(rule_variable)
+    rule.setFormula(rule_formula)
+    rule_annotation_string = ('<BioscrapeAnnotation>\n<BioscrapeRule> rule_frequency ='
+                              ' ' + rule_frequency + '</BioscrapeRule>\n</BioscrapeAnnotation>'
+                             )
+    rule.setAnnotation(rule_annotation_string)
     return rule
 
 
