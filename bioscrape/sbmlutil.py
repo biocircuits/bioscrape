@@ -536,8 +536,10 @@ def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, rule_freque
         # AssignmentRule type of SBML will work as $s_0$ is the artificial species that
         # exists in the bioscrape model.
         rule = model.createAssignmentRule()
-    elif rule_type == 'GeneralODERule':
+    elif rule_type in ['ode', 'ODE', 'GeneralODERule']:
         rule = model.createRateRule()
+    else:
+        raise ValueError(f"Rule Type {rule_type} not supported with SBML.")
     rule.setId(rule_id)
     rule.setName(rule_id)
     rule.setVariable(rule_variable)

@@ -69,12 +69,12 @@ def test_ode_rule():
     assert np.allclose(R1["A"].to_numpy(), quadratic)
     # SBML test
     ### Uncomment the following lines to run this test after fixing SBML writing of ODE rule.
-    # M.write_sbml_model(os.path.join(model_path, "models", "rule_model_ode.xml"))
-    # sbml_rule = os.path.join(model_path, "models", "rule_model_ode.xml")
-    # CRN1 = Model(sbml_filename = sbml_rule, sbml_warnings = False, input_printout = False)
-    # for r1,r2 in zip(M.get_rules(), CRN1.get_rules()):
-    #     for i,j in zip(r1, r2):
-    #         assert i==j
+    M.write_sbml_model(os.path.join(model_path, "models", "rule_model_ode.xml"))
+    sbml_rule = os.path.join(model_path, "models", "rule_model_ode.xml")
+    CRN1 = Model(sbml_filename = sbml_rule, sbml_warnings = False, input_printout = False)
+    for r1,r2 in zip(M.get_rules(), CRN1.get_rules()):
+        for i,j in zip(r1, r2):
+            assert i==j
 
 def test_time_rule():
     #tests rules that fire at specific times

@@ -2337,12 +2337,22 @@ cdef class Model:
             # Syntax of rule_tuple = (rule_type, rule_dict, rule_frequency)
             (rule_type, rule_dict, rule_frequency) = rule_tuple
             # Extract the rule variable id from rule_dict:
-            equation = rule_dict['equation']
-            split_eqn = [s.strip() for s in equation.split('=') ]
-            assert(len(split_eqn) == 2) # Checking rule_dict equation structure.
-            # Extract the rule formula for the variable above from rule_dict:
-            rule_formula = split_eqn[1]
-            rule_variable = split_eqn[0]
+            
+            if rule_type in ["ode", "ODE", 'GeneralODERule']:
+                rule_formula = rule_dict['equation']
+                rule_variable = rule_dict['target']
+            else:
+                equation = rule_dict['equation']
+                split_eqn = [s.strip() for s in equation.split('=') ]
+                try:
+                    assert(len(split_eqn) == 2) # Checking rule_dict equation structure.
+                except AssertionError as e:
+                    e.args += ('rule equation', equation, 'not of the form VARIABLE = F(X).')
+                    raise
+
+                # Extract the rule formula for the variable above from rule_dict:
+                rule_formula = split_eqn[1]
+                rule_variable = split_eqn[0]
             add_rule(model, rule_id, rule_type, rule_variable, rule_formula, rule_frequency)
             rule_count += 1
 
