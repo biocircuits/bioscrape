@@ -1602,7 +1602,7 @@ cdef class Model:
         :return: None
         """
         self.initialized = False
-        if species not in self.species2index and species is not None:
+        if species not in self.species2index and species is not None and species != '':
             self.species2index[species] = self._next_species_index
             self._next_species_index += 1
             self.species_values = np.concatenate((self.species_values, np.array([-1])))
@@ -1656,9 +1656,9 @@ cdef class Model:
         self.reaction_list.append((propensity_object, delay_object, reaction_update_dict, delay_reaction_update_dict))
 
 
-    def create_propensity(self, propensity_type, propensity_param_dict, print_out = False):
-        if print_out:
-            warnings.warn("Creating Propensity: prop_type="+str(propensity_type)+" params="+str(propensity_param_dict))
+    def create_propensity(self, propensity_type, propensity_param_dict, input_printout = False):
+        if input_printout:
+            print("Creating Propensity: prop_type="+str(propensity_type)+" params="+str(propensity_param_dict))
         if 'type' in propensity_param_dict:
             propensity_param_dict.pop('type')
         #Create propensity object
@@ -1741,11 +1741,11 @@ cdef class Model:
                         delay_param_dict = None, input_printout = False):
 
         if input_printout:
-            warnings.warn("creating reaction with:"+
+            print("creating reaction with:"+
                 "\n\tPropensity_type="+str(propensity_type)+" Inputs="+str(reactants)+" Outputs="+str(products)+
                 "\n\tpropensity_param_dict="+str(propensity_param_dict)+
-                "\n\tDelay_type="+str(delay_type)+" delay inputs ="+str(delay_reactants)+" delay outputs="+str(delay_products)+
-                "\n\tdelay_param_dict="+str(delay_param_dict))
+                "\n\tdelay type="+str(delay_type)+" delay inputs="+str(delay_reactants)+" delay outputs="+str(delay_products)+
+                "\n\tdelay parameters="+str(delay_param_dict))
         self.initialized = False
 
         #Copy dictionaries so they aren't altered if they are being used by external code
@@ -1786,7 +1786,7 @@ cdef class Model:
                         reactant_string += s+"*"
                 propensity_param_dict['species'] = reactant_string[:len(reactant_string)-1]
 
-        prop_object = self.create_propensity(propensity_type, propensity_param_dict, print_out = input_printout)
+        prop_object = self.create_propensity(propensity_type, propensity_param_dict, input_printout = input_printout)
 
         #Create Delay Object
         #Delay Reaction Reactants and Products Stored in a Dictionary
@@ -1863,7 +1863,7 @@ cdef class Model:
     #Rule Types Supported:
     def create_rule(self, rule_type, rule_attributes, rule_frequency = "repeated", input_printout = False):
         if input_printout:
-            warnings.warn("Rule Created with \n\trule_type = "+str(rule_type)+"\n\trule_attributes="+str(rule_attributes)+"\n\trule_frequence="+str(rule_frequency))
+            print("Rule Created with \n\trule_type = "+str(rule_type)+"\n\trule_attributes="+str(rule_attributes)+"\n\trule_frequency="+str(rule_frequency))
 
         self.initialized = False
 
@@ -2059,10 +2059,10 @@ cdef class Model:
             delay_param_dict = delay.attrs
             delay_type = delay['type']
 
-            self.create_reaction(reactants = reactants, products = products, propensity_type = propensity['type'], propensity_param_dict = propensity_param_dict,
-                delay_reactants=delay_reactants, delay_products=delay_products, delay_param_dict = delay_param_dict, input_printout = input_printout)
-
-
+            self.create_reaction(reactants = reactants, products = products, propensity_type = propensity['type'],
+                                 propensity_param_dict = propensity_param_dict, delay_reactants=delay_reactants, 
+                                 delay_products=delay_products, delay_param_dict = delay_param_dict, 
+                                 input_printout = input_printout)
         # Parse through the rules
         Rules = xml.find_all('rule')
         for rule in Rules:
@@ -2207,6 +2207,9 @@ cdef class Model:
 
     def get_reactions(self):
         return self.reaction_list
+
+    def get_rules(self):
+        return self.rule_definitions
 
     cdef np.ndarray get_species_values(self):
         """

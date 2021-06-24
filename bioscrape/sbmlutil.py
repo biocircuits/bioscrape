@@ -48,8 +48,8 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
     # Parse through model components one by one
     allspecies = import_sbml_species(model)
     allparams = import_sbml_parameters(model)
-    allreactions = import_sbml_reactions(model)
-    allrules = import_sbml_rules(model)
+    allreactions, allspecies = import_sbml_reactions(model, allspecies, allparams, input_printout)
+    allrules, allreactions = import_sbml_rules(model, allspecies, allparams, allreactions, input_printout)
     # Check and warn if there are any unrecognized components (function definitions, packages, etc.)
     if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0: 
         if sbml_warnings:
@@ -61,6 +61,8 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
     #If a Model is passed into the function, that Model is modified
     if isinstance(bioscrape_model, Model):
         for species in allspecies.keys():
+            if input_printout:
+                print("Adding Species:", species)
             bioscrape_model._add_species(species)
 
         for (param, val) in allparams.items():
@@ -72,10 +74,12 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         for rxn in allreactions:
             if len(rxn) == 4:
                 reactants, products, propensity_type, propensity_param_dict = rxn
-                delay_type, delay_reactants, delay_products, delay_param_dict = None, None,  None, None
+                delay_type, delay_reactants, delay_products, delay_param_dict = [None]*4
             elif len(rxn) == 8:
                 reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict = rxn
-            bioscrape_model.create_reaction(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict, input_printout = input_printout)
+            bioscrape_model.create_reaction(reactants, products, propensity_type, propensity_param_dict, 
+                                            delay_type, delay_reactants, delay_products, delay_param_dict, 
+                                            input_printout = input_printout)
 
         for rule in allrules:
             if len(rule) == 2:
@@ -102,15 +106,15 @@ def import_sbml_species(sbml_model):
     allspecies = {}
     for s in sbml_model.getListOfSpecies():
         sid = s.getId()
-    if sid == "volume" or sid == "t":
-        warnings.warn("You have defined a species called '" + sid +
+        if sid == "volume" or sid == "t":
+            warnings.warn("You have defined a species called " + sid +
                         ". This species is being ignored and treated as a keyword.")
-        continue
-    allspecies[sid] = 0.0
-    if np.isfinite(s.getInitialAmount()):
-        allspecies[sid] = s.getInitialAmount()
-    if np.isfinite(s.getInitialConcentration()) and allspecies[sid] == 0:
-        allspecies[sid] = s.getInitialConcentration()
+            continue
+        allspecies[sid] = 0.0
+        if np.isfinite(s.getInitialAmount()):
+            allspecies[sid] = s.getInitialAmount()
+        if np.isfinite(s.getInitialConcentration()) and allspecies[sid] == 0:
+            allspecies[sid] = s.getInitialConcentration()
     return allspecies
 
 def import_sbml_parameters(sbml_model):
@@ -129,14 +133,18 @@ def import_sbml_parameters(sbml_model):
             allparams[pid] = p.getValue()
     return allparams
 
-def import_sbml_reactions(sbml_model):
+def import_sbml_reactions(sbml_model, allspecies, allparams, input_printout):
     """Import reactions from SBML model
 
     Args:
         sbml_model ([Model]): libsbml Model object
+        allspecies ([dict]): Species identifiers with their initial conditions
+        allparams ([dict]): Parameter identifiers with their values
+        input_printout ([bool]): Debug help input print out (True or False)
 
     Returns:
-        List: List of all reaction tuples.
+        List : List of all reaction tuples.
+        Dict : Updated dict of allspecies.
     """
     allreactions = []
     # Now go through reactions one at a time to get stoich and rates, then append to reaction_list.
@@ -163,16 +171,13 @@ def import_sbml_reactions(sbml_model):
             allparams[pid] = 0.0
             if np.isfinite(p.getValue()):
                 allparams[pid] = p.getValue()
-        # get the formula as a string and then add
-        # a leading _ to parameter names
+        # get the formula as a string 
         math_ast = kl.getMath()
         if math_ast is None:
             raise ValueError("Could not import the rate law for reaction to SBML.")
         kl_formula = libsbml.formulaToL3String(math_ast)
         #We should no longer add underscores to parameters
-        #rate_string = _add_underscore_to_parameters(kl_formula, allparams)
         rate_string = kl_formula
-
         if reaction.getReversible() and sbml_warnings:
             warnings.warn('SBML model contains reversible reaction!\n' +
                             'Please check rate expressions and ensure they are non-negative before doing '+
@@ -230,10 +235,6 @@ def import_sbml_reactions(sbml_model):
                 propensity_params = {}
                 propensity_params['type'] = 'general'
                 propensity_params['rate'] = rate_string
-                # propensity_type = 'general'
-                # general_kl_formula = {}
-                # general_kl_formula['rate'] = rate_string
-                # rxn = (reactant_list, product_list, propensity_params['type'], propensity_params)
             else:
                 # propensity_definition = {}
                 annotation_list = annotation_string[ind0:ind1].split(" ")
@@ -282,28 +283,46 @@ def import_sbml_reactions(sbml_model):
                     if k == 'type':
                         delay_type = v
                     if k == 'reactants':
-                        delay_reactants = v
+                        delay_reactants = v.split(',')
                     if k == 'products':
-                        delay_products = v 
-                    if k == 'parameters':
-                        delay_params = v 
+                        delay_products = v.split(',')
+                    if k == 'mean':
+                        delay_params[k] = v 
+                    if k == 'std':
+                        delay_params[k] = v 
+                    if k == 'k':
+                        delay_params[k] = v 
+                    if k == 'theta':
+                        delay_params[k] = v 
+                    if k == 'delay':
+                        delay_params[k] = v 
                 if input_printout:
                     print("Annotated delay found with params:", delay_params)
         else:
             delay_type, delay_reactants, delay_products, delay_params = [None]*4
+        delay_dict = {'type':delay_type, 'reactants':delay_reactants, 
+                      'products':delay_products, 'parameters':delay_params}
+        if input_printout:
+            print("Propensity attributes (importing reaction {0} -> {1}) are:{2}".format(reactant_list, product_list, propensity_params))
+            print("Delay attributes (importing reaction {0} -> {1}) are: {2}".format(reactant_list, product_list, delay_dict))
         rxn  = (reactant_list, product_list, propensity_params['type'], propensity_params, 
                 delay_type, delay_reactants, delay_products, delay_params)
         allreactions.append(rxn)
-    return allreactions
+    return allreactions, allspecies
 
-def import_sbml_rules(sbml_model):
+def import_sbml_rules(sbml_model, allspecies, allparams, allreactions, input_printout):
     """Import rules from SBML model.
 
     Args:
         sbml_model (Model): libsbml Model object
+        allspecies ([dict]): Species identifiers with their initial conditions
+        allparams ([dict]): Parameter identifiers with their values
+        allreaction ([List]): List of all reaction tuples
+        input_printout ([bool]): Debug help input print out (True or False)
 
     Returns:
         List : List of all rule tuples
+        List : List of updated allreactions
     """
     # Go through rules one at a time
     allrules = []
@@ -331,6 +350,8 @@ def import_sbml_rules(sbml_model):
             continue
         else:
             raise ValueError('Invalid SBML Rule type.')
+        annotation_string = rule.getAnnotationString()
+        rule_frequency = "repeated"
         if "BioscrapeRule" in annotation_string:
             ind0 = annotation_string.find("<BioscrapeRule>")
             ind1 = annotation_string.find("</BioscrapeRule>")
@@ -350,13 +371,11 @@ def import_sbml_rules(sbml_model):
                         rule_frequency = v
                 if input_printout:
                     print("Annotated rule found with rule_frequency:", rule_frequency)
-        else:
-            rule_frequency = "repeated"
         rule_dict = {}
         rule_dict['equation'] = rule_string
         rule_tuple = (rule_type, rule_dict, rule_frequency)
         allrules.append(rule_tuple)
-    return allrules
+    return allrules, allreactions
     
 
 
@@ -506,7 +525,7 @@ def add_parameter(model, param_name, param_value, debug=False):
     return parameter
 
 # Helper function to add a rule to an sbml model
-def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, rule_frequeny, **kwargs):
+def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, rule_frequency, **kwargs):
     # Create SBML equivalent of bioscrape rule:
     # Set constant attribute for parameter to False if rule is on a parameter.
     for param in model.getListOfParameters():
@@ -523,8 +542,8 @@ def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, rule_freque
     rule.setName(rule_id)
     rule.setVariable(rule_variable)
     rule.setFormula(rule_formula)
-    rule_annotation_string = ('<BioscrapeAnnotation>\n<BioscrapeRule> rule_frequency ='
-                              ' ' + rule_frequency + '</BioscrapeRule>\n</BioscrapeAnnotation>'
+    rule_annotation_string = ('<BioscrapeAnnotation>\n<BioscrapeRule> rule_frequency='
+                              '' + rule_frequency + '</BioscrapeRule>\n</BioscrapeAnnotation>'
                              )
     rule.setAnnotation(rule_annotation_string)
     return rule
@@ -737,20 +756,17 @@ def add_reaction(model, inputs_list, outputs_list,
     if delay_annotation_dict != None:
         delay_annotation_string = "<DelayType>"
         for k, val in delay_annotation_dict.items():
-            if k == "type":
-                val_str = str(val)
-            if k == "reactants" or k == "products":
-                val_str = "["
-                val_str += "".join(val)
-                val_str += "]"
-            if k == "parameters":
-                val_str = "{"
+            if k == 'parameters':
                 for param_key, param_value in val.items():
-                    val_str += str(param_key) + ":" + str(param_value)
-                    if param_key != list(val.keys())[-1]:
-                        val_str += ","
-                val_str += "}"
-            delay_annotation_string += " "+k + "=" + str(val_str)
+                    delay_annotation_string += " "+str(param_key)+ "=" + str(param_value)
+            elif k == 'reactants' or k == 'products':
+                delay_annotation_string += " "+ k + "="
+                for v in val:
+                    delay_annotation_string += str(v) + ","
+                if delay_annotation_string[-1] == ",":
+                    delay_annotation_string = delay_annotation_string[:-1]
+            else:
+                delay_annotation_string += " "+k + "=" + str(val)
         delay_annotation_string += "</DelayType>"
     else:
         delay_annotation_string = ""
