@@ -2080,6 +2080,12 @@ cdef class Model:
             self.set_parameter(param_name = param_name, param_value = param_value)
 
 
+    def has_delays(self):
+        if self.has_delay:
+            return True
+        else:
+            return False
+
     def get_params2index(self):
         return self.params2index
 
