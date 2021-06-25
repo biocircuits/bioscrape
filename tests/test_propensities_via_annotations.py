@@ -28,7 +28,7 @@ seed = 54173
 def test_props_via_annotations_all(prop_type):
     sbml_bs = os.path.join(model_path, f"{prop_type}_crn_bs.xml")
     sbml_general = os.path.join(model_path, f"{prop_type}_crn.xml")
-    CRN_bs = Model(sbml_filename = sbml_bs, sbml_warnings = False, input_printout = True)
+    CRN_bs = Model(sbml_filename = sbml_bs, sbml_warnings = False, input_printout = False)
     CRN_general = Model(sbml_filename = sbml_general, sbml_warnings = False)
 
     #Test Deterministic Simulation
