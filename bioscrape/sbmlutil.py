@@ -77,6 +77,8 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
                 delay_type, delay_reactants, delay_products, delay_param_dict = [None]*4
             elif len(rxn) == 8:
                 reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict = rxn
+            else:
+                raise SyntaxError(f"Reaction tuple must have length 4 or 8. Found: {rxn}")
             bioscrape_model.create_reaction(reactants, products, propensity_type, propensity_param_dict, 
                                             delay_type, delay_reactants, delay_products, delay_param_dict, 
                                             input_printout = input_printout)
@@ -326,6 +328,8 @@ def import_sbml_rules(sbml_model, allspecies, allparams, allreactions, input_pri
     """
     # Go through rules one at a time
     allrules = []
+    rule_rxn = None
+    rule_type = None
     #"Rules must be a tuple: (rule_type (string), rule_attributes (dict), rule_frequency (optional))")
     for rule in sbml_model.getListOfRules():
         rule_formula = libsbml.formulaToL3String(rule.getMath())
@@ -345,9 +349,10 @@ def import_sbml_rules(sbml_model, allspecies, allparams, allreactions, input_pri
             rule_type = 'assignment'
         elif rule.getElementName() == 'rateRule':
             rate_rule_formula = rule_formula
-            rule_rxn = ([''], [rulevariable], 'general', rate_rule_formula) # Create --> X type reaction to model rate rules.
-            allreactions.append(rule_rxn)
-            continue
+            propensity_params = {}
+            propensity_params['type'] = 'general'
+            propensity_params['rate'] = rule_formula 
+            rule_rxn = ([], [rulevariable], propensity_params['type'], propensity_params) # Create --> X type reaction to model rate rules.
         else:
             raise ValueError('Invalid SBML Rule type.')
         annotation_string = rule.getAnnotationString()
@@ -371,10 +376,13 @@ def import_sbml_rules(sbml_model, allspecies, allparams, allreactions, input_pri
                         rule_frequency = v
                 if input_printout:
                     print("Annotated rule found with rule_frequency:", rule_frequency)
-        rule_dict = {}
-        rule_dict['equation'] = rule_string
-        rule_tuple = (rule_type, rule_dict, rule_frequency)
-        allrules.append(rule_tuple)
+        if rule_type is not None:
+            rule_dict = {}
+            rule_dict['equation'] = rule_string
+            rule_tuple = (rule_type, rule_dict, rule_frequency)
+            allrules.append(rule_tuple)
+        if rule_rxn is not None:
+            allreactions.append(rule_rxn)
     return allrules, allreactions
     
 

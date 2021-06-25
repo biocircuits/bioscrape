@@ -68,7 +68,6 @@ def test_ode_rule():
     quadratic = np.array([.05*i**2 for i in timepoints])
     assert np.allclose(R1["A"].to_numpy(), quadratic)
     # SBML test
-    ### Uncomment the following lines to run this test after fixing SBML writing of ODE rule.
     M.write_sbml_model(os.path.join(model_path, "models", "rule_model_ode.xml"))
     sbml_rule = os.path.join(model_path, "models", "rule_model_ode.xml")
     CRN1 = Model(sbml_filename = sbml_rule, sbml_warnings = False, input_printout = False)
