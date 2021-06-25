@@ -32,6 +32,6 @@
 	<delay type="none" />
 </reaction>
 
-<rule type="assignment" frequency="repeated" frequency="repeated" equation="I = _I0*Heaviside(t-_T_I0)"  />
+<rule type="assignment" frequency="repeated" frequency="repeated" equation="I = I0*Heaviside(t-T_I0)"  />
 <rule type="assignment" frequency="repeated" frequency="repeated" equation="S = 50*X/(1+.2*X)"  />
 </model>

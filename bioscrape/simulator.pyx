@@ -2,7 +2,6 @@
 # cython: cdivision=True
 # cython: wraparound=True
 
-
 import numpy as np
 cimport numpy as np
 cimport random as cyrandom
@@ -276,7 +275,7 @@ cdef class CSimInterface:
     cdef void compute_propensities(self, double *state, double *propensity_destination, double time):
         pass
     cdef void compute_volume_propensities(self, double *state, double *propensity_destination, double volume, double time):
-        pass
+        self.compute_propensities(state, propensity_destination, time)
 
     # by default stochastic propensities are assumed to be the same as normal propensities. This may be overwritten by the subclass, however.
     cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time):
@@ -357,14 +356,17 @@ cdef class CSimInterface:
     def py_get_number_of_rules(self):
         return self.get_number_of_rules()
 
-    cdef void apply_repeated_rules(self, double *state, double time):
+    cdef void apply_repeated_rules(self, double *state, double time, unsigned rule_step):
         pass
 
-    cdef void apply_repeated_volume_rules(self, double *state, double volume, double time):
+    cdef void apply_repeated_volume_rules(self, double *state, double volume, double time, unsigned rule_step):
         pass
 
-    def py_apply_repeated_rules(self, np.ndarray[np.double_t, ndim=1] state, double time=0.0):
-        self.apply_repeated_rules(<double*> state.data,time)
+    def py_apply_repeated_rules(self, np.ndarray[np.double_t, ndim=1] state, double time=0.0, rule_step = True):
+        self.apply_repeated_rules(<double*> state.data,time, rule_step)
+
+    def py_apply_repeated_volume_rules(self, np.ndarray[np.double_t, ndim=1] state, double volume = 1.0, double time=0.0, rule_step = True):
+        self.apply_repeated_volume_rules(<double*> state.data, volume, time, rule_step)
 
 
     # Prepare for determinsitic simulation by creating propensity buffer and also doing the compressed stoich matrix
@@ -469,15 +471,15 @@ cdef class ModelCSimInterface(CSimInterface):
     cdef unsigned get_number_of_rules(self):
         return self.c_repeat_rules[0].size()
 
-    cdef void apply_repeated_rules(self, double *state, double time):
+    cdef void apply_repeated_rules(self, double *state, double time, unsigned rule_step):
         cdef unsigned rule_number
         for rule_number in range(self.c_repeat_rules[0].size()):
-            (<Rule> (self.c_repeat_rules[0][rule_number])).execute_rule(state, self.c_param_values, time)
+            (<Rule> (self.c_repeat_rules[0][rule_number])).execute_rule(state, self.c_param_values, time, self.dt, rule_step)
 
-    cdef void apply_repeated_volume_rules(self, double *state, double volume, double time):
+    cdef void apply_repeated_volume_rules(self, double *state, double volume, double time, unsigned rule_step):
         cdef unsigned rule_number
         for rule_number in range(self.c_repeat_rules[0].size()):
-            (<Rule> (self.c_repeat_rules[0][rule_number])).execute_volume_rule(state, self.c_param_values, volume, time)
+            (<Rule> (self.c_repeat_rules[0][rule_number])).execute_volume_rule(state, self.c_param_values, volume, time, self.dt, rule_step)
 
     cdef np.ndarray get_initial_state(self):
         return self.initial_state
@@ -491,11 +493,18 @@ cdef class ModelCSimInterface(CSimInterface):
     def py_get_param_values(self):
         return self.np_param_values
 
+    def py_set_param_values(self, params):
+        if len(params) != len(self.np_param_values):
+            raise ValueError(f"params must be a numpy array of length {len(self.np_param_values)}. Recieved {params}.")
+        self.np_param_values = params
+        self.c_param_values = <double*>(self.np_param_values.data)
+
+
     cdef unsigned get_num_parameters(self):
         return self.np_param_values.shape[0]
 
 cdef class SafeModelCSimInterface(ModelCSimInterface):
-    def __init__(self, external_model, max_volume = 1000, max_species_count = 1000):
+    def __init__(self, external_model, max_volume = 10000, max_species_count = 10000):
         self.max_volume = max_volume
         self.max_species_count = max_species_count
         super().__init__(external_model)
@@ -539,6 +548,11 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
             if self.prop_is_0 == 0:
                 propensity_destination[self.rxn_ind] = (<Propensity> (self.c_propensities[0][self.rxn_ind]) ).get_stochastic_propensity(state, self.c_param_values, time)
 
+                #Issue a warning of a propensity goes negative
+                if propensity_destination[self.rxn_ind] < 0:
+                    warnings.warn("Propensity #"+str(self.rxn_ind)+" is negative with value "+str(propensity_destination[self.rxn_ind]) + " setting to 0.")
+                    propensity_destination[self.rxn_ind] = 0
+
     cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time):
         self.check_count_function(state, volume)
         self.rxn_ind = 0
@@ -552,6 +566,11 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
                 self.s_ind+=1
             if self.prop_is_0 == 0:
                 propensity_destination[self.rxn_ind] = (<Propensity> (self.c_propensities[0][self.rxn_ind]) ).get_stochastic_volume_propensity(state, self.c_param_values, volume, time)
+
+                #Issue a warning of a propensity goes negative
+                if propensity_destination[self.rxn_ind] < 0:
+                    warnings.warn("Propensity #"+str(self.rxn_ind)+" is negative with value "+str(propensity_destination[self.rxn_ind]) + " setting to 0.")
+                    propensity_destination[self.rxn_ind] = 0
 
     cdef void check_count_function(self, double *state, double volume):
         self.s_ind = 0
@@ -622,6 +641,335 @@ cdef class SSAResult:
             return self.py_get_result()
 
 
+    def py_empirical_distribution(self, start_time = None, species = None, Model = None, final_time = None, max_counts = None):
+        """
+            calculates the empirical distribution of a trajectory over counts
+            start_time: the time to begin the empirical calculation
+            final_time: time to end the empirical marginalization
+            species: the list of species inds or names to calculate over. Marginalizes over non-included species
+            max_counts: a list (size N-species) of the maximum count expected for each species. 
+                 If max_counts[i] == 0, defaults to the maximum count found in the simulation: max(results[:, i]).
+                 Useful for getting distributions of a specific size/shape.
+            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """
+        if species is None:
+            species_inds = [i for i in range(self.simulation_result.shape[1])]
+        else:
+            species_inds = []
+            for s in species:
+                if isinstance(s, int):
+                    species_inds.append(s)
+                elif isinstance(s, str) and Model is None:
+                    raise ValueError("Must pass in a Model along with species list if using species' names.")
+                elif isinstance(s, str) and s in Model.get_species2index():
+                    species_inds.append(Model.get_species2index()[s])
+                else:
+                    raise ValueError(f"Unknown species {s}.")
+
+        if start_time is None:
+            start_time = self.timepoints[0]
+        elif start_time < self.timepoints[0]:
+            raise ValueError(f"final_time={start_time} is greater than simulation_start={self.timepoints[0]}")
+
+        if final_time is None:
+            final_time = self.timepoints[-1]
+        elif final_time > self.timepoints[-1]:
+            raise ValueError(f"final_time={final_time} is greater than simulation_time={self.timepoints[-1]}")
+
+        if max_counts is None:
+            max_counts = [0 for s in species_inds]
+        elif len(max_counts) != len(species_inds):
+            raise ValueError("max_counts must be a list of the same length as species")
+
+        return self.empirical_distribution(start_time, species_inds, final_time, max_counts)
+
+    #calculates the empirical distribution of a trajectory over counts
+    #   start_time: the time to begin the empirical calculation
+    #   final_time: time to end the empirical marginalization
+    #   species_inds: the list of species inds to calculate over. Marginalizes over non-included inds
+    #   max_counts: a list (size N-species) of the maximum count expected for each species. 
+    #         If max_counts[i] == 0, defaults to the maximum count found in the simulation: max(results[:, i]).
+    #         Useful for getting distributions of a specific size/shape.
+    cdef np.ndarray empirical_distribution(self, double start_time, list species_inds, double final_time, list max_counts_list):
+        cdef unsigned s, t, ind, prod
+        cdef unsigned tstart = len(self.timepoints[self.timepoints < start_time])
+        cdef unsigned tend = len(self.timepoints[self.timepoints <= final_time])
+        cdef unsigned N_species = len(species_inds)
+        cdef double dP = 1./(tend - tstart)
+        cdef np.ndarray[np.int_t, ndim=1] index_ar = np.zeros(N_species, dtype = np.int_) #index array
+        cdef np.ndarray[np.double_t, ndim = 1] dist
+        cdef np.ndarray[np.int_t, ndim = 1] max_counts = np.zeros(N_species, dtype = np.int_) #max species counts
+
+        #Calculate max species counts
+        for i in range(N_species):
+            s = species_inds[i]
+            if max_counts_list[i] == 0: #the maximum number of each species is set for all 0 max species
+                max_counts[i] = np.amax(self.simulation_result[tstart:, s], 0)+1
+            else:
+                max_counts[i] += max_counts_list[i]+1
+
+        #dist = np.zeros(tuple(max_counts.astype(np.int_)+1))#store the distribution here
+        dist = np.zeros(np.prod(max_counts)) #Flattened array
+
+        for t in range(tstart, tend, 1):
+            #Code for Flat dist arrays
+            prod = 1 #a product to represent the size of different dimensions of the flattened array
+            ind = 0
+            for i in range(N_species, 0, -1):#Go through species index backwards
+                s = species_inds[i-1] 
+                if self.simulation_result[t, s] > max_counts[i-1]:
+                    raise RuntimeError("Encountered a species count greater than max_counts!")
+                ind = ind + prod*<np.int_t>self.simulation_result[t, s]
+                prod = prod * max_counts[i-1] #update the product for the next index
+            dist[ind] = dist[ind] + dP
+
+        return np.reshape(dist, tuple(max_counts))
+
+    #Python wrapper of a fast cython function to compute the first moment (mean) of a set of Species
+    def py_first_moment(self, start_time = None, species = None, Model = None, final_time = None):
+        """
+            calculates the first moment (mean) of a trajectory over counts
+            start_time: the time to begin the empirical calculation
+            final_time: time to end the empirical marginalization
+            species: the list of species inds or names to calculate over. Marginalizes over non-included species
+            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """
+
+        if species is None:
+            species_inds = [i for i in range(self.simulation_result.shape[1])]
+        else:
+            species_inds = []
+            for s in species:
+                if isinstance(s, int):
+                    species_inds.append(s)
+                elif isinstance(s, str) and Model is None:
+                    raise ValueError("Must pass in a Model along with species list if using species' names.")
+                elif isinstance(s, str) and s in Model.get_species2index():
+                    species_inds.append(Model.get_species2index()[s])
+                else:
+                    raise ValueError(f"Unknown species {s}.")
+
+        if start_time is None:
+            start_time = self.timepoints[0]
+        elif start_time < self.timepoints[0]:
+            raise ValueError(f"final_time={start_time} is greater than simulation_start={self.timepoints[0]}")
+
+        if final_time is None:
+            final_time = self.timepoints[-1]
+        elif final_time > self.timepoints[-1]:
+            raise ValueError(f"final_time={final_time} is greater than simulation_time={self.timepoints[-1]}")
+
+        return self.first_moment(start_time, final_time, species_inds)
+
+    #Computes the first moment (average) of all species in the list species_inds
+    cdef np.ndarray first_moment(self, double start_time, double final_time, list species_inds):
+        cdef unsigned s, i, t
+        cdef unsigned tstart = len(self.timepoints[self.timepoints < start_time])
+        cdef unsigned tend = len(self.timepoints[self.timepoints <= final_time])
+        cdef unsigned N_species = len(species_inds)
+        cdef np.ndarray[np.double_t, ndim = 1] means = np.zeros(N_species)
+
+        for i in range(N_species):
+            s = species_inds[i]
+            for t in range(tstart, tend, 1):
+                means[i] += self.simulation_result[t, s]
+            means[i] = means[i]/(tend - tstart)
+
+        return means
+
+
+    #Python wrapper of a fast cython function to compute the standard deviation of a set of Species
+    def py_standard_deviation(self, start_time = None, species = None, Model = None, final_time = None):
+        """
+            calculates the standard deviation of a trajectory over counts
+            start_time: the time to begin the empirical calculation
+            final_time: time to end the empirical marginalization
+            species: the list of species inds or names to calculate over. Marginalizes over non-included species
+            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """
+        if species is None:
+            species_inds = [i for i in range(self.simulation_result.shape[1])]
+        else:
+            species_inds = []
+            for s in species:
+                if isinstance(s, int):
+                    species_inds.append(s)
+                elif isinstance(s, str) and Model is None:
+                    raise ValueError("Must pass in a Model along with species list if using species' names.")
+                elif isinstance(s, str) and s in Model.get_species2index():
+                    species_inds.append(Model.get_species2index()[s])
+                else:
+                    raise ValueError(f"Unknown species {s}.")
+
+        if start_time is None:
+            start_time = self.timepoints[0]
+        elif start_time < self.timepoints[0]:
+            raise ValueError(f"final_time={start_time} is greater than simulation_start={self.timepoints[0]}")
+
+        if final_time is None:
+            final_time = self.timepoints[-1]
+        elif final_time > self.timepoints[-1]:
+            raise ValueError(f"final_time={final_time} is greater than simulation_time={self.timepoints[-1]}")
+
+        return self.standard_deviation(start_time, final_time, species_inds)
+
+    #Computes the standard deviation of all species in the list species_inds
+    cdef np.ndarray standard_deviation(self, double start_time, double final_time, list species_inds):
+        cdef unsigned s, i, t
+        cdef unsigned tstart = len(self.timepoints[self.timepoints < start_time])
+        cdef unsigned tend = len(self.timepoints[self.timepoints <= final_time])
+        cdef unsigned N_species = len(species_inds)
+        cdef np.ndarray[np.double_t, ndim = 1] stds = np.zeros(N_species)
+        cdef np.ndarray[np.double_t, ndim = 1] means = self.first_moment(start_time, final_time, species_inds)
+
+        for i in range(N_species):
+            s = species_inds[i]
+            for t in range(tstart, tend, 1):
+                stds[i] += (self.simulation_result[t, s]-means[i])**2
+            stds[i] = (stds[i]/(tend - tstart))**(1./2.)
+
+        return stds
+
+
+    #Computes the correlations between species1 and species2
+    def py_correlations(self, start_time = None, species1 = None, species2 = None, final_time = None, Model = None):
+        """
+            calculates the pairwise correlations (species1 x species2) of a trajectory over counts
+            start_time: the time to begin the empirical calculation
+            final_time: time to end the empirical marginalization
+            species1: a list of species names or indices. If None, defaults to all species.
+            species2: a second list of species indices or names. All pairs between species1 and species2 are computed
+            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """
+
+        if species1 is None:
+            species_inds1 = [i for i in range(self.simulation_result.shape[1])]
+            species_inds2 = [i for i in range(self.simulation_result.shape[1])]
+        else:
+            species_inds1 = []
+            for s in species1:
+                if isinstance(s, int):
+                    species_inds1.append(s)
+                elif isinstance(s, str) and Model is None:
+                    raise ValueError("Must pass in a Model along with species list if using species' names.")
+                elif isinstance(s, str) and s in Model.get_species2index():
+                    species_inds1.append(Model.get_species2index()[s])
+                else:
+                    raise ValueError(f"Unknown species {s}.")
+
+            species_inds2 = []
+            for s in species2:
+                if isinstance(s, int):
+                    species_inds2.append(s)
+                elif isinstance(s, str) and Model is None:
+                    raise ValueError("Must pass in a Model along with species list if using species' names.")
+                elif isinstance(s, str) and s in Model.get_species2index():
+                    species_inds2.append(Model.get_species2index()[s])
+                else:
+                    raise ValueError(f"Unknown species {s}.")
+
+        if start_time is None:
+            start_time = self.timepoints[0]
+        elif start_time < self.timepoints[0]:
+            raise ValueError(f"final_time={start_time} is greater than simulation_start={self.timepoints[0]}")
+
+        if final_time is None:
+            final_time = self.timepoints[-1]
+        elif final_time > self.timepoints[-1]:
+            raise ValueError(f"final_time={final_time} is greater than simulation_time={self.timepoints[-1]}")
+
+        return self.correlations(start_time, final_time, species_inds1, species_inds2)
+
+    #Computes the second moment of between the species in species_inds1 and species_inds2
+    cdef np.ndarray correlations(self, double start_time, double final_time, list species_inds1, list species_inds2):
+        cdef unsigned s1, s2, i1, i2, t
+        cdef unsigned tstart = len(self.timepoints[self.timepoints < start_time])
+        cdef unsigned tend = len(self.timepoints[self.timepoints <= final_time])
+        cdef unsigned N_species1 = len(species_inds1)
+        cdef unsigned N_species2 = len(species_inds2)
+        cdef np.ndarray[np.double_t, ndim = 2] cors = np.zeros((N_species1, N_species2))
+        cdef np.ndarray[np.double_t, ndim = 1] means1 = self.first_moment(start_time, final_time, species_inds1)
+        cdef np.ndarray[np.double_t, ndim = 1] means2 = self.first_moment(start_time, final_time, species_inds2)
+        cdef np.ndarray[np.double_t, ndim = 1] standard_devs1 = self.standard_deviation(start_time, final_time, species_inds1)
+        cdef np.ndarray[np.double_t, ndim = 1] standard_devs2 = self.standard_deviation(start_time, final_time, species_inds2)
+
+        for i1 in range(N_species1):
+            s1 = species_inds1[i1]
+            for i2 in range(N_species2):
+                s2 = species_inds2[i2]
+                for t in range(tstart, tend, 1):
+                    cors[i1, i2] += (self.simulation_result[t, s1]-means1[i1])*(self.simulation_result[t, s2]-means2[i2])
+                cors[i1, i2] = cors[i1, i2]/((tend - tstart)*standard_devs1[i1]*standard_devs2[i2])
+
+        return cors
+
+    #Python wrapper of a fast cython function to compute the second moment (E[S1*S2]) pairwise between two lists of species
+    def py_second_moment(self, start_time = None, species1 = None, species2 = None, final_time = None, Model = None):
+        """
+            calculates the pairwise second moments of a trajectory over counts
+            start_time: the time to begin the empirical calculation
+            final_time: time to end the empirical marginalization
+            species1: a list of species names or indices. If None, defaults to all species.
+            species2: a second list of species indices or names. All pairs between species1 and species2 are computed
+            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """
+
+        if species1 is None:
+            species_inds1 = [i for i in range(self.simulation_result.shape[1])]
+            species_inds2 = [i for i in range(self.simulation_result.shape[1])]
+        else:
+            species_inds1 = []
+            for s in species1:
+                if isinstance(s, int):
+                    species_inds1.append(s)
+                elif isinstance(s, str) and Model is None:
+                    raise ValueError("Must pass in a Model along with species list if using species' names.")
+                elif isinstance(s, str) and s in Model.get_species2index():
+                    species_inds1.append(Model.get_species2index()[s])
+                else:
+                    raise ValueError(f"Unknown species {s}.")
+
+            species_inds2 = []
+            for s in species2:
+                if isinstance(s, int):
+                    species_inds2.append(s)
+                elif isinstance(s, str) and Model is None:
+                    raise ValueError("Must pass in a Model along with species list if using species' names.")
+                elif isinstance(s, str) and s in Model.get_species2index():
+                    species_inds2.append(Model.get_species2index()[s])
+                else:
+                    raise ValueError(f"Unknown species {s}.")
+
+        if start_time is None:
+            start_time = self.timepoints[0]
+        elif start_time < self.timepoints[0]:
+            raise ValueError(f"final_time={start_time} is greater than simulation_start={self.timepoints[0]}")
+
+        if final_time is None:
+            final_time = self.timepoints[-1]
+        elif final_time > self.timepoints[-1]:
+            raise ValueError(f"final_time={final_time} is greater than simulation_time={self.timepoints[-1]}")
+
+        return self.second_moment(start_time, final_time, species_inds1, species_inds2)
+
+    #Computes the second moment of between the species in species_inds1 and species_inds2
+    cdef np.ndarray second_moment(self, double start_time, double final_time, list species_inds1, list species_inds2):
+        cdef unsigned s1, s2, i1, i2, t
+        cdef unsigned tstart = len(self.timepoints[self.timepoints < start_time])
+        cdef unsigned tend = len(self.timepoints[self.timepoints <= final_time])
+        cdef unsigned N_species1 = len(species_inds1)
+        cdef unsigned N_species2 = len(species_inds2)
+        cdef np.ndarray[np.double_t, ndim = 2] moments = np.zeros((N_species1, N_species2))
+
+        for i1 in range(N_species1):
+            s1 = species_inds1[i1]
+            for i2 in range(N_species2):
+                s2 = species_inds2[i2]
+                for t in range(tstart, tend, 1):
+                    moments[i1, i2] += self.simulation_result[t, s1]*self.simulation_result[t, s2]
+                moments[i1, i2] = moments[i1, i2]/(tend - tstart)
+
+        return moments
 
 cdef class DelaySSAResult(SSAResult):
     def __init__(self, np.ndarray timepoints, np.ndarray result, DelayQueue queue):
@@ -777,227 +1125,6 @@ cdef class DelayVolumeCellState(VolumeCellState):
 
     def py_set_delay_queue(self, DelayQueue q):
         self.delay_queue = q
-
-##################################################                ####################################################
-######################################              LINEAGE                           ################################
-#################################################                     ################################################
-
-import sys
-cdef Lineage simulate_cell_lineage(CSimInterface sim, Volume v, np.ndarray timepoints,
-                                   VolumeSimulator vsim, VolumeSplitter vsplit):
-
-    """
-    Simulate a cell lineage given the reactions, the volume and partitioning models, and the desired simulator over
-    a given set of time points.
-    :param sim: (CSimInterface) The reaction system.
-    :param v: (Volume) The volume model.
-    :param timepoints: (np.ndarray)
-    :param vsim: (VolumeSimulator) The simulator to use.
-    :param vsplit: (VolumeSplitter) The partitioning model to use.
-    :return: (Lineage) Simulated cell lineage output.
-    """
-
-    # Prepare a lineage structure to save the data output.
-    cdef Lineage l = Lineage()
-    cdef np.ndarray[np.double_t, ndim=1] c_timepoints = timepoints
-    cdef np.ndarray[np.double_t, ndim=1] c_truncated_timepoints
-    cdef double final_time = c_timepoints[c_timepoints.shape[0]-1]
-
-    # Simulate the first cell.
-    cdef VolumeSSAResult r = vsim.volume_simulate(sim,v, timepoints)
-    cdef Schnitz s = r.get_schnitz()
-    cdef Schnitz daughter_schnitz1, daughter_schnitz2
-    cdef VolumeCellState cs = r.get_final_cell_state()
-    cdef VolumeCellState d1, d2, d1final, d2final
-    cdef np.ndarray daughter_cells
-    s.set_parent(None)
-
-    l.add_schnitz(s)
-
-    cdef unsigned list_index = 0
-    cdef list old_schnitzes = []
-    cdef list old_cell_states = []
-
-    if cs.get_time() < final_time:
-        old_schnitzes.append(s)
-        old_cell_states.append(cs)
-
-    cdef unsigned debug_index
-    cdef VolumeCellState dcs
-
-    while list_index < len(old_cell_states):
-        #Debugging purely
-        # print("list index:", list_index)
-        # for debug_index in range(len(old_cell_states)):
-        #     dcs = old_cell_states[debug_index]
-        #     print("final time: ", dcs.get_time())
-        # sys.stdout.flush()
-
-        cs = old_cell_states[list_index]
-        s = old_schnitzes[list_index]
-        list_index += 1
-
-        # Partition the cell state
-        daughter_cells = vsplit.partition(cs)
-        d1 = <VolumeCellState>(daughter_cells[0])
-        d2 = <VolumeCellState>(daughter_cells[1])
-
-        #Create a new timepoint array and simulate the first daughter and queue if it doesn't reach final time.
-        c_truncated_timepoints = c_timepoints[c_timepoints > cs.get_time()]
-
-        sim.set_initial_time(d1.get_time())
-        sim.set_initial_state(d1.get_state())
-        v.initialize(<double*> d1.get_state().data,<double*> 0, d1.get_time(), d1.get_volume())
-
-        r = vsim.volume_simulate(sim,v,c_truncated_timepoints)
-        daughter_schnitz1 = r.get_schnitz()
-        d1final = r.get_final_cell_state()
-
-        # Add on the new daughter if final time wasn't reached.
-        if d1final.get_time() < final_time - 1E-9:
-            #print("daughter 1 final time: ", d1final.get_time())
-            old_schnitzes.append(daughter_schnitz1)
-            old_cell_states.append(d1final)
-
-        #Do the exact same thing for the other daughter.
-        sim.set_initial_time(d2.get_time())
-        sim.set_initial_state(d2.get_state())
-        v.initialize(<double*> d2.get_state().data,<double*> 0, d2.get_time(), d2.get_volume())
-
-        r = vsim.volume_simulate(sim,v,c_truncated_timepoints)
-
-        daughter_schnitz2 = r.get_schnitz()
-        d2final = r.get_final_cell_state()
-
-
-        if d2final.get_time() < final_time - 1E-9:
-            #print("daughter 2 final time: ", d2final.get_time())
-            old_schnitzes.append(daughter_schnitz2)
-            old_cell_states.append(d2final)
-
-        # Set up daughters and parent appropriately.
-        daughter_schnitz1.set_parent(s)
-        daughter_schnitz2.set_parent(s)
-        s.set_daughters(daughter_schnitz1,daughter_schnitz2)
-
-        # Add daughters to the lineage
-        l.add_schnitz(daughter_schnitz1)
-        l.add_schnitz(daughter_schnitz2)
-
-    return l
-
-def py_simulate_cell_lineage(CSimInterface sim, Volume v, np.ndarray timepoints,
-                                   VolumeSimulator vsim, VolumeSplitter vsplit):
-    return simulate_cell_lineage(sim,v,timepoints,vsim,vsplit)
-
-
-
-cdef Lineage simulate_delay_cell_lineage(CSimInterface sim, DelayQueue q, Volume v, np.ndarray timepoints,
-                                   DelayVolumeSimulator dvsim, DelayVolumeSplitter dvsplit):
-    """
-    Simulate a cell lineage given the reactions, the volume, delay and partitioning models, and the desired simulator
-    over a given set of time points.
-    :param sim: (CSimInterface) The reaction system.
-    :param q: (DelayQueue) The DelayQueue object containing the initial set of queued reactions.
-    :param v: (Volume) The volume model.
-    :param timepoints: (np.ndarray)
-    :param vsim: (VolumeSimulator) The simulator to use.
-    :param vsplit: (VolumeSplitter) The partitioning model to use.
-    :return: (Lineage) Simulated cell lineage output.
-    """
-
-    # Prepare a lineage structure to save the data output.
-    cdef Lineage l = Lineage()
-    cdef np.ndarray[np.double_t, ndim=1] c_timepoints = timepoints
-    cdef np.ndarray[np.double_t, ndim=1] c_truncated_timepoints
-    cdef double final_time = c_timepoints[c_timepoints.shape[0]-1]
-
-    # Simulate the first cell.
-    cdef DelayVolumeSSAResult r = dvsim.delay_volume_simulate(sim,q,v,timepoints)
-    cdef Schnitz s = r.get_schnitz()
-    cdef Schnitz daughter_schnitz1, daughter_schnitz2
-    cdef DelayVolumeCellState cs = r.get_final_cell_state()
-    cdef DelayVolumeCellState d1, d2, d1final, d2final
-    cdef np.ndarray daughter_cells
-    s.set_parent(None)
-
-    l.add_schnitz(s)
-
-    cdef unsigned list_index = 0
-    cdef list old_schnitzes = []
-    cdef list old_cell_states = []
-
-    if cs.get_time() < final_time:
-        old_schnitzes.append(s)
-        old_cell_states.append(cs)
-
-    cdef unsigned debug_index
-    cdef DelayVolumeCellState dcs
-
-    while list_index < len(old_cell_states):
-        #Debugging purely
-        # print("list index:", list_index)
-        # for debug_index in range(len(old_cell_states)):
-        #     dcs = old_cell_states[debug_index]
-        #     print("final time: ", dcs.get_time())
-        # sys.stdout.flush()
-
-        cs = old_cell_states[list_index]
-        s = old_schnitzes[list_index]
-        list_index += 1
-
-        # Partition the cell state
-        daughter_cells = dvsplit.partition(cs)
-        d1 = <DelayVolumeCellState>(daughter_cells[0])
-        d2 = <DelayVolumeCellState>(daughter_cells[1])
-
-        #Create a new timepoint array and simulate the first daughter and queue if it doesn't reach final time.
-        c_truncated_timepoints = c_timepoints[c_timepoints > cs.get_time()]
-
-        sim.set_initial_time(d1.get_time())
-        sim.set_initial_state(d1.get_state())
-        v.initialize(<double*> d1.get_state().data,<double*> 0, d1.get_time(), d1.get_volume())
-
-        r = dvsim.delay_volume_simulate(sim,d1.get_delay_queue(),v,c_truncated_timepoints)
-        daughter_schnitz1 = r.get_schnitz()
-        d1final = r.get_final_cell_state()
-
-        # Add on the new daughter if final time wasn't reached.
-        if d1final.get_time() < final_time - 1E-9:
-            #print("daughter 1 final time: ", d1final.get_time())
-            old_schnitzes.append(daughter_schnitz1)
-            old_cell_states.append(d1final)
-
-        #Do the exact same thing for the other daughter.
-        sim.set_initial_time(d2.get_time())
-        sim.set_initial_state(d2.get_state())
-        v.initialize(<double*> d2.get_state().data,<double*> 0, d2.get_time(), d2.get_volume())
-
-        r = dvsim.delay_volume_simulate(sim,d2.get_delay_queue(),v,c_truncated_timepoints)
-        daughter_schnitz2 = r.get_schnitz()
-        d2final = r.get_final_cell_state()
-
-
-        if d2final.get_time() < final_time - 1E-9:
-            #print("daughter 2 final time: ", d2final.get_time())
-            old_schnitzes.append(daughter_schnitz2)
-            old_cell_states.append(d2final)
-
-        # Set up daughters and parent appropriately.
-        daughter_schnitz1.set_parent(s)
-        daughter_schnitz2.set_parent(s)
-        s.set_daughters(daughter_schnitz1,daughter_schnitz2)
-
-        # Add daughters to the lineage
-        l.add_schnitz(daughter_schnitz1)
-        l.add_schnitz(daughter_schnitz2)
-
-    return l
-
-def py_simulate_delay_cell_lineage(CSimInterface sim, DelayQueue q, Volume v, np.ndarray timepoints,
-                                   DelayVolumeSimulator dvsim, DelayVolumeSplitter dvsplit):
-    return simulate_delay_cell_lineage(sim,q,v,timepoints,dvsim,dvsplit)
-
 
 
 ##################################################                ####################################################
@@ -1253,6 +1380,39 @@ cdef class CustomSplitter(VolumeSplitter):
 ######################################              CS                        ################################
 #################################################                     ################################################
 
+#Global Simulation Variables for Deterministic Simulation
+cdef void* global_simulator
+cdef np.ndarray global_derivative_buffer
+cdef double global_dt
+
+def py_global_derivative_buffer():
+    global global_derivative_buffer
+    return global_derivative_buffer
+
+def py_set_globals(CSimInterface sim):
+    global global_simulator
+    global global_derivative_buffer
+    global_simulator = <void*> sim
+    global_derivative_buffer = np.empty(sim.py_get_num_species(),)
+
+def rhs_global(np.ndarray[np.double_t,ndim=1] state, double t):
+    global global_simulator
+    global global_derivative_buffer
+    cdef int rule_step
+
+    #Assumption is that rules occur every dt so t = N*dt where N is an integer is a valid point to apply a rule
+    #this tacitly assumes we are not using irrational initial conditions...
+    rule_step = (<int> (t / (<CSimInterface>global_simulator).get_dt())) == (t / (<CSimInterface>global_simulator).get_dt())
+
+    (<CSimInterface>global_simulator).apply_repeated_rules(<double*> state.data,t, rule_step)
+    (<CSimInterface>global_simulator).calculate_deterministic_derivative( <double*> state.data,
+                                                                         <double*> global_derivative_buffer.data, t)
+    return global_derivative_buffer
+
+def rhs_ode(double t, np.ndarray[np.double_t, ndim=1] state):
+    return rhs_global(state,t)
+
+
 # Regular simulations with no volume or delay involved.
 cdef class RegularSimulator:
     cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints):
@@ -1271,30 +1431,6 @@ cdef class RegularSimulator:
         sim.check_interface()
         return self.simulate(sim,timepoints)
 
-
-cdef void* global_simulator
-cdef np.ndarray global_derivative_buffer
-
-def py_global_derivative_buffer():
-    global global_derivative_buffer
-    return global_derivative_buffer
-
-def py_set_globals(CSimInterface sim):
-    global global_simulator
-    global global_derivative_buffer
-    global_simulator = <void*> sim
-    global_derivative_buffer = np.empty(sim.py_get_num_species(),)
-
-def rhs_global(np.ndarray[np.double_t,ndim=1] state, double t):
-    global global_simulator
-    global global_derivative_buffer
-    (<CSimInterface>global_simulator).apply_repeated_rules(<double*> state.data,t)
-    (<CSimInterface>global_simulator).calculate_deterministic_derivative( <double*> state.data,
-                                                                         <double*> global_derivative_buffer.data, t)
-    return global_derivative_buffer
-
-def rhs_ode(double t, np.ndarray[np.double_t, ndim=1] state):
-    return rhs_global(state,t)
 
 cdef class DeterministicSimulator(RegularSimulator):
     """
@@ -1320,6 +1456,7 @@ cdef class DeterministicSimulator(RegularSimulator):
         """
         cdef np.ndarray S = sim.get_update_array() + sim.get_delay_update_array()
         cdef np.ndarray x0 = sim.get_initial_state().copy()
+        cdef np.ndarray p0 = sim.py_get_param_values().copy()
 
         cdef unsigned num_species = S.shape[0]
         cdef unsigned num_reactions = S.shape[1]
@@ -1340,8 +1477,9 @@ cdef class DeterministicSimulator(RegularSimulator):
 
             if full_output['message'] == 'Integration successful.':
                 if sim.get_number_of_rules() > 0:
+                    sim.py_set_param_values(p0) #reset the parameter values before reapplying rules
                     for index in range(timepoints.shape[0]):
-                        sim.apply_repeated_rules( &(results[index,0]),timepoints[index] )
+                        sim.apply_repeated_rules( &(results[index,0]),timepoints[index], True)
                 return SSAResult(timepoints,results)
 
             logging.info('odeint failed with mxstep=%d...' % (steps_allowed))
@@ -1361,85 +1499,6 @@ cdef class DeterministicSimulator(RegularSimulator):
 
     cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints):
         return self._helper_simulate(sim,timepoints)
-
-cdef class DeterministicDilutionSimulator(RegularSimulator):
-    """
-    A class for implementing a deterministic simulator with dilution.
-    """
-
-    def __init__(self):
-        self.atol = 1E-8
-        self.rtol = 1E-8
-        self.mxstep = 500000
-        self.dilution_rate = 0.0
-
-    def py_set_tolerance(self, double atol, double rtol):
-        self.set_tolerance(atol, rtol)
-
-    def py_set_mxstep(self, unsigned mxstep):
-        self.mxstep = mxstep
-
-    def py_set_dilution_rate(self, double rate):
-        self.dilution_rate = rate
-
-    def _helper_simulate(self, CSimInterface sim, np.ndarray timepoints):
-        """
-        This function allows for definition of the rhs function inside the simulation function. Otherwise, Cython
-        does not allow closures inside cdef functions. Having a separate rhs function is also impossible because
-        then the first argument becomes self.
-        """
-        cdef np.ndarray S = sim.get_update_array() + sim.get_delay_update_array()
-        cdef np.ndarray x0 = sim.get_initial_state().copy()
-
-        cdef unsigned num_species = S.shape[0]
-        cdef unsigned num_reactions = S.shape[1]
-
-        global global_simulator
-        global global_derivative_buffer
-
-        global_simulator = <void*> sim
-        global_derivative_buffer = np.empty(num_species,)
-
-        cdef unsigned index = 0
-        cdef unsigned steps_allowed = 500
-        cdef np.ndarray[np.double_t, ndim=2] results
-
-        def rhs_dilution(np.ndarray[np.double_t,ndim=1] state, double t):
-            return rhs_global(state, t) - self.dilution_rate*state
-
-
-        while True:
-            results, full_output = odeint(rhs_dilution, x0, timepoints,atol=self.atol, rtol=self.rtol,
-                                         mxstep=steps_allowed, full_output=True)
-
-            if full_output['message'] == 'Integration successful.':
-                if sim.get_number_of_rules() > 0:
-                    for index in range(timepoints.shape[0]):
-                        sim.apply_repeated_rules( &(results[index,0]), timepoints[index] )
-                return SSAResult(timepoints,results)
-
-            logging.info('odeint failed with mxstep=%d...' % (steps_allowed))
-
-            # make the mxstep bigger if the user specified a bigger max
-            if steps_allowed >= self.mxstep:
-                break
-            else:
-                steps_allowed *= 10
-                if steps_allowed > self.mxstep:
-                    steps_allowed = self.mxstep
-
-        sys.stderr.write('odeint failed entirely\n')
-
-        return SSAResult(timepoints,results * np.nan)
-
-
-    cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints):
-        return self._helper_simulate(sim,timepoints)
-
-
-def perr(string):
-    sys.stderr.write(string + '\n')
-    sys.stderr.flush()
 
 cdef class SSASimulator(RegularSimulator):
     """
@@ -1458,9 +1517,10 @@ cdef class SSASimulator(RegularSimulator):
         cdef double final_time = timepoints[num_timepoints-1]
 
         cdef double current_time = sim.get_initial_time()
-        cdef double dt = sim.get_dt()
         cdef double proposed_time = 0.0
+        cdef double dt = sim.get_dt()
         cdef double Lambda = 0.0
+        cdef unsigned reaction_fired = 0
 
         cdef np.ndarray[np.double_t,ndim=2] c_results = np.zeros((num_timepoints, num_species),dtype=np.double)
         cdef np.ndarray[np.double_t,ndim=1] c_propensity = np.zeros(num_reactions)
@@ -1469,180 +1529,48 @@ cdef class SSASimulator(RegularSimulator):
         cdef unsigned current_index = 0
         cdef unsigned reaction_choice = 0
         cdef unsigned species_index = 0
+        cdef unsigned rule_step = 1
 
 
         while current_index < num_timepoints:
             # Compute propensity in place
-            sim.apply_repeated_rules(<double*> c_current_state.data,current_time)
+            sim.apply_repeated_rules(<double*> c_current_state.data,current_time, rule_step)
             sim.compute_stochastic_propensities(<double*> c_current_state.data, <double*> c_propensity.data,current_time)
             # Sample the next reaction time and update
             Lambda = cyrandom.array_sum(<double*> c_propensity.data,num_reactions)
 
             if Lambda == 0:
-                current_time = current_time + dt
-            else:
-                current_time = current_time + cyrandom.exponential_rv(Lambda)
-
-            # Update previous states
-            while current_index < num_timepoints and c_timepoints[current_index] < current_time:
-                for species_index in range(num_species):
-                    c_results[current_index,species_index] = c_current_state[species_index]
-                current_index += 1
-
-            # Choose a reaction and update the state accordingly.
-            if Lambda > 0:
-                reaction_choice = cyrandom.sample_discrete(num_reactions, <double*> c_propensity.data , Lambda)
-
-                for species_index in range(num_species):
-                    c_current_state[species_index] += c_stoich[species_index,reaction_choice]
-
-        return SSAResult(timepoints,c_results)
-
-cdef class SafeModeSSASimulator(RegularSimulator):
-    """
-    A class for implementing a stochastic SSA simulator.
-    """
-    cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints):
-        cdef np.ndarray[np.double_t,ndim=1] c_timepoints = timepoints
-        cdef np.ndarray[np.double_t,ndim=1] c_current_state = sim.get_initial_state().copy()
-        cdef np.ndarray[np.double_t,ndim=2] c_stoich = sim.get_update_array() + sim.get_delay_update_array()
-        cdef np.ndarray[np.double_t,ndim=2] c_delay_stoich = sim.get_delay_update_array()
-
-        cdef unsigned num_species = c_stoich.shape[0]
-        cdef unsigned num_reactions = c_stoich.shape[1]
-        cdef unsigned num_timepoints = len(timepoints)
-
-        cdef double final_time = timepoints[num_timepoints-1]
-
-        cdef double current_time = sim.get_initial_time()
-        cdef double dt = sim.get_dt()
-        cdef double proposed_time = 0.0
-        cdef double Lambda = 0.0
-
-        cdef np.ndarray[np.double_t,ndim=2] c_results = np.zeros((num_timepoints, num_species),dtype=np.double)
-        cdef np.ndarray[np.double_t,ndim=1] c_propensity = np.zeros(num_reactions)
-
-        # Now do the SSA part
-        cdef unsigned current_index = 0
-        cdef unsigned reaction_choice = 0
-        cdef unsigned species_index = 0
-        cdef unsigned reaction_index = 0
-
-
-        while current_index < num_timepoints:
-            # check for negative species
-            for species_index in range(num_species):
-                if c_current_state[species_index] < 0:
-                    raise RuntimeError('Species %d has a negative value of %f, possible last reaction: %d' %
-                            (species_index, c_current_state[species_index], reaction_choice))
-
-            # Compute propensity in place
-            sim.apply_repeated_rules(<double*> c_current_state.data,current_time)
-            sim.compute_stochastic_propensities(<double*> c_current_state.data, <double*> c_propensity.data,current_time)
-            # Sample the next reaction time and update
-            Lambda = cyrandom.array_sum(<double*> c_propensity.data,num_reactions)
-
-            for reaction_index in range(num_reactions):
-                if c_propensity[reaction_index] < 0:
-                    raise RuntimeError('Reaction %d has a negative propensity of %f' %
-                          (reaction_index, c_propensity[reaction_index]))
-
-            if Lambda == 0:
-                current_time = current_time + dt
-            else:
-                current_time = current_time + cyrandom.exponential_rv(Lambda)
-
-            # Update previous states
-            while current_index < num_timepoints and c_timepoints[current_index] < current_time:
-                for species_index in range(num_species):
-                    c_results[current_index,species_index] = c_current_state[species_index]
-                current_index += 1
-
-            # Choose a reaction and update the state accordingly.
-            if Lambda > 0:
-                reaction_choice = cyrandom.sample_discrete(num_reactions, <double*> c_propensity.data , Lambda)
-
-                for species_index in range(num_species):
-                    c_current_state[species_index] += c_stoich[species_index,reaction_choice]
-
-        return SSAResult(timepoints,c_results)
-
-
-
-
-cdef class TimeDependentSSASimulator(RegularSimulator):
-    """
-    A class for implementing a stochastic SSA simulator.
-    """
-    cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints):
-        cdef np.ndarray[np.double_t,ndim=1] c_timepoints = timepoints
-        cdef np.ndarray[np.double_t,ndim=1] c_current_state = sim.get_initial_state().copy()
-        cdef np.ndarray[np.double_t,ndim=2] c_stoich = sim.get_update_array() + sim.get_delay_update_array()
-        cdef np.ndarray[np.double_t,ndim=2] c_delay_stoich = sim.get_delay_update_array()
-
-        cdef unsigned num_species = c_stoich.shape[0]
-        cdef unsigned num_reactions = c_stoich.shape[1]
-        cdef unsigned num_timepoints = len(timepoints)
-
-        cdef double final_time = timepoints[num_timepoints-1]
-
-        cdef double current_time = sim.get_initial_time()
-        cdef double proposed_time = 0.0
-        cdef double Lambda = 0.0
-        cdef double dt = sim.get_dt()
-
-        cdef np.ndarray[np.double_t,ndim=2] c_results = np.zeros((num_timepoints, num_species),dtype=np.double)
-        cdef np.ndarray[np.double_t,ndim=1] c_propensity = np.zeros(num_reactions)
-
-        # Now do the SSA part
-        cdef unsigned current_index = 0
-        cdef unsigned reaction_choice = 0
-        cdef unsigned species_index = 0
-
-        cdef unsigned apply_reaction_flag = 0
-
-        while current_index < num_timepoints:
-            # Compute propensity in place
-            sim.apply_repeated_rules(<double*> c_current_state.data,current_time)
-            sim.compute_stochastic_propensities(<double*> c_current_state.data, <double*> c_propensity.data,current_time)
-            # Sample the next reaction time and update
-            Lambda = cyrandom.array_sum(<double*> c_propensity.data,num_reactions)
-
-            if Lambda == 0:
-                proposed_time = final_time + 1
+                proposed_time = c_timepoints[current_index]
+                reaction_fired = 0
+                rule_step = 1
             else:
                 proposed_time = current_time + cyrandom.exponential_rv(Lambda)
+                reaction_fired = 1
+                rule_step = 0
 
-            # update current time to either proposed time or the current time + dt.
-            # in the first case, apply a reaction. in the latter case, do nothing.
 
-            if proposed_time <= current_time + dt:
-                current_time = proposed_time
-                apply_reaction_flag = 1
+            #Go to the next reaction or the next timepoint, whichever is closer
+            if proposed_time > c_timepoints[current_index]:
+                current_time = c_timepoints[current_index]
+                reaction_fired = 0
+                rule_step = 1
             else:
-                current_time += dt
-                apply_reaction_flag = 0
-
+                current_time = proposed_time
 
             # Update previous states
-            while current_index < num_timepoints and c_timepoints[current_index] < current_time:
+            while current_index < num_timepoints and c_timepoints[current_index] <= current_time:
                 for species_index in range(num_species):
                     c_results[current_index,species_index] = c_current_state[species_index]
                 current_index += 1
 
             # Choose a reaction and update the state accordingly.
-            if apply_reaction_flag:
+            if Lambda > 0 and reaction_fired:
                 reaction_choice = cyrandom.sample_discrete(num_reactions, <double*> c_propensity.data , Lambda)
 
                 for species_index in range(num_species):
                     c_current_state[species_index] += c_stoich[species_index,reaction_choice]
 
         return SSAResult(timepoints,c_results)
-
-
-
-
-
 
 
 cdef class DelaySimulator:
@@ -1684,6 +1612,7 @@ cdef class DelaySSASimulator(DelaySimulator):
         cdef unsigned num_timepoints = c_timepoints.shape[0]
 
 
+        cdef double dt = sim.get_dt()
         cdef double current_time = sim.get_initial_time()
         q.set_current_time(current_time)
         cdef double final_time = c_timepoints[num_timepoints-1]
@@ -1700,32 +1629,46 @@ cdef class DelaySSASimulator(DelaySimulator):
         cdef unsigned reaction_index = 4294967295
 
         cdef unsigned move_to_queued_time = 0
-        cdef next_queue_time = -10.0
+        cdef unsigned reaction_fired = 0
+        cdef double next_queue_time = -10.0
+        cdef unsigned rule_step = 1 #whether or not to fire rules
 
         # Do the SSA part now
 
         while current_index < num_timepoints:
             # Compute the propensity in place
-            sim.apply_repeated_rules(<double*> c_current_state.data, current_time)
+            sim.apply_repeated_rules(<double*> c_current_state.data, current_time, rule_step)
             sim.compute_stochastic_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data), current_time)
             Lambda = cyrandom.array_sum(<double*> (c_propensity.data), num_reactions)
 
             # Either we are going to move to the next queued time, or we move to the next reaction time.
             if Lambda == 0:
-                proposed_time = final_time+1
+                proposed_time = c_timepoints[current_index]
+                reaction_fired = 0
+                rule_step = 1
             else:
                 proposed_time = current_time + cyrandom.exponential_rv(Lambda)
+                reaction_fired = 1
+                rule_step = 0
+
+            #Go to the next reaction or the next timepoint, whichever is closer
+            if proposed_time > c_timepoints[current_index]:
+                proposed_time = c_timepoints[current_index]
+                reaction_fired = 0
+                rule_step = 1
 
             next_queue_time = q.get_next_queue_time()
             if next_queue_time < proposed_time:
                 current_time = next_queue_time
                 move_to_queued_time = 1
+                reaction_fired = 0
+                rule_step = 0
             else:
                 current_time = proposed_time
                 move_to_queued_time = 0
 
             # Update the results array with the state for the time period that we just jumped through.
-            while current_index < num_timepoints and c_timepoints[current_index] < current_time:
+            while current_index < num_timepoints and c_timepoints[current_index] <= current_time:
                 for species_index in range(num_species):
                     c_results[current_index,species_index] = c_current_state[species_index]
                 current_index += 1
@@ -1747,7 +1690,7 @@ cdef class DelaySSASimulator(DelaySimulator):
 
 
             # if an actual reaction happened, do the reaction and maybe update the queue as well.
-            else:
+            elif reaction_fired:
                 # select a reaction
                 reaction_choice = cyrandom.sample_discrete(num_reactions, <double*> c_propensity.data, Lambda )
                 # Compute the delay for the reaction.
@@ -1823,6 +1766,8 @@ cdef class VolumeSSASimulator(VolumeSimulator):
         cdef double delta_t = sim.get_dt()
         cdef double next_queue_time = delta_t+current_time
         cdef unsigned move_to_queued_time = 0
+        cdef unsigned reaction_fired = 0
+        cdef unsigned rule_step = 1
 
         cdef double current_volume = v.get_volume()
         cdef unsigned cell_divided = 0
@@ -1832,26 +1777,34 @@ cdef class VolumeSSASimulator(VolumeSimulator):
 
         while current_index < num_timepoints:
             # Compute the propensity in place
-            sim.apply_repeated_volume_rules(<double*> c_current_state.data, current_volume, current_time)
+            sim.apply_repeated_volume_rules(<double*> c_current_state.data, current_volume, current_time, rule_step)
             sim.compute_stochastic_volume_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data),
                                             current_volume, current_time)
             Lambda = cyrandom.array_sum(<double*> (c_propensity.data), num_reactions)
 
             # Either we are going to move to the next queued time, or we move to the next reaction time.
             if Lambda == 0:
-                proposed_time = final_time+1
+                proposed_time = c_timepoints[current_index]
+                reaction_fired = 0
+                rule_step = 1
+                move_to_queued_time = 1
             else:
                 proposed_time = current_time + cyrandom.exponential_rv(Lambda)
+                reaction_fired = 1
+                rule_step = 0
+                move_to_queued_time = 0
+
             if next_queue_time < proposed_time:
                 current_time = next_queue_time
                 next_queue_time += delta_t
                 move_to_queued_time = 1
+                reaction_fired = 0
+                rule_step = 1
             else:
                 current_time = proposed_time
-                move_to_queued_time = 0
 
             # Update the results array with the state for the time period that we just jumped through.
-            while current_index < num_timepoints and c_timepoints[current_index] < current_time:
+            while current_index < num_timepoints and c_timepoints[current_index] <= current_time:
                 for species_index in range(num_species):
                     c_results[current_index,species_index] = c_current_state[species_index]
                 c_volume_trace[current_index] = current_volume
@@ -1873,7 +1826,7 @@ cdef class VolumeSSASimulator(VolumeSimulator):
                     break
 
             # if an actual reaction happened, do the reaction and maybe update the queue as well.
-            else:
+            elif reaction_fired:
                 # select a reaction
                 reaction_choice = cyrandom.sample_discrete(num_reactions, <double*> c_propensity.data, Lambda )
 
@@ -1959,12 +1912,13 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
         cdef double computed_delay = 0.0
 
         cdef unsigned short step_type = 0 # this variable is 0 if reaction, 1 if volume, 2 if delayed reaction
+        cdef unsigned rule_step = 1
 
         # Do the SSA part now
 
         while current_index < num_timepoints:
             # Compute the propensity in place
-            sim.apply_repeated_volume_rules(<double*> c_current_state.data, current_volume, current_time)
+            sim.apply_repeated_volume_rules(<double*> c_current_state.data, current_volume, current_time, rule_step)
             sim.compute_stochastic_volume_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data),
                                             current_volume, current_time)
             Lambda = cyrandom.array_sum(<double*> (c_propensity.data), num_reactions)
@@ -1972,25 +1926,33 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
             # Either we are going to move to the next volume time, delay time, or reaction time.
 
             if Lambda == 0:
-                proposed_time = final_time + 1
+                proposed_time = c_timepoints[current_index]
+                step_type = 2
+                rule_step = 1
             else:
                 proposed_time = current_time + cyrandom.exponential_rv(Lambda)
+                step_type = 0
+                rule_step = 0
+
             next_queued_reaction_time = q.get_next_queue_time()
 
             if proposed_time < next_vol_time and proposed_time < next_queued_reaction_time:
                 current_time = proposed_time
                 step_type = 0
+
             elif next_vol_time < next_queued_reaction_time:
                 current_time = next_vol_time
                 next_vol_time += delta_t
                 step_type = 1
+                rule_step = 1
             else:
                 current_time = next_queued_reaction_time
                 step_type = 2
+                rule_step = 0
 
 
             # Update the results array with the state for the time period that we just jumped through.
-            while current_index < num_timepoints and c_timepoints[current_index] < current_time:
+            while current_index < num_timepoints and c_timepoints[current_index] <= current_time:
                 for species_index in range(num_species):
                     c_results[current_index,species_index] = c_current_state[species_index]
                 c_volume_trace[current_index] = current_volume
@@ -2057,6 +2019,8 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
 #A wrapper function to allow easy simulation of Models
 def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = False, 
                     delay = None, safe = False, volume = False, return_dataframe = True):
+    
+
     #Check model and interface
     if Model is None and Interface is None:
         raise ValueError("py_simulate_model requires either a Model or CSimInterface to be passed in.")
@@ -2067,8 +2031,16 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
             Interface = SafeModelCSimInterface(Model)
         else:
             Interface = ModelCSimInterface(Model)
+
     elif not Interface is None and safe:
         logging.info("Cannot gaurantee that the interface passed in is safe. Simulating anyway.")
+
+    #check timestep
+    dt = timepoints[1]-timepoints[0]
+    if not np.allclose(timepoints[1:] - timepoints[:-1], dt):
+        raise ValueError("the timestep in timepoints is not uniform! Timepoints must be a linear set of points.")
+    else:
+        Interface.py_set_dt(dt)
 
     #Create Volume (if necessary)
     if isinstance(volume, Volume):
@@ -2120,90 +2092,5 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
         return result.py_get_dataframe(Model = Model)
     else:
         return result
-
-
-cdef list propagate_cell(ModelCSimInterface sim, VolumeCellState cell, double end_time,
-                               VolumeSimulator vsim, VolumeSplitter vsplit):
-    cells_to_simulate = [cell]
-    cell.set_volume_object(cell.get_volume_object().copy())
-    cells_to_return = []
-    index = 0
-
-    cdef VolumeCellState cs,d1,d2
-    cdef np.ndarray timepoints
-    cdef VolumeSSAResult r
-    cdef np.ndarray daughters
-
-    while index < len(cells_to_simulate):
-        cs = cells_to_simulate[index]
-        index += 1
-
-        sim.set_initial_state(cs.get_state())
-        sim.set_initial_time(cs.get_time())
-        timepoints = np.linspace(cs.get_time(),end_time,int( (end_time-cs.get_time())/sim.get_dt() )+10)
-        r = vsim.volume_simulate(sim, cs.get_volume_object(), timepoints)
-
-        cs = r.get_final_cell_state()
-        if cs.get_time() >= end_time - sim.get_dt() - 1E-8:
-            cs.set_time(end_time)
-            cells_to_return.append(cs)
-
-        else:
-            daughters = vsplit.partition(cs)
-            d1 = <VolumeCellState>(daughters[0])
-            d2 = <VolumeCellState>(daughters[1])
-
-            d1.set_volume_object(cs.get_volume_object().copy())
-            d1.get_volume_object().initialize(<double*> d1.get_state().data,sim.get_param_values(),
-                                              d1.get_time(), d1.get_volume())
-            d2.set_volume_object(cs.get_volume_object().copy())
-            d2.get_volume_object().initialize(<double*> d2.get_state().data,sim.get_param_values(),
-                                              d2.get_time(), d2.get_volume())
-            cells_to_simulate.append(d1)
-            cells_to_simulate.append(d2)
-
-    return cells_to_return
-
-def py_propagate_cell(ModelCSimInterface sim, VolumeCellState cell, double end_time,
-                               VolumeSimulator vsim, VolumeSplitter vsplit):
-    """
-    Move a cell forward in time including division and partitioning
-    :param sim: (ModelCSimInterface) the model to use to simulate
-    :param cell: (VolumeCellState) the initial cell state to start from
-    :param end_time: (double) the final time of the simulation
-    :param vsim: (VolumeSimulator) simulator object that handles volume and division
-    :param vsplit: (VolumeSplitter) splitter for cell division
-    :return: (list) VolumeCellState corresponding to this cell (or its lineage) in the future. If
-              the cell divided there will be muliple entries
-    """
-    return propagate_cell(sim,cell,end_time, vsim,vsplit)
-
-cdef list propagate_cells(ModelCSimInterface sim, list cells, double end_time,
-                          VolumeSimulator vsim, VolumeSplitter vsplit):
-    cdef VolumeCellState cell
-    cdef unsigned index
-    cdef unsigned size = len(cells)
-    cdef list cells_to_return = []
-
-    for index in range(size):
-        cell = cells[index]
-        cells_to_return.extend(propagate_cell(sim,cell,end_time,vsim,vsplit))
-
-    return cells_to_return
-
-
-def py_propagate_cells(ModelCSimInterface sim, list cells, double end_time,
-                          VolumeSimulator vsim, VolumeSplitter vsplit):
-    """
-    Move a population of cells forward in time.
-    :param sim: (ModelCSimInterface) the model to use to simulate
-    :param cells: list of (VolumeCellState) the initial cell states to start from
-    :param end_time: (double) the final time of the simulation
-    :param vsim: (VolumeSimulator) simulator object that handles volume and division
-    :param vsplit: (VolumeSplitter) splitter for cell division
-    :return: (list) VolumeCellState corresponding to this cells in the future. If
-              the cells divided there will be muliple entries for each original cell
-    """
-    return propagate_cells(sim,cells,end_time,vsim,vsplit)
 
 

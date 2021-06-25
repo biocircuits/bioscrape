@@ -175,4 +175,52 @@ def test_sbml_resaving_global_params_no_bs_annotation():
     assert all(R4["X"] == R4l["X"])
     assert all(R4["Y"] == R4l["Y"])
     assert all(R4["Z"] == R4l["Z"])
-    
+
+def test_delay_annotation():
+    """Tests reaction annotation in SBML file for Bioscrape delays, and load accordingly.
+    """
+    model_path = os.path.join(os.path.dirname(__file__), "frozen_sbml_outputs")
+    timepoints = np.arange(0, 10, .1)
+    species = ["G", "T", "X", "I", "X_m"]
+    params = [("ktx", 1.5), ("ktl", 10.0), ("KI", 10), ("n", 2.0), ("KR", 20), ("delta", .1)]
+    rxn1d = (["G"], ["G"], "proportionalhillpositive", {"d":"G", "s1":"I", "k":"ktx", "K":"KI", "n":"n"},
+       "gaussian", [], ["T"], {"mean":10.0, "std":1.0})
+    rxn2d = (["T"], ["T"], "hillpositive", {"s1":"T", "k":"ktl", "K":"KR", "n":1},
+            "gamma", [], ["X"], {"k":10.0, "theta":3.0})
+    rxn3d = (["X"], [], "massaction", {"k":0.1},
+            "fixed", [], ["X_m"], {"delay":10.0})
+    rxns_delay = [rxn1d, rxn2d, rxn3d]
+    M_delay = Model(species = species, parameters = params, reactions = rxns_delay)
+    # Uncomment to create new delay_model in frozeon_sbml_outputs folder.
+    M_delay.write_sbml_model(os.path.join(model_path, "models", "delay_model.xml"))
+    sbml_delay = os.path.join(model_path, "models", "delay_model.xml")
+    CRN1 = Model(sbml_filename = sbml_delay, sbml_warnings = False, input_printout = False)
+    reader = libsbml.SBMLReader()
+    doc = reader.readSBML(sbml_delay)
+    sbml_model = doc.getModel()
+    annotation_rxn1 = "<annotation>\n<BioscrapeAnnotation>\n"\
+                      "<PropensityType> type=proportionalhillpositive k=ktx K=KI n=n s1=I d=G</PropensityType>\n"\
+                      "<DelayType> type=gaussian reactants= products=T "\
+                      "mean=DummyVar_GaussianDelay_mean_0 std=DummyVar_GaussianDelay_std_1</DelayType>"\
+                      "\n</BioscrapeAnnotation>\n</annotation>"
+    annotation_rxn2 = "<annotation>\n<BioscrapeAnnotation>\n"\
+                      "<PropensityType> type=hillpositive k=ktl K=KR n=DummyVar_PositiveHillPropensity_n_2 s1=T</PropensityType>\n"\
+                      "<DelayType> type=gamma reactants= products=X "\
+                      "k=DummyVar_GammaDelay_k_3 theta=DummyVar_GammaDelay_theta_4</DelayType>"\
+                      "\n</BioscrapeAnnotation>\n</annotation>"
+    annotation_rxn3 = "<annotation>\n<BioscrapeAnnotation>\n"\
+                      "<PropensityType> type=massaction k=DummyVar_UnimolecularPropensity_k_5</PropensityType>\n"\
+                      "<DelayType> type=fixed reactants= products=X_m delay=DummyVar_FixedDelay_delay_6</DelayType>"\
+                      "\n</BioscrapeAnnotation>\n</annotation>"
+    assert sbml_model.getReaction(0).getAnnotationString().replace(" ", "") == annotation_rxn1.replace(" ", "")
+    assert sbml_model.getReaction(1).getAnnotationString().replace(" ", "") == annotation_rxn2.replace(" ", "")
+    assert sbml_model.getReaction(2).getAnnotationString().replace(" ", "") == annotation_rxn3.replace(" ", "")
+    R1 = py_simulate_model(Model = CRN1, timepoints = timepoints)
+    R2 = py_simulate_model(Model = M_delay, timepoints = timepoints)
+    #Compare that all the outputs are equal
+    assert all(R1["G"] == R2["G"])
+    assert all(R1["T"] == R2["T"])
+    assert all(R1["X"] == R2["X"])
+    assert all(R1["X_m"] == R2["X_m"])
+    assert all(R1["I"] == R2["I"])
+    assert set(R1.columns) == set(R2.columns)

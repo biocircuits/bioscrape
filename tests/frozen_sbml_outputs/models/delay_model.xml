@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version2/core" level="3" version="2">
+  <model id="bioscrape_generated_model_174107" substanceUnits="mole" timeUnits="second" volumeUnits="litre" areaUnits="square_metre" lengthUnits="metre" extentUnits="mole">
+    <listOfUnitDefinitions>
+      <unitDefinition id="square_metre" name="square_metre">
+        <listOfUnits>
+          <unit kind="metre" exponent="2" scale="0" multiplier="1"/>
+        </listOfUnits>
+      </unitDefinition>
+    </listOfUnitDefinitions>
+    <listOfCompartments>
+      <compartment id="default" name="default" spatialDimensions="3" size="1e-06" constant="true"/>
+    </listOfCompartments>
+    <listOfSpecies>
+      <species id="G" name="G" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="I" name="I" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="T" name="T" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="X" name="X" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="X_m" name="X_m" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+    </listOfSpecies>
+    <listOfParameters>
+      <parameter id="DummyVar_FixedDelay_delay_6" name="DummyVar_FixedDelay_delay_6" value="10" constant="true"/>
+      <parameter id="DummyVar_GammaDelay_k_3" name="DummyVar_GammaDelay_k_3" value="10" constant="true"/>
+      <parameter id="DummyVar_GammaDelay_theta_4" name="DummyVar_GammaDelay_theta_4" value="3" constant="true"/>
+      <parameter id="DummyVar_GaussianDelay_mean_0" name="DummyVar_GaussianDelay_mean_0" value="10" constant="true"/>
+      <parameter id="DummyVar_GaussianDelay_std_1" name="DummyVar_GaussianDelay_std_1" value="1" constant="true"/>
+      <parameter id="DummyVar_PositiveHillPropensity_n_2" name="DummyVar_PositiveHillPropensity_n_2" value="1" constant="true"/>
+      <parameter id="DummyVar_UnimolecularPropensity_k_5" name="DummyVar_UnimolecularPropensity_k_5" value="0.1" constant="true"/>
+      <parameter id="KI" name="KI" value="10" constant="true"/>
+      <parameter id="KR" name="KR" value="20" constant="true"/>
+      <parameter id="delta" name="delta" value="0.1" constant="true"/>
+      <parameter id="ktl" name="ktl" value="10" constant="true"/>
+      <parameter id="ktx" name="ktx" value="1.5" constant="true"/>
+      <parameter id="n" name="n" value="2" constant="true"/>
+    </listOfParameters>
+    <listOfReactions>
+      <reaction id="r0" name="r0" reversible="false">
+        <annotation>
+          <BioscrapeAnnotation>
+            <PropensityType> type=proportionalhillpositive k=ktx K=KI n=n s1=I d=G</PropensityType>
+            <DelayType> type=gaussian reactants= products=T mean=DummyVar_GaussianDelay_mean_0 std=DummyVar_GaussianDelay_std_1</DelayType>
+          </BioscrapeAnnotation>
+        </annotation>
+        <listOfReactants>
+          <speciesReference species="G" stoichiometry="1" constant="false"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference species="G" stoichiometry="1" constant="false"/>
+        </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference species="I"/>
+        </listOfModifiers>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <divide/>
+              <apply>
+                <times/>
+                <ci> ktx </ci>
+                <ci> G </ci>
+                <apply>
+                  <power/>
+                  <ci> I </ci>
+                  <ci> n </ci>
+                </apply>
+              </apply>
+              <apply>
+                <plus/>
+                <apply>
+                  <power/>
+                  <ci> I </ci>
+                  <ci> n </ci>
+                </apply>
+                <ci> KI </ci>
+              </apply>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r1" name="r1" reversible="false">
+        <annotation>
+          <BioscrapeAnnotation>
+            <PropensityType> type=hillpositive k=ktl K=KR n=DummyVar_PositiveHillPropensity_n_2 s1=T</PropensityType>
+            <DelayType> type=gamma reactants= products=X k=DummyVar_GammaDelay_k_3 theta=DummyVar_GammaDelay_theta_4</DelayType>
+          </BioscrapeAnnotation>
+        </annotation>
+        <listOfReactants>
+          <speciesReference species="T" stoichiometry="1" constant="false"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference species="T" stoichiometry="1" constant="false"/>
+        </listOfProducts>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <divide/>
+              <apply>
+                <times/>
+                <ci> ktl </ci>
+                <apply>
+                  <power/>
+                  <ci> T </ci>
+                  <ci> n </ci>
+                </apply>
+              </apply>
+              <apply>
+                <plus/>
+                <apply>
+                  <power/>
+                  <ci> T </ci>
+                  <ci> DummyVar_PositiveHillPropensity_n_2 </ci>
+                </apply>
+                <ci> KR </ci>
+              </apply>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r2" name="r2" reversible="false">
+        <annotation>
+          <BioscrapeAnnotation>
+            <PropensityType> type=massaction k=DummyVar_UnimolecularPropensity_k_5</PropensityType>
+            <DelayType> type=fixed reactants= products=X_m delay=DummyVar_FixedDelay_delay_6</DelayType>
+          </BioscrapeAnnotation>
+        </annotation>
+        <listOfReactants>
+          <speciesReference species="X" stoichiometry="1" constant="false"/>
+        </listOfReactants>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <times/>
+              <ci> DummyVar_UnimolecularPropensity_k_5 </ci>
+              <ci> X </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+    </listOfReactions>
+  </model>
+</sbml>

@@ -392,7 +392,8 @@ class InferenceSetup(object):
             if not convergence_check:
                 warnings.warn('MCMC diagnostics cannot be printed when convergence check is False.')
                 self.convergence_diagnostics = {}
-            self.convergence_diagnostics = {'Autocorrelation time for each parameter':self.autocorrelation_time,
+            else:
+                self.convergence_diagnostics = {'Autocorrelation time for each parameter':self.autocorrelation_time,
                                     'Acceptance fraction (fraction of steps that were accepted)':sampler.acceptance_fraction}
         # Write results
         import csv
@@ -402,12 +403,11 @@ class InferenceSetup(object):
             if convergence_diagnostics:
                 writer.writerow('\nMCMC convrgence diagnostics\n')
                 writer.writerow(self.convergence_diagnostics)
+            writer.writerows(sampler.get_chain(flat = True))
             writer.writerow('\nCost function progress\n')
             writer.writerow(self.cost_progress)
             f.close()
         print('Successfully completed MCMC parameter identification procedure. Parameter distribution data written to mcmc_results.csv file. Check the MCMC diagnostics to evaluate convergence.')
-        if convergence_diagnostics:
-            print(self.convergence_diagnostics)
         return sampler
     
     def plot_mcmc_results(self, sampler, plot_show = True, **kwargs):

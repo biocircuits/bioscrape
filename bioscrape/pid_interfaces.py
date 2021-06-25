@@ -155,8 +155,8 @@ class PIDInterface():
             raise ValueError('No prior found')
         alpha = prior_dict[param_name][1]
         beta = prior_dict[param_name][2]
-        import scipy.special.beta as beta_func
-        prob = (param_value**(alpha-1) * (1 - param_value)**(beta - 1) )/beta_func(alpha, beta)
+        from scipy import special
+        prob = (param_value**(alpha-1) * (1 - param_value)**(beta - 1) )/special.beta(alpha, beta)
         if prob < 0:
             warnings.warn('Probability less than 0 while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
@@ -181,7 +181,6 @@ class PIDInterface():
             return np.inf
 
         prob = 1/(param_value* (np.log(upper_bound) - np.log(lower_bound)))
-
         if prob < 0:
             warnings.warn('Probability less than 0 while checking Log-Uniform prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf

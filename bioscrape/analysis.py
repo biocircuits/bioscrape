@@ -67,42 +67,39 @@ class SensitivityAnalysis(Model):
         # store the variable with respect to which we approximate the differentiation (df/dvar)
         state_input = np.array(x)
         for i in range(n):
+            f_0 = self._evaluate_model(state_input)[i]
             for j in range(n):
                 h = state_input[j]*self.dx
-                # h = self.dx
-                # Gets O(h^4) central difference on df_i/dvar_j
-                if h != 0:
-                    x = np.array(state_input)
-                    f_0 = self._evaluate_model(x)[i]
+                if h == 0:
+                    raise ValueError('Small parameter exactly equal to 0, cannot compute Zj')
+                x = np.array(state_input)
+                x[j] = x[j] + h
+                f_h = self._evaluate_model(x)[i]
+                x = np.array(state_input)
+                x[j] = x[j] - h
+                f_mh = self._evaluate_model(x)[i]
+                if method == 'fourth_order_central_difference':
+                    # Gets O(h^4) central difference on df_i/dvar_j
                     x = np.array(state_input)
                     x[j] = x[j] + 2*h
                     f_2h = self._evaluate_model(x)[i]
                     x = np.array(state_input)
-                    x[j] = x[j] + h
-                    f_h = self._evaluate_model(x)[i]
-                    x = np.array(state_input)
-                    x[j] = x[j] - h
-                    f_mh = self._evaluate_model(x)[i]
-                    x = np.array(state_input)
                     x[j] = x[j] - 2*h
                     f_m2h = self._evaluate_model(x)[i]
-                    x = np.array(state_input)
-                    if method == 'fourth_order_central_difference':
-                        # compute these only when needed
-                        J[i,j]= (-f_2h + 8*f_h - 8*f_mh + f_m2h)/(12*h)
-                    if method == 'central_difference':
-                        J[i,j]= (f_h - f_mh)/(2*h) 
-                    if method == 'backward_difference':
-                        J[i,j]= (f_0 - f_mh)/h
-                    if method == 'forward_difference':
-                        J[i,j]= (f_h - f_0)/h
-                    # Error check
-                    if J[i, j] == np.Inf:
-                        warnings.warn('Inf found while computing the Jacobian.')
-                        J[i, j] = 1
-                    elif J[i, j] == np.NaN:
-                        warnings.warn('NaN found while conputing the Jacobian.')
-                        J[i, j] = 0
+                    J[i,j]= (-f_2h + 8*f_h - 8*f_mh + f_m2h)/(12*h)
+                if method == 'central_difference':
+                    J[i,j]= (f_h - f_mh)/(2*h) 
+                if method == 'backward_difference':
+                    J[i,j]= (f_0 - f_mh)/h
+                if method == 'forward_difference':
+                    J[i,j]= (f_h - f_0)/h
+                # Error check
+                if J[i, j] == np.Inf:
+                    warnings.warn('Inf found while computing the Jacobian. Replacing by 1. Check model.')
+                    J[i, j] = 1
+                elif J[i, j] == np.NaN:
+                    warnings.warn('NaN found while conputing the Jacobian. Replacing 0. Check model.')
+                    J[i, j] = 0
         return J
         
     def compute_Zj(self, x, param_name, **kwargs):
@@ -116,47 +113,47 @@ class SensitivityAnalysis(Model):
         x = np.array(x, dtype = 'float64')
         n = len(x)
         Z = np.zeros(n)    
-        params_dict = dict(self.M.get_parameter_dictionary())
+        params_dict = self.original_parameters
+        h = params_dict[param_name]*self.dx # Small parameter for this parameter
         # For each state
         for i in range(n):
-            h = params_dict[param_name]*0.01 # Small parameter for this parameter
-            # Gets O(4) central difference on dfi/dpj
-            if h != 0:
+            if h == 0:
+                raise ValueError('Small parameter exactly equal to 0, cannot compute Zj')
+            f_0 = self._evaluate_model(x, params_dict)[i]
+            params_dict = self.original_parameters
+            params_dict[param_name] = params_dict[param_name] + h
+            self.M.set_params(params_dict)
+            f_h = self._evaluate_model(x, params_dict)[i]
+            # Reset
+            params_dict = self.original_parameters
+            params_dict[param_name] = params_dict[param_name] - h
+            self.M.set_params(params_dict)
+            f_mh = self._evaluate_model(x, params_dict)[i]
+            if method == 'fourth_order_central_difference':
+                # Gets O(4) central difference on dfi/dpj
                 params_dict = self.original_parameters
-                self.M.set_params(params_dict)
                 params_dict[param_name] = params_dict[param_name] + 2*h
+                self.M.set_params(params_dict)
                 f_2h = self._evaluate_model(x, params_dict)[i]
-
                 params_dict = self.original_parameters
-                self.M.set_params(params_dict)
-                params_dict[param_name] = params_dict[param_name] + h
-                f_h = self._evaluate_model(x, params_dict)[i]
-
-                params_dict = self.original_parameters
-                self.M.set_params(params_dict)
-                params_dict[param_name] = params_dict[param_name] - h
-                f_mh = self._evaluate_model(x, params_dict)[i]
-
-                params_dict = self.original_parameters
-                self.M.set_params(params_dict)
                 params_dict[param_name] = params_dict[param_name] - 2*h
+                self.M.set_params(params_dict)
                 f_m2h = self._evaluate_model(x, params_dict)[i]
                 #Store approx. dfi/dp[param_name] into Z
-                if method == 'fourth_order_central_difference':
-                    Z[i]= (-f_2h + 8*f_h - 8*f_mh + f_m2h)/(12*h)
-                if method == 'central_difference':
-                    Z[i]= (f_h - f_mh)/(2*h) 
-                if method == 'backward_difference':
-                    Z[i]= (f_0 - f_mh)/h
-                if method == 'forward_difference':
-                    Z[i]= (f_h - f_0)/h
-                # Error check
-                if Z[i] == np.Inf:
-                    warnings.warn('Inf found')
-                    Z[i] = 1
-                elif Z[i] == np.NaN:
-                    warnings.warn('NaN found')
-                    Z[i] = 0
+                Z[i]= (-f_2h + 8*f_h - 8*f_mh + f_m2h)/(12*h)
+            if method == 'central_difference':
+                Z[i]= (f_h - f_mh)/(2*h) 
+            if method == 'backward_difference':
+                Z[i]= (f_0 - f_mh)/h
+            if method == 'forward_difference':
+                Z[i]= (f_h - f_0)/h
+            # Error check
+            if Z[i] == np.Inf:
+                warnings.warn('Inf found while compute Zj, replacing by 1. Check model.')
+                Z[i] = 1
+            elif Z[i] == np.NaN:
+                warnings.warn('NaN found while compute Zj, replacing by 0. Check model.')
+                Z[i] = 0
         return Z
 
     def compute_SSM(self, solutions, timepoints, normalize = False, **kwargs):
@@ -206,11 +203,11 @@ class SensitivityAnalysis(Model):
         return SSM
 
     def normalize_SSM(self, SSM, solutions, params_values):
-        '''
+        """
         Returns normalized sensitivity coefficients. 
         Multiplies each sensitivity coefficient with the corresponding parameter p_j
         Divides the result by the corresponding state to obtain the normalized coefficient that is returned.
-        '''
+        """
         n = np.shape(solutions)[1]
         SSM_normalized = np.zeros(np.shape(SSM))
         for j in range(len(params_values)):

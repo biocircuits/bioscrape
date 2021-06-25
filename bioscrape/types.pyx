@@ -13,6 +13,7 @@ from sympy.abc import _clash1
 import warnings
 import logging
 import libsbml
+import cython
 from bioscrape.sbmlutil import add_species, add_parameter, add_reaction, add_rule, create_sbml_model, import_sbml
 
 from libc.math cimport log, sqrt, cos, round, exp, fabs
@@ -59,7 +60,8 @@ cdef class Propensity:
         :param time: (double) the current time
         :return: (double) computed propensity, should be non-negative
         """
-        return -1.0
+        #By default, volume propensitiesa are the same as regular propensities, unless otherwise noted
+        return self.get_propensity(state, params, time)
 
 
     cdef double get_stochastic_propensity(self, double* state, double* params, double time):
@@ -94,7 +96,7 @@ cdef class Propensity:
     def get_species_and_parameters(self, dict fields, **keywords):
         """
         get which fields are species and which are parameters
-        :param dict(str-->str) dictionary containing the XML attributes for that propensity to process.
+        :param dict(str-->str) dictionary containing the propensity to process.
         :return: (list(string), list(string)) First entry is the names of species, second entry is the names of parameters
         """
         return (None,None)
@@ -403,35 +405,13 @@ cdef class MassActionPropensity(Propensity):
         for i in range(len(self.sp_inds)):
             for j in range(self.sp_counts[i]):
                 ans *= max(state[self.sp_inds[i]]-j, 0)
-
         return ans
 
-    cdef double get_volume_propensity(self, double *state, double *params,
-                                      double volume, double time):
-        cdef double ans = params[self.k_index]
-        cdef int i
-        for i in range(self.num_species):
-            ans *= state[self.sp_inds[i]]
-        if self.num_species == 1:
-            return ans
-        elif self.num_species == 2:
-            return ans / volume
-        elif self.num_species == 0:
-            return ans * volume
-        else:
-            return ans / (volume ** (self.num_species - 1) )
+    cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
+        return self.get_propensity(state, params, time) / (volume ** (self.num_species - 1) )
 
     cdef double get_stochastic_volume_propensity(self, double *state, double *params, double volume, double time):
-
-        cdef double ans = self.get_stochastic_propensity(state, params, time)
-        if self.num_species == 0:
-            return ans*volume
-        elif self.num_species == 1:
-            return ans
-        elif self.num_species == 2:
-            return ans / volume
-        else:
-            return ans / (volume ** (self.num_species - 1))
+        return self.get_stochastic_propensity(state, params, time) / (volume ** (self.num_species - 1))
 
 
     def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
@@ -474,7 +454,7 @@ cdef class MassActionPropensity(Propensity):
 ######################################              PARSING                             ##############################
 #################################################                     ################################################
 
-
+@cython.auto_pickle(True)
 cdef class Term:
     cdef double evaluate(self, double *species, double *params, double time):
         raise SyntaxError('Cannot make Term base object')
@@ -492,7 +472,7 @@ cdef class Term:
                                     vol, time)
 
 # Base building blocks
-
+@cython.auto_pickle(True)
 cdef class ConstantTerm(Term):
 
     def __init__(self, double val):
@@ -503,9 +483,8 @@ cdef class ConstantTerm(Term):
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return self.value
 
+@cython.auto_pickle(True)
 cdef class SpeciesTerm(Term):
-
-
     def __init__(self, unsigned ind):
         self.index = ind
 
@@ -514,8 +493,8 @@ cdef class SpeciesTerm(Term):
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return species[self.index]
 
+@cython.auto_pickle(True)
 cdef class ParameterTerm(Term):
-
     def __init__(self, unsigned ind):
         self.index = ind
 
@@ -532,16 +511,37 @@ cdef class VolumeTerm(Term):
 
 # Putting stuff together
 
-cdef class SumTerm(Term):
+#   To make BinaryTerms picklable, we need to use a __reduce__ 
+#   function, which needs to return a function that can reconstruct a BinaryTerm
+#   from a state. Internally-defined functions can't be pickled, so that 
+#   function has to be external to the class. Thus, we need this function.
+# 
+#   I also tried to make BinaryTerms picklable using __getstate__ and 
+#   __setstate__, which would obviate the need for this ugly external function,
+#   but that resulted in mysterious errors about calling unsafe __new__() 
+#   methods, which I couldn't resolve. Sorry. =(
+def restore_binary_term(state, ClassName):
+    new_term = ClassName()
+    if state is not None:
+        for i, x in enumerate(state):
+            new_term.py_add_term(x)
+    return new_term
 
-
+cdef class BinaryTerm(Term):
     def __init__(self):
         self.terms_list = []
+
+    def __reduce__(self):
+        return (restore_binary_term, (self.terms_list, self.__class__))
 
     cdef void add_term(self,Term trm):
         self.terms.push_back(<void*> trm)
         self.terms_list.append(trm)
 
+    def py_add_term(self, Term trm):
+        self.add_term(trm)
+
+cdef class SumTerm(BinaryTerm):
     cdef double evaluate(self, double *species, double *params, double time):
         cdef double ans = 0.0
         cdef unsigned i
@@ -556,14 +556,7 @@ cdef class SumTerm(Term):
             ans += (<Term>(self.terms[i])).volume_evaluate(species,params,vol, time)
         return ans
 
-cdef class ProductTerm(Term):
-    def __init__(self):
-        self.terms_list = []
-
-    cdef void add_term(self,Term trm):
-        self.terms.push_back(<void*> trm)
-        self.terms_list.append(trm)
-
+cdef class ProductTerm(BinaryTerm):
     cdef double evaluate(self, double *species, double *params, double time):
         cdef double ans = 1.0
         cdef unsigned i
@@ -578,14 +571,8 @@ cdef class ProductTerm(Term):
             ans *= (<Term>(self.terms[i])).volume_evaluate(species,params,vol,time)
         return ans
 
-cdef class MaxTerm(Term):
-    def __init__(self):
-        self.terms_list = []
 
-    cdef void add_term(self,Term trm):
-        self.terms.push_back(<void*> trm)
-        self.terms_list.append(trm)
-
+cdef class MaxTerm(BinaryTerm):
     cdef double evaluate(self, double *species, double *params, double time):
         cdef double ans = (<Term>(self.terms[0])).evaluate(species, params,time)
         cdef unsigned i
@@ -607,14 +594,7 @@ cdef class MaxTerm(Term):
                 ans = temp
         return ans
 
-cdef class MinTerm(Term):
-    def __init__(self):
-        self.terms_list = []
-
-    cdef void add_term(self,Term trm):
-        self.terms.push_back(<void*> trm)
-        self.terms_list.append(trm)
-
+cdef class MinTerm(BinaryTerm):
     cdef double evaluate(self, double *species, double *params, double time):
         cdef double ans = (<Term>(self.terms[0])).evaluate(species, params,time)
         cdef unsigned i
@@ -636,9 +616,8 @@ cdef class MinTerm(Term):
                 ans = temp
         return ans
 
+@cython.auto_pickle(True)
 cdef class PowerTerm(Term):
-
-
     cdef void set_base(self, Term base):
         self.base = base
     cdef void set_exponent(self, Term exponent):
@@ -652,7 +631,7 @@ cdef class PowerTerm(Term):
         return self.base.volume_evaluate(species,params,vol,time) ** \
                self.exponent.volume_evaluate(species,params,vol,time)
 
-
+@cython.auto_pickle(True)
 cdef class ExpTerm(Term):
     cdef void set_arg(self, Term arg):
         self.arg = arg
@@ -663,6 +642,7 @@ cdef class ExpTerm(Term):
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return exp(self.arg.volume_evaluate(species,params,vol,time))
 
+@cython.auto_pickle(True)
 cdef class LogTerm(Term):
     cdef void set_arg(self, Term arg):
         self.arg = arg
@@ -673,7 +653,7 @@ cdef class LogTerm(Term):
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return log(self.arg.volume_evaluate(species,params,vol,time))
 
-
+@cython.auto_pickle(True)
 cdef class StepTerm(Term):
     cdef void set_arg(self, Term arg):
         self.arg = arg
@@ -688,6 +668,7 @@ cdef class StepTerm(Term):
             return 1.0
         return 0
 
+@cython.auto_pickle(True)
 cdef class AbsTerm(Term):
     cdef void set_arg(self, Term arg):
         self.arg = arg
@@ -698,7 +679,7 @@ cdef class AbsTerm(Term):
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return fabs( self.arg.volume_evaluate(species,params,vol,time) )
 
-
+@cython.auto_pickle(True)
 cdef class TimeTerm(Term):
     cdef double evaluate(self, double *species, double *params, double time):
         return time
@@ -707,7 +688,7 @@ cdef class TimeTerm(Term):
         return time
 
 
-def sympy_species_and_parameters(instring, species2index, params2index):
+def sympy_species_and_parameters(instring, species2index = None, params2index = None):
     instring = instring.replace('^','**')
     instring = instring.replace('|','_')
     root = sympy.sympify(instring, _clash1)
@@ -718,16 +699,9 @@ def sympy_species_and_parameters(instring, species2index, params2index):
         index += 1
         nodes.extend(node.args)
 
-    
+    names = [str(n) for n in nodes if type(n) == sympy.Symbol]\
+            +[str(n)[1:] for n in nodes if type(n) == sympy.Symbol if str(n)[0] == "_"]
 
-    #Old Way
-    #names = [str(n) for n in nodes if type(n) == sympy.Symbol]
-    #species_names = [s for s in names if (s[0] != '_' and s != 'volume' and s != 't')]
-    #param_names = [s[1:] for s in names if s[0] == '_']
-
-    #New Way
-    #remove leading "_" if there is one.
-    names = [str(n) for n in nodes if type(n) == sympy.Symbol if str(n)[0] != "_"]+[str(n)[1:] for n in nodes if type(n) == sympy.Symbol if str(n)[0] == "_"]
     species_names = [s for s in names if s in species2index]
     param_names = [s for s in names if (s not in species2index and s != 'volume' and s != 't')]
 
@@ -866,6 +840,9 @@ cdef class GeneralPropensity(Propensity):
     def get_species_and_parameters(self, dict fields, dict species2index, dict params2index):
         instring = fields['rate'].strip()
         return sympy_species_and_parameters(instring, species2index, params2index)
+
+    def py_get_term(self):
+        return self.term
 
 
 
@@ -1018,21 +995,29 @@ cdef class Rule:
     A class for doing rules that must be done either at the beginning of a simulation or repeatedly at each step of
     the simulation.
     """
-    cdef void execute_rule(self, double *state, double *params, double time):
+    cdef void rule_operation(self, double *state, double *params, double time, double dt):
         raise NotImplementedError('Creating base Rule class. This should be subclassed.')
 
-    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time):
-        self.execute_rule(state, params, time)
+    cdef void rule_volume_operation(self, double *state, double *params, double volume, double time, double dt):
+        self.rule_operation(state, params, time, dt)
+
+    cdef void execute_rule(self, double *state, double *params, double time, double dt, unsigned rule_step):
+        if self.frequency_flag == -1 or self.frequency_flag == time or (rule_step and self.frequency_flag == -2):
+            self.rule_operation(state, params, time, dt)
+
+    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time, double dt, unsigned rule_step):
+        if self.frequency_flag == -1 or self.frequency_flag == time or (rule_step and self.frequency_flag == -2):
+            self.rule_volume_operation(state, params, volume, time, dt)
 
     def py_execute_rule(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params,
-                        double time = 0.0):
-        self.execute_rule(<double*> state.data, <double*> params.data,time)
+                        double time = 0.0, double dt = .01, rule_step = True):
+        self.execute_rule(<double*> state.data, <double*> params.data,time, dt, rule_step)
 
     def py_execute_volume_rule(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params,
-                               double volume, double time=0.0 ):
-        self.execute_volume_rule(<double*> state.data, <double*> params.data, volume,time)
+                               double volume, double time=0.0, double dt = .01, rule_step = True):
+        self.execute_volume_rule(<double*> state.data, <double*> params.data, volume,time, dt, rule_step)
 
-    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices):
+    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
         """
         Initializes the parameters and species to look at the right indices in the state
         :param dictionary: (dict:str--> str) the fields for the propensity 'k','s1' etc map to the actual parameter
@@ -1046,10 +1031,26 @@ cdef class Rule:
     def get_species_and_parameters(self, dict fields, **keywords):
         """
         get which fields are species and which are parameters
-        :param dict(str-->str) dictionary containing the XML attributes for that propensity to process.
+        :param dict(str-->str) dictionary containing the propensity to process.
         :return: (list(string), list(string)) First entry is the names of species, second entry is the names of parameters
         """
         return (None,None)
+
+    def set_frequency_flag(self, rule_frequency):
+        if rule_frequency == "start":
+            self.frequency_flag = 0.0
+
+        elif rule_frequency == "repeat" or rule_frequency == "repeated":
+            self.frequency_flag = -1.0
+
+        elif rule_frequency == "dt":
+            self.frequency_flag = -2.0
+
+        elif float(rule_frequency) >= 0:
+            self.frequency_flag = float(rule_frequency)
+
+        else:
+            raise ValueError(f"Invalid rule frequency: {rule_frequency} for {self}.")
 
 
 cdef class AdditiveAssignmentRule(Rule):
@@ -1057,7 +1058,7 @@ cdef class AdditiveAssignmentRule(Rule):
     A class for assigning a species to a sum of a bunch of other species.
     """
 
-    cdef void execute_rule(self, double *state, double *params, double time):
+    cdef void rule_operation(self, double *state, double *params, double time, double dt):
         cdef unsigned i = 0
         cdef double answer = 0.0
         for i in range(self.species_source_indices.size()):
@@ -1065,7 +1066,8 @@ cdef class AdditiveAssignmentRule(Rule):
 
         state[self.dest_index] = answer
 
-    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices):
+    def initialize(self, dict dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
+        self.set_frequency_flag(rule_frequency)
         equation = dictionary['equation']
         split_eqn = [s.strip() for s in equation.split('=') ]
         assert(len(split_eqn) == 2)
@@ -1092,19 +1094,20 @@ cdef class GeneralAssignmentRule(Rule):
     A class for doing rules that must be done either at the beginning of a simulation or repeatedly at each step of
     the simulation.
     """
-    cdef void execute_rule(self, double *state, double *params, double time):
+    cdef void rule_operation(self, double *state, double *params, double time, double dt):
         if self.param_flag > 0:
             params[self.dest_index] = self.rhs.evaluate(state,params,time)
         else:
             state[self.dest_index] = self.rhs.evaluate(state,params,time)
 
-    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time):
+    cdef void rule_volume_operation(self, double *state, double *params, double volume, double time, double dt):
         if self.param_flag > 0:
             params[self.dest_index] = self.rhs.volume_evaluate(state,params,volume, time)
         else:
             state[self.dest_index] = self.rhs.volume_evaluate(state,params,volume, time)
 
-    def initialize(self, dict fields, species2index, params2index):
+    def initialize(self, dict fields, species2index, params2index, rule_frequency = "repeat"):
+        self.set_frequency_flag(rule_frequency)
         self.rhs = parse_expression(fields['equation'].split('=')[1], species2index, params2index)
 
         dest_name = fields['equation'].split('=')[0].strip()
@@ -1137,7 +1140,54 @@ cdef class GeneralAssignmentRule(Rule):
         return species_names, param_names
 
 
+cdef class GeneralODERule(Rule):
+    """
+    A class for rules that implement Euler's method every dt. These rules are of the form dest = dest + f(state, params, time)*dt
+    """
+    cdef void rule_operation(self, double *state, double *params, double time, double dt):
+        if self.param_flag > 0:
+            params[self.dest_index] = params[self.dest_index] + self.rhs.evaluate(state,params,time)*dt
+        else:
+            state[self.dest_index] = state[self.dest_index] + self.rhs.evaluate(state,params,time)*dt
 
+    cdef void rule_volume_operation(self, double *state, double *params, double volume, double time, double dt):
+        if self.param_flag > 0:
+            params[self.dest_index] = params[self.dest_index] + self.rhs.volume_evaluate(state,params,volume, time)*dt
+        else:
+            state[self.dest_index] = state[self.dest_index] + self.rhs.volume_evaluate(state,params,volume, time)*dt
+
+    def initialize(self, dict fields, species2index, params2index, rule_frequency = "dt"):
+        print("Initializing ODE Rule")
+        self.set_frequency_flag(rule_frequency)
+        self.rhs = parse_expression(fields['equation'], species2index, params2index)
+
+        dest_name = fields['target'].strip()
+
+        #if dest_name[0] == '_' or dest_name[0] == '|':
+        if dest_name[0] == '_':
+            dest_name = dest_name[1:]
+        if dest_name in params2index:
+            self.param_flag = 1
+            self.dest_index = params2index[dest_name]
+        else:
+            self.param_flag = 0
+            self.dest_index = species2index[dest_name]
+
+    def get_species_and_parameters(self, dict fields, dict species2index, dict params2index):
+        dest_name = fields['target'].strip()
+        instring = fields['equation']
+
+        species_names, param_names = sympy_species_and_parameters(instring, species2index, params2index)
+
+        if dest_name[0] == '_' or dest_name[0] == '|':
+            dest_name = dest_name[1:]
+
+        if dest_name in species2index:
+            species_names.append(dest_name)
+        else:
+            param_names.append(dest_name)
+
+        return species_names, param_names
 
 
 
@@ -1363,19 +1413,39 @@ cdef class StateDependentVolume(Volume):
 ##############################                     #############################
 
 cdef class Model:
-    def __init__(self, filename = None, species = [], reactions = [], parameters = [], rules = [], 
-                initial_condition_dict = None, sbml_filename = None, input_printout = False, 
-                initialize_model = True, **kwargs):
+    def __init__(self, filename = None, species = [], reactions = [], 
+                 parameters = [], rules = [], initial_condition_dict = None, 
+                 sbml_filename = None, input_printout = False, 
+                 initialize_model = True, **kwargs):
         """
-        Read in a model from a file using XML format for the model.
+        Read in a model from a file using old bioscrape XML format (now deprecated), SBML format, or by 
+        specifying the model programmatically using the API.
 
         :param filename: (str) the file to read the model
         """
+
+        ########################################################################
+        # DEVELOPER WARNING 
+        # 
+        # In order to be copiable and usable with multiprocessing, Model must be 
+        # picklable. To do that, Model implements a __getstate__ method and a 
+        # __setstate__ method, which respectively compress all of the Model's 
+        # state variables into a picklable tuple and use those tuples to make a 
+        # new Model identical to the old one. 
+        # 
+        # IF YOU ADD, REMOVE, OR CHANGE ANY VARIABLES HERE, YOU MUST REFLECT 
+        # THOSE CHANGES IN THE __getstate__ AND __setstate__ METHODS.
+        #
+        # This is especially important for newly-added variables. If you add 
+        # variables but don't update the pickling methods, then you will 
+        # introduce SILENT bugs whenever a user makes a copy of a Model or tries
+        # to use a Model in multiple threads/processes with multiprocessing. 
+        ########################################################################
         self._next_species_index = 0
         self._next_params_index = 0
         self._dummy_param_counter = 0
 
-        self.has_delay = False #Does the Model contain any delay reactions? 
+        self.has_delay = False #Does the Model contain any delay reactions?
                                #Updated in _add_reaction.
 
         self.species2index = {}
@@ -1385,8 +1455,6 @@ cdef class Model:
         self.repeat_rules = []
         self.params_values = np.array([])
         self.species_values = np.array([])
-        self.txt_dict = {'reactions':"", 'rules':""} # A dictionary to store XML 
-                                                     #txt to write bioscrape xml
         self.reaction_definitions = [] # List of reaction tuples useful for writing SBML
         self.rule_definitions = [] #A list of rule tuples useful for writing SBML
 
@@ -1395,15 +1463,15 @@ cdef class Model:
         self.delay_update_array = None
         self.reaction_updates = []
         self.delay_reaction_updates = []
-        # Set to True when the stochiometric matrices are created and model 
+        # Set to True when the stochiometric matrices are created and model
         # checked by the initialize() function
-        self.initialized = False 
-        self.reaction_list = [] # A list used to store tuples (propensity, 
-                                # delay, update_array, delay_update_array) for 
+        self.initialized = False
+        self.reaction_list = [] # A list used to store tuples (propensity,
+                                # delay, update_array, delay_update_array) for
                                 # each reaction
 
         if filename != None and sbml_filename != None:
-            raise ValueError("Cannot load both a bioSCRAPE xml file and an " 
+            raise ValueError("Cannot load both a bioSCRAPE xml file and an "
                              "SBML file. Please choose just one.")
         elif filename != None:
             self.parse_model(filename, input_printout = input_printout)
@@ -1425,10 +1493,10 @@ cdef class Model:
                 raise ValueError("Reaction Tuple of the wrong length! Must be "
                                  "of length 4 (no delay) or 8 (with delays). "
                                  "See BioSCRAPE Model API for details.")
-            self.create_reaction(reactants, products, propensity_type, 
-                                 propensity_param_dict, delay_type, 
-                                 delay_reactants, delay_products, 
-                                 delay_param_dict, 
+            self.create_reaction(reactants, products, propensity_type,
+                                 propensity_param_dict, delay_type,
+                                 delay_reactants, delay_products,
+                                 delay_param_dict,
                                  input_printout = input_printout)
 
         if isinstance(parameters, dict):
@@ -1442,12 +1510,12 @@ cdef class Model:
         for rule in rules:
             if len(rule) == 2:
                 rule_type, rule_attributes = rule
-                self.create_rule(rule_type, rule_attributes, 
+                self.create_rule(rule_type, rule_attributes,
                                  input_printout = input_printout)
             elif len(rule) == 3:
                 rule_type, rule_attributes, rule_frequency = rule
-                self.create_rule(rule_type, rule_attributes, 
-                                 rule_frequency = rule_frequency, 
+                self.create_rule(rule_type, rule_attributes,
+                                 rule_frequency = rule_frequency,
                                  input_printout = input_printout)
             else:
                 raise ValueError("Rules must be a tuple: (rule_type (string), "
@@ -1507,9 +1575,9 @@ cdef class Model:
         # Casting as a set means order doesn't matter.
         # Sets can only hold an element once, so this could give weird results
         # if the same reaction or rule definition appears multiple times.
-        # 
-        # If reaction/rule definitions are the same, that implies that many of 
-        # the other attributes of the Model must be the same. 
+        #
+        # If reaction/rule definitions are the same, that implies that many of
+        # the other attributes of the Model must be the same.
         if sorted(self.reaction_definitions) != sorted(other.reaction_definitions):
             return False
         if sorted(self.rule_definitions) != sorted(other.rule_definitions):
@@ -1534,7 +1602,7 @@ cdef class Model:
         :return: None
         """
         self.initialized = False
-        if species not in self.species2index and species is not None:
+        if species not in self.species2index and species is not None and species != '':
             self.species2index[species] = self._next_species_index
             self._next_species_index += 1
             self.species_values = np.concatenate((self.species_values, np.array([-1])))
@@ -1557,10 +1625,10 @@ cdef class Model:
         delay_reaction_update_dict = {}, delay_object = None, delay_param_dict = {}):
         self.initialized = False
 
+
         species_names, param_names = propensity_object.get_species_and_parameters(propensity_param_dict, species2index = self.species2index, params2index = self.params2index)
 
         for species_name in species_names:
-            #self._add_species(species_name)
             #Now no species should be added here
             pass
         for param_name in param_names:
@@ -1577,23 +1645,20 @@ cdef class Model:
         species_names, param_names = delay_object.get_species_and_parameters(delay_param_dict, species2index = self.species2index, params2index = self.params2index)
 
         for species_name in species_names:
-            #self._add_species(species_name)
             #Now anything not declared as a Species will be interpreted as a parameter
             pass
         for param_name in param_names:
             self._add_param(param_name)
 
         #Moved to Model._initialize
-        #self.delays.append(delay_object)
-        #self.c_delays.push_back(<void*> delay_object)
         self.delay_reaction_updates.append(delay_reaction_update_dict)
         delay_object.initialize(delay_param_dict, self.species2index, self.params2index)
         self.reaction_list.append((propensity_object, delay_object, reaction_update_dict, delay_reaction_update_dict))
 
 
-    def create_propensity(self, propensity_type, propensity_param_dict, print_out = False):
-        if print_out:
-            warnings.warn("Creating Propensity: prop_type="+str(propensity_type)+" params="+str(propensity_param_dict))
+    def create_propensity(self, propensity_type, propensity_param_dict, input_printout = False):
+        if input_printout:
+            print("Creating Propensity: prop_type="+str(propensity_type)+" params="+str(propensity_param_dict))
         if 'type' in propensity_param_dict:
             propensity_param_dict.pop('type')
         #Create propensity object
@@ -1657,7 +1722,7 @@ cdef class Model:
             raise SyntaxError('Propensity Type is not supported: ' + propensity_type)
 
         return prop_object
-    #A function to programatically create a reaction (and add automatically add it to the model).
+    #A function to programatically create a reaction (and automatically add it to the model).
     #   Supports all native propensity types and delay types.
     #Required Inputs:
     #   reactants (list): a list of reactant specie names (strings)
@@ -1670,17 +1735,17 @@ cdef class Model:
     #   delay_reactants (list): a list of delay reaction reactant specie names (strings)
     #   delay_products: a list of delay reaction products specie names (strings)
     #   delay_param_dict: a dictionary of the parameters for the delay distribution
-    def create_reaction(self, reactants, products, propensity_type, 
-                        propensity_param_dict, delay_type = None, 
-                        delay_reactants = None, delay_products = None, 
+    def create_reaction(self, reactants, products, propensity_type,
+                        propensity_param_dict, delay_type = None,
+                        delay_reactants = None, delay_products = None,
                         delay_param_dict = None, input_printout = False):
 
         if input_printout:
-            warnings.warn("creating reaction with:"+
+            print("creating reaction with:"+
                 "\n\tPropensity_type="+str(propensity_type)+" Inputs="+str(reactants)+" Outputs="+str(products)+
                 "\n\tpropensity_param_dict="+str(propensity_param_dict)+
-                "\n\tDelay_type="+str(delay_type)+" delay inputs ="+str(delay_reactants)+" delay outputs="+str(delay_products)+
-                "\n\tdelay_param_dict="+str(delay_param_dict))
+                "\n\tdelay type="+str(delay_type)+" delay inputs="+str(delay_reactants)+" delay outputs="+str(delay_products)+
+                "\n\tdelay parameters="+str(delay_param_dict))
         self.initialized = False
 
         #Copy dictionaries so they aren't altered if they are being used by external code
@@ -1721,7 +1786,7 @@ cdef class Model:
                         reactant_string += s+"*"
                 propensity_param_dict['species'] = reactant_string[:len(reactant_string)-1]
 
-        prop_object = self.create_propensity(propensity_type, propensity_param_dict, print_out = input_printout)
+        prop_object = self.create_propensity(propensity_type, propensity_param_dict, input_printout = input_printout)
 
         #Create Delay Object
         #Delay Reaction Reactants and Products Stored in a Dictionary
@@ -1768,54 +1833,7 @@ cdef class Model:
         delay_param_dict.pop('type',None)
 
         self._add_reaction(reaction_update_dict, prop_object, propensity_param_dict, delay_reaction_update_dict, delay_object, delay_param_dict)
-        self.write_rxn_txt(reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict)
         self.reaction_definitions.append((reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict))
-    
-    def write_rxn_txt(self, reactants, products, propensity_type, propensity_param_dict, delay_type, delay_reactants, delay_products, delay_param_dict):
-        #Write bioscrape XML and save it to the xml dictionary
-        rxn_txt = '<reaction text= "'
-        for r in reactants:
-            if r is not None:
-                rxn_txt += r +" + "
-        if len(reactants)>0:
-            rxn_txt = rxn_txt[:-2]
-        rxn_txt += "-- "
-        for p in products:
-            if p is not None:
-                rxn_txt += p+" + "
-        if len(products)>0:
-            rxn_txt = rxn_txt[:-2]
-        rxn_txt +='"'
-        if len(delay_reactants) > 0 or len(delay_products)> 0:
-            rxn_txt += ' after= "'
-            if len(delay_reactants) > 0:
-                for r in delay_reactants:
-                    if r is not None:
-                        rxn_txt += r +" + "
-                if len(delay_reactants) > 0:
-                    rxn_txt = rxn_txt[:-2]
-            rxn_txt += "-- "
-            if len(delay_products)> 0:
-                for p in delay_products:
-                    if p is not None:
-                        rxn_txt += p+" + "
-                if len(delay_products)>0:
-                    rxn_txt = rxn_txt[:-2]
-                rxn_txt +='"'
-        rxn_txt += '>\n\t<propensity type="'
-        rxn_txt += propensity_type+'" '
-        for k in propensity_param_dict:
-            rxn_txt+=k+'="'+str(propensity_param_dict[k])+'" '
-        rxn_txt += '/>\n\t<delay type="'
-        if delay_type == None:
-            rxn_txt += 'none" />'
-        else:
-            rxn_txt += delay_type+'" '
-            for k in delay_param_dict:
-                rxn_txt += 'k="'+str(delay_param_dict[k])+'" '
-            rxn_txt+='/>'
-        rxn_txt += '\n</reaction>\n'
-        self.txt_dict['reactions']+=rxn_txt
 
 
 
@@ -1842,11 +1860,10 @@ cdef class Model:
     #   rule_type (str): The type of rule. Supported: "additive" and "assignment"
     #   rule_attributes (dict): A dictionary of rule parameters / attributes.
     #       NOTE: the only attributes used by additive/assignment rules are 'equation'
-    #   rule_frequency: must be 'repeated'
     #Rule Types Supported:
     def create_rule(self, rule_type, rule_attributes, rule_frequency = "repeated", input_printout = False):
         if input_printout:
-            warnings.warn("Rule Created with \n\trule_type = "+str(rule_type)+"\n\trule_attributes="+str(rule_attributes)+"\n\trule_frequence="+str(rule_frequency))
+            print("Rule Created with \n\trule_type = "+str(rule_type)+"\n\trule_attributes="+str(rule_attributes)+"\n\trule_frequency="+str(rule_frequency))
 
         self.initialized = False
 
@@ -1855,6 +1872,9 @@ cdef class Model:
             rule_object = AdditiveAssignmentRule()
         elif rule_type == 'assignment':
             rule_object = GeneralAssignmentRule()
+        elif rule_type == "ode":
+            rule_frequency = "dt"
+            rule_object = GeneralODERule()
         else:
             raise SyntaxError('Invalid type of Rule: ' + rule_type)
 
@@ -1866,24 +1886,11 @@ cdef class Model:
         # initialize the rule
         if 'type' in rule_attributes:
             rule_attributes.pop('type')
-        rule_object.initialize(rule_attributes,self.species2index,self.params2index)
+        rule_object.initialize(rule_attributes,self.species2index,self.params2index, rule_frequency = rule_frequency)
         # Add the rule to the right place
-        if rule_frequency == 'repeated':
-            self.repeat_rules.append(rule_object)
-        else:
-            raise SyntaxError('Invalid Rule Frequency: ' + str(rule_frequency))
-
-
-        self.write_rule_txt(rule_type, rule_attributes, rule_frequency)
+        self.repeat_rules.append(rule_object)
         self.rule_definitions.append((rule_type, rule_attributes, rule_frequency))
 
-    def write_rule_txt(self, rule_type, rule_attributes, rule_frequency):
-        rule_txt = '<rule type="'+rule_type+'" frequency="'+rule_frequency+'" '
-        for k in rule_attributes:
-            rule_txt += k+'="'+rule_attributes[k]+'" '
-
-        rule_txt += " />\n"
-        self.txt_dict["rules"]+=rule_txt
 
     #Sets the value of a parameter in the model
     def set_parameter(self, param_name, param_value):
@@ -1977,7 +1984,7 @@ cdef class Model:
         :return: None
         """
         # open XML file from the filename and use BeautifulSoup to parse it
-        warnings.warn("Depricated Warning: Bioscrape XML is being replaced by SBML and will no longer be supported in a future version of the software.")
+        warnings.warn("Deprecated Warning: Bioscrape XML is being replaced by SBML and will no longer be supported in a future version of the software.")
 
         if type(filename) == str:
             xml_file = open(filename,'r')
@@ -2052,10 +2059,10 @@ cdef class Model:
             delay_param_dict = delay.attrs
             delay_type = delay['type']
 
-            self.create_reaction(reactants = reactants, products = products, propensity_type = propensity['type'], propensity_param_dict = propensity_param_dict,
-                delay_reactants=delay_reactants, delay_products=delay_products, delay_param_dict = delay_param_dict, input_printout = input_printout)
-
-
+            self.create_reaction(reactants = reactants, products = products, propensity_type = propensity['type'],
+                                 propensity_param_dict = propensity_param_dict, delay_reactants=delay_reactants, 
+                                 delay_products=delay_products, delay_param_dict = delay_param_dict, 
+                                 input_printout = input_printout)
         # Parse through the rules
         Rules = xml.find_all('rule')
         for rule in Rules:
@@ -2207,6 +2214,9 @@ cdef class Model:
     def get_reactions(self):
         return self.reaction_list
 
+    def get_rules(self):
+        return self.rule_definitions
+
     cdef np.ndarray get_species_values(self):
         """
         Get the species values as an array
@@ -2285,36 +2295,8 @@ cdef class Model:
         return parse_expression(instring,self.species2index,self.params2index)
 
 
-    def write_bioscrape_xml(self, file_name):
-        warnings.warn("Depricated Warning: Bioscrape XML is being replaced by SBML and will no longer be supported in a future version of the software.")
-        #Writes Bioscrape XML
-        txt = "<model>\n"
-        species = self.get_species_list()
-
-        #Write the Species
-        for s in species:
-            v = self.get_species_value(s)
-            txt+='<species name="'+s+'" value="'+str(v)+'" />\n'
-        txt+='\n'
-        parameters = self.get_param_list()
-        for p in parameters:
-            v = self.get_param_value(p)
-            txt+='<parameter name="'+p+'" value="'+str(v)+'" />\n'
-        txt+='\n'
-        txt += self.txt_dict["reactions"]
-        txt+='\n'
-        txt += self.txt_dict["rules"]
-        txt += "</model>"
-
-        f = open(file_name, 'w')
-        f.write(txt)
-        f.close()
-
     #Generates an SBML Model
     def generate_sbml_model(self, stochastic_model = False, **keywords):
-        if self.has_delay:
-            raise NotImplementedError("Writing SBML for bioscrape models with delay has not been implemented.")
-
         # Create an empty SBMLDocument object to hold the bioscrape model
         document, model = create_sbml_model(**keywords)
 
@@ -2339,9 +2321,14 @@ cdef class Model:
 
             (reactants, products, propensity_type, propensity_param_dict,
              delay_type, delay_reactants, delay_products, delay_param_dict) = rxn_tuple
-
+            if delay_type != None:
+                delay_dict = {'type':delay_type, 'reactants':delay_reactants, 
+                            'products':delay_products, 'parameters':delay_param_dict}
+            else:
+                delay_dict = None
             add_reaction(model, reactants, products, rxn_id, propensity_type,
-                         propensity_param_dict, stochastic = stochastic_model)
+                         propensity_param_dict, stochastic = stochastic_model,
+                         delay_annotation_dict = delay_dict)
             rxn_count += 1
 
         rule_count = 0
@@ -2350,17 +2337,29 @@ cdef class Model:
             # Syntax of rule_tuple = (rule_type, rule_dict, rule_frequency)
             (rule_type, rule_dict, rule_frequency) = rule_tuple
             # Extract the rule variable id from rule_dict:
-            equation = rule_dict['equation']
-            split_eqn = [s.strip() for s in equation.split('=') ]
-            assert(len(split_eqn) == 2) # Checking rule_dict equation structure.
-            # Extract the rule formula for the variable above from rule_dict:
-            rule_formula = split_eqn[1]
-            rule_variable = split_eqn[0]
-            add_rule(model, rule_id, rule_type, rule_variable, rule_formula)
+            
+            if rule_type in ["ode", "ODE", 'GeneralODERule']:
+                rule_formula = rule_dict['equation']
+                rule_variable = rule_dict['target']
+            else:
+                equation = rule_dict['equation']
+                split_eqn = [s.strip() for s in equation.split('=') ]
+                try:
+                    assert(len(split_eqn) == 2) # Checking rule_dict equation structure.
+                except AssertionError as e:
+                    e.args += ('rule equation', equation, 'not of the form VARIABLE = F(X).')
+                    raise
+
+                # Extract the rule formula for the variable above from rule_dict:
+                rule_formula = split_eqn[1]
+                rule_variable = split_eqn[0]
+            add_rule(model, rule_id, rule_type, rule_variable, rule_formula, rule_frequency)
             rule_count += 1
 
         if document.getNumErrors():
-            warnings.warn('SBML model generated has errors. Use document.getErrorLog() to print all errors.')
+            warnings.warn('The generated SBML model has errors:')
+            err_message = document.getErrorLog().toString()
+            print(err_message)
         return document, model
 
     #write an SBML Model
@@ -2370,6 +2369,81 @@ cdef class Model:
         with open(file_name, 'w') as f:
             f.write(sbml_string)
         return True
+
+    # Update this if you change any of Model's member variables!
+    def __getstate__(self):
+        '''Returns the Model's state as a tuple of picklable Python objects. 
+
+        Note that c_propensities, c_delays, and c_repeat_rules are just 
+        pointers to the objects in propensities, delays, and repeat_rules,
+        respectively, so only the latter are needed to fully represent the 
+        Model's state.
+        '''
+        return (self._next_species_index,
+                self._next_params_index,
+                self._dummy_param_counter,
+                self.has_delay,
+                self.propensities,
+                self.delays,
+                self.repeat_rules,
+                self.species2index,
+                self.params2index,
+                self.species_values,
+                self.params_values,
+                self.update_array,
+                self.delay_update_array,
+                self.reaction_list,
+                self.reaction_updates,
+                self.delay_reaction_updates,
+                self.initialized,
+                self.reaction_definitions,
+                self.rule_definitions)
+
+    # Update this if you change any of Model's member variables!
+    def __setstate__(self, state):
+        '''Sets this Model's state to that of another, using a tuple generated
+        by the other Model's __getstate__ method. 
+
+        Note that c_propensities, c_delays, and c_repeat_rules are just 
+        pointers to the objects in propensities, delays, and repeat_rules,
+        respectively, so only the latter are needed to fully reconstruct a 
+        Model's state.
+        '''
+        self._next_species_index = state[0]
+        self._next_params_index = state[1]
+        self._dummy_param_counter = state[2]
+        self.has_delay = state[3]
+
+        self.propensities = state[4]
+        self.c_propensities.clear()
+        if state[4] is not None:
+            for x in state[4]:
+                self.c_propensities.push_back(<void *> x)
+        self.delays = state[5]
+        self.c_delays.clear()
+        if state[5] is not None:
+            for x in state[5]:
+                self.c_delays.push_back(<void *> x)
+        self.repeat_rules = state[6]
+        self.c_repeat_rules.clear()
+        if state[6] is not None:
+            for x in state[6]:
+                self.c_repeat_rules.push_back(<void *> x)
+
+        self.species2index = state[7]
+        self.params2index = state[8]
+        self.species_values = state[9]
+        self.params_values = state[10]
+        self.update_array = state[11]
+        self.delay_update_array = state[12]
+        self.reaction_list = state[13]
+        self.reaction_updates = state[14]
+        self.delay_reaction_updates = state[15]
+        self.initialized = state[16]
+        self.reaction_definitions = state[17]
+        self.rule_definitions = state[18]
+
+
 
 ##################################################                ####################################################
 ######################################              DATA    TYPES                       ##############################
@@ -2501,6 +2575,9 @@ cdef class Lineage:
         :param index: (unsigned) the Schnitz to retrieve 0 <= index < size()
         :return: (Schnitz) the requested Schnitz
         """
+        if index >= self.py_size():
+            raise IndexError(f"index {index} > lineage.py_size() = {self.py_size()}")
+
         return (<Schnitz> (self.c_schnitzes[index]))
 
     def py_add_schnitz(self, Schnitz s):
