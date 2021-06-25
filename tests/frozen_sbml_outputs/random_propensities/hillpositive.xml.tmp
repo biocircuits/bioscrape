@@ -41,12 +41,12 @@
               <divide/>
               <apply>
                 <times/>
+                <ci> DummyVar_PositiveHillPropensity_k_0 </ci>
                 <apply>
                   <power/>
                   <ci> A </ci>
                   <ci> n </ci>
                 </apply>
-                <ci> DummyVar_PositiveHillPropensity_k_0 </ci>
               </apply>
               <apply>
                 <plus/>

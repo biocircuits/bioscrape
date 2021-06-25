@@ -96,7 +96,7 @@ cdef class Propensity:
     def get_species_and_parameters(self, dict fields, **keywords):
         """
         get which fields are species and which are parameters
-        :param dict(str-->str) dictionary containing the XML attributes for that propensity to process.
+        :param dict(str-->str) dictionary containing the propensity to process.
         :return: (list(string), list(string)) First entry is the names of species, second entry is the names of parameters
         """
         return (None,None)
@@ -1031,7 +1031,7 @@ cdef class Rule:
     def get_species_and_parameters(self, dict fields, **keywords):
         """
         get which fields are species and which are parameters
-        :param dict(str-->str) dictionary containing the XML attributes for that propensity to process.
+        :param dict(str-->str) dictionary containing the propensity to process.
         :return: (list(string), list(string)) First entry is the names of species, second entry is the names of parameters
         """
         return (None,None)
@@ -1418,8 +1418,8 @@ cdef class Model:
                  sbml_filename = None, input_printout = False, 
                  initialize_model = True, **kwargs):
         """
-        Read in a model from a file using XML format, SBML format, or by 
-        specifying the model programmatically.
+        Read in a model from a file using old bioscrape XML format (now deprecated), SBML format, or by 
+        specifying the model programmatically using the API.
 
         :param filename: (str) the file to read the model
         """

@@ -36,8 +36,8 @@
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
               <times/>
-              <ci> Y </ci>
               <ci> k_forward </ci>
+              <ci> Y </ci>
             </apply>
           </math>
         </kineticLaw>
@@ -66,8 +66,8 @@
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
               <times/>
-              <ci> X </ci>
               <ci> k_forward_r1 </ci>
+              <ci> X </ci>
             </apply>
           </math>
         </kineticLaw>
@@ -96,8 +96,8 @@
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
               <times/>
-              <ci> Z </ci>
               <ci> k_forward_r2 </ci>
+              <ci> Z </ci>
             </apply>
           </math>
         </kineticLaw>

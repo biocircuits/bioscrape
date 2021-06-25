@@ -56,13 +56,13 @@
               <divide/>
               <apply>
                 <times/>
+                <ci> ktx </ci>
                 <ci> G </ci>
                 <apply>
                   <power/>
                   <ci> I </ci>
                   <ci> n </ci>
                 </apply>
-                <ci> ktx </ci>
               </apply>
               <apply>
                 <plus/>
@@ -96,21 +96,21 @@
               <divide/>
               <apply>
                 <times/>
+                <ci> ktl </ci>
                 <apply>
                   <power/>
                   <ci> T </ci>
                   <ci> n </ci>
                 </apply>
-                <ci> ktl </ci>
               </apply>
               <apply>
                 <plus/>
-                <ci> KR </ci>
                 <apply>
                   <power/>
                   <ci> T </ci>
                   <ci> DummyVar_PositiveHillPropensity_n_2 </ci>
                 </apply>
+                <ci> KR </ci>
               </apply>
             </apply>
           </math>

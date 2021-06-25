@@ -41,8 +41,8 @@
               <divide/>
               <apply>
                 <times/>
-                <ci> B </ci>
                 <ci> DummyVar_NegativeProportionalHillPropensity_k_0 </ci>
+                <ci> B </ci>
               </apply>
               <apply>
                 <plus/>

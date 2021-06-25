@@ -37,9 +37,9 @@
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
               <times/>
+              <ci> DummyVar_BimolecularPropensity_k_0 </ci>
               <ci> A </ci>
               <ci> B </ci>
-              <ci> DummyVar_BimolecularPropensity_k_0 </ci>
             </apply>
           </math>
         </kineticLaw>

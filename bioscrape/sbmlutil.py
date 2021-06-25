@@ -178,7 +178,6 @@ def import_sbml_reactions(sbml_model, allspecies, allparams, input_printout):
         if math_ast is None:
             raise ValueError("Could not import the rate law for reaction to SBML.")
         kl_formula = libsbml.formulaToL3String(math_ast)
-        #We should no longer add underscores to parameters
         rate_string = kl_formula
         if reaction.getReversible() and sbml_warnings:
             warnings.warn('SBML model contains reversible reaction!\n' +
@@ -388,21 +387,6 @@ def import_sbml_rules(sbml_model, allspecies, allparams, allreactions, input_pri
 
 
 # Helpful utility functions start here
-def _add_underscore_to_parameters(formula, parameters):
-    sympy_rate = sympy.sympify(formula, _clash1)
-    nodes = [sympy_rate]
-    index = 0
-    while index < len(nodes):
-        node = nodes[index]
-        index += 1
-        nodes.extend(node.args)
-
-    for node in nodes:
-        if type(node) == sympy.Symbol:
-            if node.name in parameters:
-                node.name = '_' + node.name
-
-    return str(sympy_rate)
 
 def _get_species_list_in_formula(formula, species):
     sympy_rate = sympy.sympify(formula, _clash1)
@@ -418,20 +402,6 @@ def _get_species_list_in_formula(formula, species):
             if node.name in species:
                 species_return.append(node.name)
     return species_return
-
-def _remove_underscore_from_parameters(formula, parameters):
-    sympy_rate = sympy.sympify(formula, _clash1)
-    nodes = [sympy_rate]
-    index = 0
-    while index < len(nodes):
-        node = nodes[index]
-        index += 1
-        nodes.extend(node.args)
-    for node in nodes:
-        if type(node) == sympy.Symbol:
-            if node.name in parameters:
-                node.name = node.name.replace('_','',1)
-    return str(sympy_rate).replace('**','^')
 
 def create_sbml_model(compartment_id="default", time_units='second', extent_units='mole', substance_units='mole',
                       length_units='metre', area_units='square_metre', volume_units='litre', volume = 1e-6):
@@ -741,14 +711,12 @@ def add_reaction(model, inputs_list, outputs_list,
         propensity_annotation_dict["d"] = d_species_id
     elif propensity_type == "general":
         ratestring = propensity_params['rate']
-
         species_list = _get_species_list_in_formula(ratestring, allspecies)
         for s in species_list:
             if s not in reactants_list and s not in products_list:
                 modifier = reaction.createModifier()
                 modifier.setSpecies(s)
-
-    ratestring = _remove_underscore_from_parameters(ratestring, allparams)
+    ratestring = str(ratestring).replace('**','^')
     # Set the ratelaw to the ratestring
     math_ast = libsbml.parseL3Formula(ratestring)
     flag = ratelaw.setMath(math_ast)

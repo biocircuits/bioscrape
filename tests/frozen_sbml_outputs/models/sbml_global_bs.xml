@@ -36,8 +36,8 @@
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
               <times/>
-              <ci> Y </ci>
               <ci> kf1__ </ci>
+              <ci> Y </ci>
             </apply>
           </math>
         </kineticLaw>
@@ -66,8 +66,8 @@
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
               <times/>
-              <ci> X </ci>
               <ci> kf2__ </ci>
+              <ci> X </ci>
             </apply>
           </math>
         </kineticLaw>
@@ -96,8 +96,8 @@
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
               <times/>
-              <ci> Z </ci>
               <ci> kf3__ </ci>
+              <ci> Z </ci>
             </apply>
           </math>
         </kineticLaw>
