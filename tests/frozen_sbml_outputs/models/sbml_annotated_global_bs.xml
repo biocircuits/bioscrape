@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <sbml xmlns="http://www.sbml.org/sbml/level3/version2/core" level="3" version="2">
-  <model id="bioscrape_generated_model_167390" substanceUnits="mole" timeUnits="second" volumeUnits="litre" areaUnits="square_metre" lengthUnits="metre" extentUnits="mole">
+  <model id="bioscrape_generated_model_268901" substanceUnits="mole" timeUnits="second" volumeUnits="litre" areaUnits="square_metre" lengthUnits="metre" extentUnits="mole">
     <listOfUnitDefinitions>
       <unitDefinition id="square_metre" name="square_metre">
         <listOfUnits>
@@ -27,7 +27,9 @@
     <listOfReactions>
       <reaction id="r0" name="r0" reversible="false">
         <annotation>
-          <PropensityType> type=massaction k=kf1__</PropensityType>
+          <BioscrapeAnnotation>
+            <PropensityType> type=massaction k=kf1__</PropensityType>
+          </BioscrapeAnnotation>
         </annotation>
         <listOfReactants>
           <speciesReference species="Y" stoichiometry="1" constant="false"/>
@@ -36,15 +38,17 @@
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
               <times/>
-              <ci> Y </ci>
               <ci> kf1__ </ci>
+              <ci> Y </ci>
             </apply>
           </math>
         </kineticLaw>
       </reaction>
       <reaction id="r1" name="r1" reversible="false">
         <annotation>
-          <PropensityType> type=massaction k=kr1__</PropensityType>
+          <BioscrapeAnnotation>
+            <PropensityType> type=massaction k=kr1__</PropensityType>
+          </BioscrapeAnnotation>
         </annotation>
         <listOfProducts>
           <speciesReference species="Y" stoichiometry="1" constant="false"/>
@@ -57,7 +61,9 @@
       </reaction>
       <reaction id="r2" name="r2" reversible="false">
         <annotation>
-          <PropensityType> type=massaction k=kf2__</PropensityType>
+          <BioscrapeAnnotation>
+            <PropensityType> type=massaction k=kf2__</PropensityType>
+          </BioscrapeAnnotation>
         </annotation>
         <listOfReactants>
           <speciesReference species="X" stoichiometry="1" constant="false"/>
@@ -66,15 +72,17 @@
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
               <times/>
-              <ci> X </ci>
               <ci> kf2__ </ci>
+              <ci> X </ci>
             </apply>
           </math>
         </kineticLaw>
       </reaction>
       <reaction id="r3" name="r3" reversible="false">
         <annotation>
-          <PropensityType> type=massaction k=kr2__</PropensityType>
+          <BioscrapeAnnotation>
+            <PropensityType> type=massaction k=kr2__</PropensityType>
+          </BioscrapeAnnotation>
         </annotation>
         <listOfProducts>
           <speciesReference species="X" stoichiometry="1" constant="false"/>
@@ -87,7 +95,9 @@
       </reaction>
       <reaction id="r4" name="r4" reversible="false">
         <annotation>
-          <PropensityType> type=massaction k=kf3__</PropensityType>
+          <BioscrapeAnnotation>
+            <PropensityType> type=massaction k=kf3__</PropensityType>
+          </BioscrapeAnnotation>
         </annotation>
         <listOfReactants>
           <speciesReference species="Z" stoichiometry="1" constant="false"/>
@@ -96,15 +106,17 @@
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
               <times/>
-              <ci> Z </ci>
               <ci> kf3__ </ci>
+              <ci> Z </ci>
             </apply>
           </math>
         </kineticLaw>
       </reaction>
       <reaction id="r5" name="r5" reversible="false">
         <annotation>
-          <PropensityType> type=massaction k=kr3__</PropensityType>
+          <BioscrapeAnnotation>
+            <PropensityType> type=massaction k=kr3__</PropensityType>
+          </BioscrapeAnnotation>
         </annotation>
         <listOfProducts>
           <speciesReference species="Z" stoichiometry="1" constant="false"/>

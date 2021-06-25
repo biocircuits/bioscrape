@@ -45,8 +45,8 @@ def check_sbml_IO(test_name, model_dict):
 
             |- frozen_sbml_loc
             |  - test_name
-            |    - model_dict<key#1>.sbml
-            |    - model_dict<key#2>.sbml
+            |    - model_dict<key#1>.xml
+            |    - model_dict<key#2>.xml
             |    ...
 
             Finally, each model for which there was already a frozen SBML output
@@ -63,8 +63,8 @@ def check_sbml_IO(test_name, model_dict):
     all_exist = True
 
     for model_name, model in model_dict.items():
-        frozen_sbml_file = os.path.join(test_folder, model_name + ".sbml")
-        temp_sbml_file   = os.path.join(test_folder, model_name + ".sbml.tmp")
+        frozen_sbml_file = os.path.join(test_folder, model_name + ".xml")
+        temp_sbml_file   = os.path.join(test_folder, model_name + ".xml.tmp")
 
         if not os.path.exists(frozen_sbml_file):
     #         # SAVE MODEL AS SBML: Currently not implemented

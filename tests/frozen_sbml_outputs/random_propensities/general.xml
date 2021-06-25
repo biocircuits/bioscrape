@@ -18,6 +18,9 @@
     </listOfSpecies>
     <listOfReactions>
       <reaction id="r0" name="r0" reversible="false">
+        <annotation>
+          <BioscrapeAnnotation/>
+        </annotation>
         <listOfReactants>
           <speciesReference species="A" stoichiometry="1" constant="false"/>
           <speciesReference species="B" stoichiometry="1" constant="false"/>
@@ -31,6 +34,7 @@
               <divide/>
               <apply>
                 <plus/>
+                <cn type="integer"> 1 </cn>
                 <apply>
                   <times/>
                   <cn> 1.894 </cn>
@@ -49,17 +53,17 @@
                     <cn> 3.817 </cn>
                   </apply>
                 </apply>
-                <cn type="integer"> 1 </cn>
               </apply>
               <apply>
                 <plus/>
+                <cn type="integer"> 1 </cn>
                 <apply>
                   <times/>
-                  <cn> 2.274 </cn>
+                  <cn> 0.884 </cn>
                   <apply>
                     <power/>
-                    <ci> A </ci>
-                    <cn> 1.37 </cn>
+                    <ci> B </ci>
+                    <cn> 1.809 </cn>
                   </apply>
                 </apply>
                 <apply>
@@ -73,11 +77,11 @@
                 </apply>
                 <apply>
                   <times/>
-                  <cn> 0.884 </cn>
+                  <cn> 2.274 </cn>
                   <apply>
                     <power/>
-                    <ci> B </ci>
-                    <cn> 1.809 </cn>
+                    <ci> A </ci>
+                    <cn> 1.37 </cn>
                   </apply>
                 </apply>
                 <apply>
@@ -89,7 +93,6 @@
                     <cn> 2.916 </cn>
                   </apply>
                 </apply>
-                <cn type="integer"> 1 </cn>
               </apply>
             </apply>
           </math>
