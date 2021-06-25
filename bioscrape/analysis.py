@@ -113,32 +113,33 @@ class SensitivityAnalysis(Model):
         x = np.array(x, dtype = 'float64')
         n = len(x)
         Z = np.zeros(n)    
-        params_dict = self.original_parameters
+        params_dict = dict(self.original_parameters)
+        array_f_0 = self._evaluate_model(x, params_dict)
         h = params_dict[param_name]*self.dx # Small parameter for this parameter
         # For each state
         for i in range(n):
             if h == 0:
                 raise ValueError('Small parameter exactly equal to 0, cannot compute Zj')
-            f_0 = self._evaluate_model(x, params_dict)[i]
-            params_dict = self.original_parameters
+            f_0 = array_f_0[i]
             params_dict[param_name] = params_dict[param_name] + h
             self.M.set_params(params_dict)
             f_h = self._evaluate_model(x, params_dict)[i]
             # Reset
-            params_dict = self.original_parameters
+            params_dict = dict(self.original_parameters)
             params_dict[param_name] = params_dict[param_name] - h
             self.M.set_params(params_dict)
             f_mh = self._evaluate_model(x, params_dict)[i]
+            params_dict = dict(self.original_parameters)
             if method == 'fourth_order_central_difference':
                 # Gets O(4) central difference on dfi/dpj
-                params_dict = self.original_parameters
                 params_dict[param_name] = params_dict[param_name] + 2*h
                 self.M.set_params(params_dict)
                 f_2h = self._evaluate_model(x, params_dict)[i]
-                params_dict = self.original_parameters
+                params_dict = dict(self.original_parameters)
                 params_dict[param_name] = params_dict[param_name] - 2*h
                 self.M.set_params(params_dict)
                 f_m2h = self._evaluate_model(x, params_dict)[i]
+                params_dict = dict(self.original_parameters)
                 #Store approx. dfi/dp[param_name] into Z
                 Z[i]= (-f_2h + 8*f_h - 8*f_mh + f_m2h)/(12*h)
             if method == 'central_difference':
