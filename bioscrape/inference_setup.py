@@ -399,10 +399,10 @@ class InferenceSetup(object):
         import csv
         with open('mcmc_results.csv','w', newline = "") as f:
             writer = csv.writer(f)
-            if convergence_diagnostics:
-                writer.writerow('\nMCMC convrgence diagnostics\n')
-                writer.writerow(self.convergence_diagnostics)
             writer.writerows(sampler.get_chain(flat = True))
+            if convergence_diagnostics:
+                writer.writerow('\nMCMC convergence diagnostics\n')
+                writer.writerow(self.convergence_diagnostics)
             writer.writerow('\nCost function progress\n')
             writer.writerow(self.cost_progress)
             f.close()
