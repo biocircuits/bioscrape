@@ -13,6 +13,7 @@ def py_sensitivity_analysis(model, timepoints, normalize, **kwargs):
 
 def py_get_jacobian(model, state, **kwargs):
     return SensitivityAnalysis(model).compute_J(state, **kwargs)
+
 def py_get_sensitivity_to_parameter(model, state, param_name, **kwargs):
     return SensitivityAnalysis(model).compute_Zj(state, param_name, **kwargs)
 
@@ -42,8 +43,8 @@ class SensitivityAnalysis(Model):
             self.M.set_params(params)
         states = np.array(states, dtype = 'float64')
         derivative_array = np.zeros((self.num_equations), dtype = 'float64')
-        # add apply_repeated_rules
         sim.py_calculate_deterministic_derivative(states, derivative_array, time)
+        sim.py_apply_repeated_rules(states, time, True)
         return derivative_array
 
     def compute_J(self, x, **kwargs):
