@@ -1175,13 +1175,19 @@ cdef class LineageVolumeCellState(DelayVolumeCellState):
 	cdef int dead
 	cdef state_set
 
-	def __init__(self, v0 = 0, t0 = 0, state = []):
+	def __init__(self, v0 = 0, t0 = 0, state = [], volume = None, time = None, divided = -1, dead = -1):
 		self.set_initial_vars(v0, t0)
-		self.set_volume(v0)
-		self.set_time(t0)
+		if volume is not None:
+			self.set_volume(volume)
+		else:
+			self.set_volume(v0)
+		if time is not None:
+			self.set_time(time)
+		else:
+			self.set_time(t0)
 		self.volume_object = None
-		self.divided = -1
-		self.dead = -1
+		self.divided = divided
+		self.dead = dead
 		if len(state) == 0:
 			self.state_set = 0
 		else:
@@ -1239,6 +1245,9 @@ cdef class LineageVolumeCellState(DelayVolumeCellState):
 
 	def __getstate__(self):
 		return (self.initial_volume, self.initial_time, self.state, self.volume, self.time, self.divided, self.dead)
+
+	def __reduce__(self):
+		return (self.__class__, (self.initial_volume, self.initial_time, self.state, self.volume, self.time, self.divided, self.dead))
 
 cdef class SingleCellSSAResult(VolumeSSAResult):
 	#divided = -1: Cell Not divided
