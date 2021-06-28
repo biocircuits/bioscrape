@@ -407,8 +407,6 @@ class InferenceSetup(object):
             writer.writerow(self.cost_progress)
             f.close()
         print('Successfully completed MCMC parameter identification procedure. Parameter distribution data written to mcmc_results.csv file. Check the MCMC diagnostics to evaluate convergence.')
-        if convergence_diagnostics:
-            print(self.convergence_diagnostics)
         return sampler
     
     def plot_mcmc_results(self, sampler, plot_show = True, **kwargs):
