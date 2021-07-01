@@ -113,7 +113,7 @@ except Exception as e:
 
 setup(
     name = 'bioscrape',
-    version = '1.0.2.2',
+    version = '1.0.3',
     author='Anandh Swaminathan, William Poole, Ayush Pandey',
     url='https://github.com/biocircuits/bioscrape/',
     description='Biological Stochastic Simulation of Single Cell Reactions and Parameter Estimation.',
