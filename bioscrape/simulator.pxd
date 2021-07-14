@@ -435,6 +435,14 @@ cdef class VolumeSSASimulator(VolumeSimulator):
     """
     cdef VolumeSSAResult volume_simulate(self, CSimInterface sim, Volume v, np.ndarray timepoints)
 
+cdef class AdaptiveTauVolumeSSASimulator(VolumeSSASimulator):
+    """
+    Volume SSA implementation with adaptive tau-leaping.
+    """
+    cdef VolumeSSAResult volume_simulate(self, CSimInterface sim, Volume v, np.ndarray timepoints, double eps)
+    # eps defaults to 1e-3
+    cdef VolumeSSAResult volume_simulate(self, CSimInterface sim, Volume v, np.ndarray timepoints)
+
 cdef class DelayVolumeSimulator:
     """
     Interface class for doing simulations with delay and volume.

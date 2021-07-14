@@ -1,6 +1,6 @@
 cimport cython
 from libc.stdlib cimport rand, srand
-from libc.math cimport log, sqrt, cos, round
+from libc.math cimport log, sqrt, cos, round, floor, exp
 
 cimport numpy as np
 
@@ -13,9 +13,12 @@ cdef double gamma_rv(double k, double theta)
 cdef double erlang_rv(double k , double theta)
 cdef int sample_discrete(int choices, double* data, double Lambda)
 cdef double array_sum(double* data, int length)
+cdef array_masked_sum(double* data, int* mask, int length)
 cdef unsigned binom_rnd(unsigned n, double p)
 cdef unsigned binom_rnd_f(double N, double p)
 cdef unsigned approx_binom_rnd(unsigned n, double p)
 cdef unsigned approx_binom_rnd_f(double n, double p)
+cdef unsigned poisson_rnd(double lam)
+cdef double loggamma_rnd(double x)
 cdef unsigned long long genrand64()
 cdef int choose(unsigned modulo)

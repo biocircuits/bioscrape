@@ -4,7 +4,7 @@
 
 cimport cython
 from libc.stdlib cimport rand, srand
-from libc.math cimport log, sqrt, cos, round
+from libc.math cimport log, sqrt, cos, round, floor, exp
 
 cimport numpy as np
 import time
@@ -19,6 +19,19 @@ cdef unsigned long long LM = 0x7FFFFFFFULL
 cdef unsigned long long mt[312]
 cdef unsigned mti = NN + 1
 cdef unsigned long long mag01[2]
+
+# Used in poisson_rnd
+cdef double LS2PI = 0.91893853320467267
+cdef double TWELFTH = 0.083333333333333333333333
+
+# Used in loggamma_rnd
+cdef double a[10]
+a[:] = [8.333333333333333e-02, -2.777777777777778e-03,
+        7.936507936507937e-04, -5.952380952380952e-04,
+        8.417508417508418e-04, -1.917526917526918e-03,
+        6.410256410256410e-03, -2.955065359477124e-02,
+        1.796443723688307e-01, -1.39243221690590e+00]
+lg2pi = 1.8378770664093453e+00
 
 cdef mt_seed(unsigned long long seed):
     global mt
@@ -231,6 +244,24 @@ def py_array_sum(np.ndarray[np.double_t,ndim=1] data, int length):
     return array_sum(<double*> data.data, length)
 
 
+cdef double array_masked_sum(double* data, int* mask, int length):
+    """
+    Sum the values of an array of floating point numbers only in positions where a mask
+    is value 1.
+    :param data: (double *) pointer to the array of numbers (must have len(data) >= length)
+    :param mask: (int*) pointer to the mask array (must have len(mask) >= length)
+    :param length: (int) the length of the arrays.
+    :return: (double) the sum of all the numbers in data where mask==1.
+    """
+    cdef double answer = 0.0
+    cdef int i = 0
+    for i in range(length):
+        if mask[i] == 1:
+            answer += data[i]
+    return answer
+
+def py_array_masked_sum(np.ndarray[np.double_t,ndim=1] data, np.ndarray[np.int_t,ndim=1] mask, int length):
+    return array_masked_sum(<double*> data.data, <int*> mask.data, length)
 
 cdef unsigned binom_rnd(unsigned n, double p):
     """
@@ -298,3 +329,91 @@ cdef unsigned approx_binom_rnd_f(double n, double p):
 
 def py_approx_binom_rnd_f(double n, double p):
     return approx_binom_rnd_f(n,p)
+
+
+cdef double loggamma_rnd(double x):
+    """
+    Sample from a log-gamma random variable using and algorithm from SPECFUN by Shanjie Zhang 
+    and Jianming Jin and their book "Computation of Special Functions", 1996, John Wiley & Sons, Inc.
+    Used by poisson_rnd.
+    :param x: (double) Shape parameter.
+    :return: (double) random number sample. 
+    """
+    cdef double x0, x2, gl, gl0;
+    cdef int k, n;
+
+    if (x == 1.0) or (x == 2.0):
+        return 0.0
+    elif x < 7.0:
+        n = int(7 - x)
+    else:
+        n = 0
+    x0 = x + n
+    x2 = (1.0 / x0) * (1.0 / x0)
+    gl0 = a[9]
+    for k in range(8, -1, -1):
+        gl0 *= x2
+        gl0 += a[k]
+
+    gl = gl0 / x0 + 0.5 * lg2pi + (x0 - 0.5) * log(x0) - x0
+    if x < 7.0:
+        for k in range(1, n+1):
+            gl -= log(x0 - 1.0)
+            x0 -= 1.0
+    return gl
+
+
+cdef unsigned poisson_rnd(double lam):
+    """
+    Generate a Poisson random variable using one of two generation algorithms, depending on the 
+    scale factor mu. 
+    :param lam: (double) The rate constant (equivalently, the mean).
+    :return: (unsigned) random number sample. 
+    """
+    cdef unsigned X = 0
+    cdef unsigned k
+    cdef double prod = 1.0
+    cdef double U, V, 
+    cdef double enlam
+    cdef double slam
+    cdef double loglam
+    cdef double b
+    cdef double a
+    cdef double invalpha
+    cdef double vr
+    cdef double us
+
+    if (lam >= 10):
+        slam = sqrt(lam)
+        loglam = log(lam)
+        b = 0.931 + 2.53 * slam
+        a = -0.059 + 0.02483 * b
+        invalpha = 1.1239 + 1.1328 / (b - 3.4)
+        vr = 0.9277 - 3.6224 / (b - 2)
+        while True:
+            U = uniform_rv() - 0.5
+            V = uniform_rv()
+            us = 0.5 - abs(U)
+            k = int(floor((2 * a / us + b) * U + lam + 0.43))
+            if (us >= 0.07) and (V <= vr):
+                return k
+            if (k < 0) or ((us < 0.013) and (V > us)):
+                continue
+            if (log(V) + log(invalpha) - log(a / (us * us) + b)) <= \
+                (-lam + k * loglam - loggamma_rnd(k + 1)):
+                return k
+    elif (lam == 0):
+        return 0
+    else:
+        enlam = exp(-lam)
+        while True:
+            U = uniform_rv()
+            prod *= U
+            if (prod > enlam):
+                X += 1
+            else:
+                return X
+
+def py_poisson_rnd(lam):
+    return poisson_rnd(lam)
+
