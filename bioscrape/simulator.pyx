@@ -612,15 +612,15 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
         cdef unsigned s
         cdef unsigned j
         cdef unsigned negative_species = 0
+        cdef double dx = 0
         # Get propensities before doing anything else.
         cdef double *prop = <double*> (self.propensity_buffer.data)
 
         for s in range(self.num_species):
             #Reset negative species concentrations to 0
             if x[s] < 0:
-                negative_species = 1
-                raise RuntimeError(f"Reactions or rules have caused species {s} to go negative!")
-
+                x[s] = 0
+                
         #Compute propensiteis
         self.compute_propensities(x,  prop, t)
 
@@ -632,11 +632,14 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
                 if self.S_values[s][j] <= 0 and x[s] <= 0:
                     pass 
                 else:
-                    dxdt[s] += prop[ self.S_indices[s][j]  ] * self.S_values[s][j]
+                    dx = prop[ self.S_indices[s][j]  ] * self.S_values[s][j]
+                    dxdt[s] += dx
+                    if dx < 0 and x[s] < 0:
+                        raise RuntimeError(f"Reaction # {self.S_indices[s][j]} is causing a negative species, # {s}, to become more negative!")
 
             #Verify that species do not go negative.
             if x[s] <= 0 and dxdt[s] < 0:
-                dxdt[s] = -x[s]
+                dxdt[s] = 0
                 raise RuntimeError(f"Reactions or rules have caused species {s} to go negative!")
 
 
