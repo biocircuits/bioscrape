@@ -40,11 +40,14 @@ def test_safe_modelsiminterface_deterministic():
     i_safe.py_prep_deterministic_simulation()
     R_det_s = sim_det.py_simulate(i_safe, timepoints).py_get_result()
 
+
+
     i_fast = ModelCSimInterface(m)
     i_fast.py_prep_deterministic_simulation()
     R_det = sim_det.py_simulate(i_fast, timepoints).py_get_result()
+    assert np.all(R_det[-100:, 0] < 0)
 
-    assert not np.allclose(R_det_s[:100, :], R_det[:100, :])
+    assert not np.allclose(R_det_s[-100:, :], R_det[-100:, :])
 
 
 #Stochastic test

@@ -1967,10 +1967,12 @@ cdef class Model:
             #reaction_update_dict = self.reaction_updates[reaction_index]
             #delay_reaction_update_dict = self.delay_reaction_updates[reaction_index]
             for sp in reaction_update_dict:
-                self.update_array[self.species2index[sp],reaction_index] = reaction_update_dict[sp]
+                if sp != "":
+                    self.update_array[self.species2index[sp],reaction_index] = reaction_update_dict[sp]
 
             for sp in delay_reaction_update_dict:
-                self.delay_update_array[self.species2index[sp],reaction_index] = delay_reaction_update_dict[sp]
+                if sp != "":
+                    self.delay_update_array[self.species2index[sp],reaction_index] = delay_reaction_update_dict[sp]
 
         return self.update_array, self.delay_update_array
 
