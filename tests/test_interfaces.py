@@ -20,7 +20,7 @@ def test_safe_modelsiminterface_deterministic():
 
     sim_det = DeterministicSimulator()
 
-    timepoints = np.arange(0, 10.0, .01)
+    timepoints = np.arange(0, 10.0, .001)
 
     i_fast = ModelCSimInterface(m)
     i_fast.py_prep_deterministic_simulation()
