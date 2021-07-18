@@ -611,12 +611,14 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
     cdef void calculate_deterministic_derivative(self, double *x, double *dxdt, double t):
         cdef unsigned s
         cdef unsigned j
+        cdef unsigned negative_species = 0
         # Get propensities before doing anything else.
         cdef double *prop = <double*> (self.propensity_buffer.data)
 
         for s in range(self.num_species):
             #Reset negative species concentrations to 0
             if x[s] < 0:
+                negative_species = 1
                 raise RuntimeError(f"Reactions or rules have caused species {s} to go negative!")
 
         #Compute propensiteis
@@ -635,6 +637,8 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
             #Verify that species do not go negative.
             if x[s] <= 0 and dxdt[s] < 0:
                 dxdt[s] = -x[s]
+            else:
+                raise RuntimeError(f"Reactions or rules have caused species {s} to go negative!")
 
 cdef class SSAResult:
     def __init__(self, np.ndarray timepoints, np.ndarray result):
