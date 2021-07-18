@@ -637,8 +637,8 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
             #Verify that species do not go negative.
             if x[s] <= 0 and dxdt[s] < 0:
                 dxdt[s] = -x[s]
-            else:
                 raise RuntimeError(f"Reactions or rules have caused species {s} to go negative!")
+
 
 cdef class SSAResult:
     def __init__(self, np.ndarray timepoints, np.ndarray result):
