@@ -534,13 +534,33 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
                          self.reaction_input_indices[self.rxn_ind, ind, 1] = -min(self.update_array[self.s_ind, self.rxn_ind], self.delay_update_array[self.s_ind, self.rxn_ind])
                     ind += 1
 
+
+    cdef void compute_propensities(self, double *state, double *propensity_destination, double time):
+        self.rxn_ind = 0
+        for self.rxn_ind in range(self.num_reactions):
+            self.prop_is_0 = 0
+            self.s_ind = 0
+            while self.reaction_input_indices[self.rxn_ind, self.s_ind, 0] != -1 and self.prop_is_0 == 0:
+                if state[self.reaction_input_indices[self.rxn_ind, self.s_ind, 0]] <= 0 and self.reaction_input_indices[self.rxn_ind, self.s_ind, 1] < 0:
+                    propensity_destination[self.rxn_ind] = 0
+                    self.prop_is_0 = 1
+                self.s_ind+=1
+            if self.prop_is_0 == 0:
+                propensity_destination[self.rxn_ind] = (<Propensity> (self.c_propensities[0][self.rxn_ind]) ).get_propensity(state, self.c_param_values, time)
+
+                #Issue a warning of a propensity goes negative
+                if propensity_destination[self.rxn_ind] < 0:
+                    warnings.warn("Propensity #"+str(self.rxn_ind)+" is negative with value "+str(propensity_destination[self.rxn_ind]) + " setting to 0.")
+                    propensity_destination[self.rxn_ind] = 0
+
+
     cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time):
         self.check_count_function(state, 1)
         self.rxn_ind = 0
         for self.rxn_ind in range(self.num_reactions):
             self.prop_is_0 = 0
             self.s_ind = 0
-            while self.reaction_input_indices[self.rxn_ind, self.s_ind, 0] > -1 and self.prop_is_0 == 0:
+            while self.reaction_input_indices[self.rxn_ind, self.s_ind, 0] != -1 and self.prop_is_0 == 0:
                 if state[self.reaction_input_indices[self.rxn_ind, self.s_ind, 0]] < self.reaction_input_indices[self.rxn_ind, self.s_ind, 1]:
                     propensity_destination[self.rxn_ind] = 0
                     self.prop_is_0 = 1
@@ -589,28 +609,39 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
     # This version safegaurds against species counts going negative 
     # by not allowing reactions to fire if they consume a species of 0 concentration.
     cdef void calculate_deterministic_derivative(self, double *x, double *dxdt, double t):
-        # Get propensities before doing anything else.
-        cdef double *prop = <double*> (self.propensity_buffer.data)
-        self.compute_propensities(x,  prop, t)
-
         cdef unsigned s
         cdef unsigned j
-        for s in range(self.num_species):
+        cdef unsigned negative_species = 0
+        cdef double dx = 0
+        # Get propensities before doing anything else.
+        cdef double *prop = <double*> (self.propensity_buffer.data)
 
+        for s in range(self.num_species):
             #Reset negative species concentrations to 0
             if x[s] < 0:
                 x[s] = 0
+                
+        #Compute propensiteis
+        self.compute_propensities(x,  prop, t)
 
+        #Compute Derivative
+        for s in range(self.num_species):
             dxdt[s] = 0
+            #Skip reactions that consume species of 0 concentration
             for j in range(self.S_indices[s].size()):
                 if self.S_values[s][j] <= 0 and x[s] <= 0:
-                    pass #Skip reactions that consume species of 0 concentration
+                    pass 
                 else:
-                    dxdt[s] += prop[ self.S_indices[s][j]  ] * self.S_values[s][j]
+                    dx = prop[ self.S_indices[s][j]  ] * self.S_values[s][j]
+                    dxdt[s] += dx
+                    if dx < 0 and x[s] < 0:
+                        raise RuntimeError(f"Reaction # {self.S_indices[s][j]} is causing a negative species, # {s}, to become more negative!")
 
             #Verify that species do not go negative.
             if x[s] <= 0 and dxdt[s] < 0:
                 dxdt[s] = 0
+                raise RuntimeError(f"Reactions or rules have caused species {s} to go negative!")
+
 
 cdef class SSAResult:
     def __init__(self, np.ndarray timepoints, np.ndarray result):

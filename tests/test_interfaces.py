@@ -20,6 +20,8 @@ def test_safe_modelsiminterface_deterministic():
 
     sim_det = DeterministicSimulator()
 
+    timepoints = np.arange(0, 10.0, .001)
+
     i_fast = ModelCSimInterface(m)
     i_fast.py_prep_deterministic_simulation()
     R_det = sim_det.py_simulate(i_fast, timepoints).py_get_result()
@@ -30,13 +32,23 @@ def test_safe_modelsiminterface_deterministic():
 
     #The beginnings of the simulations should be the same
     assert np.allclose(R_det_s[:100, :], R_det[:100, :])
-    #The ends of the simulations should be different
-    assert not np.allclose(R_det_s[100:, :], R_det[100:, :])
-    #the non safe simulation should go below 0
-    assert (R_det[-100:, 0] <= 0).all()
-    #the safe simulation should stop at 0
-    #the non safe simulation should go below 0
-    assert (np.round(R_det_s[-100:, 0], 6) == 0).all()
+
+    #Running for longer should produce an different outputs
+    #NOTE: an error will be printed, but it is not raised due to being produced inside ODEint
+    timepoints = np.arange(0, 100.0, .01)
+    i_safe = SafeModelCSimInterface(m)
+    i_safe.py_prep_deterministic_simulation()
+    R_det_s = sim_det.py_simulate(i_safe, timepoints).py_get_result()
+
+
+
+    i_fast = ModelCSimInterface(m)
+    i_fast.py_prep_deterministic_simulation()
+    R_det = sim_det.py_simulate(i_fast, timepoints).py_get_result()
+    assert np.all(R_det[-100:, 0] < 0)
+
+    assert not np.allclose(R_det_s[-100:, :], R_det[-100:, :])
+
 
 #Stochastic test
 def test_safe_modelsiminterface_stochastic():
