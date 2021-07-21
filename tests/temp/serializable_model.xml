@@ -1,0 +1,23 @@
+<model>
+<species name="A" value="25.0" />
+<species name="B" value="25.0" />
+<species name="C" value="0.0" />
+<species name="I" value="0.0" />
+
+<parameter name="DummyVar_UnimolecularPropensity_k_0" value="0.46" />
+<parameter name="DummyVar_GaussianDelay_mean_1" value="47.729" />
+<parameter name="DummyVar_GaussianDelay_std_2" value="28.546" />
+<parameter name="I0" value="10.0" />
+<parameter name="T_I0" value="2.5" />
+
+<reaction text= "A + B -- C ">
+	<propensity type="general" rate="A*3" />
+	<delay type="none" />
+</reaction>
+<reaction text= "A -- " after= "-- B ">
+	<propensity type="massaction" k="DummyVar_UnimolecularPropensity_k_0" species="A" />
+	<delay type="gaussian" k="DummyVar_GaussianDelay_mean_1" k="DummyVar_GaussianDelay_std_2" />
+</reaction>
+
+<rule type="assignment" frequency="repeated" equation="I = _I0*Heaviside(t-_T_I0)"  />
+</model>

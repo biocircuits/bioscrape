@@ -5,6 +5,9 @@ import os
 import sys
 import subprocess
 
+# Set to true to enable line profiling
+line_debug = False
+
 #The following try-catch statements ensure numpy and cython are installed prior to running setup.py
 #in some virtual environments, pip dependencies have issues with cython packages.
 #NUMPY CHECK
@@ -40,16 +43,27 @@ try:
         ext_options['extra_compile_args'] = ['-std=c++11', "-mmacosx-version-min=10.9"]
         ext_options['extra_link_args'] = ["-stdlib=libc++", "-mmacosx-version-min=10.9"]
         print('Using macOS clang args')
+    if line_debug:
+        ext_options['define_macros'] = [('CYTHON_TRACE_NOGIL', '1')]
 
     #used to generate HTML annotations of the cython code for
     #optimization purposes.
     cythonize_options = {
     "include_path":[bioscrape_src_dir],
     "language_level":"2" #Language level 3 does not work yet
-    } 
+    }
     if "annotate" in sys.argv:
         cythonize_options['annotate'] = True
         sys.argv.remove("annotate")
+    if line_debug:
+        cythonize_options["compiler_directives"] = {
+            'profile': True,
+            'linetrace': True,
+            'binding': True
+        }
+
+    # # Turn on to enable gdb debugging
+    # cythonize_options["gdb_debug"] = True
 
     #Determine if we install bioscrape, lineage, or both
     install_bioscrape = False
@@ -63,7 +77,7 @@ try:
     if "lineage" in sys.argv:
         install_lineage = True
         sys.argv.remove("lineage")
-    
+
     elif "bioscrape" not in sys.argv:
         install_lineage = True
 
@@ -74,7 +88,7 @@ try:
         bioscrape_extensions = [
                 Extension(
                     name = 'bioscrape.'+s.split('.')[0],
-                    sources = [bioscrape_src_dir+'/'+s], 
+                    sources = [bioscrape_src_dir+'/'+s],
                     **ext_options) for s in bioscrape_source_files
             ]
         cython_extensions += cythonize(bioscrape_extensions, **cythonize_options)
@@ -87,7 +101,7 @@ try:
         lineage_source_files = ['lineage.pyx']
         lineage_extensions = [
             Extension(name = 'bioscrape.'+s.split('.')[0],
-                sources = [lineage_src_dir+'/'+s], 
+                sources = [lineage_src_dir+'/'+s],
                 **ext_options) for s in lineage_source_files
         ]
         cython_extensions += cythonize(lineage_extensions, **cythonize_options)
@@ -99,7 +113,7 @@ except Exception as e:
 
 setup(
     name = 'bioscrape',
-    version = '1.0.2.2',
+    version = '1.0.3',
     author='Anandh Swaminathan, William Poole, Ayush Pandey',
     url='https://github.com/biocircuits/bioscrape/',
     description='Biological Stochastic Simulation of Single Cell Reactions and Parameter Estimation.',
