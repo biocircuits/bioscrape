@@ -93,6 +93,7 @@ cdef class DeterministicLikelihood(ModelLikelihood):
     cdef BulkData bd
     cdef unsigned norm_order
     cdef double get_log_likelihood(self)
+    cdef double hmax
 
 
 cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):

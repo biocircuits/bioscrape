@@ -71,6 +71,7 @@ class InferenceSetup(object):
         if 'debug' in kwargs:
             self.debug = kwargs.get('init_seed')
         self.cost_progress = []
+        self.hmax = kwargs.get('hmax', None)
         return 
 
     def set_model(self, M):
@@ -338,16 +339,16 @@ class InferenceSetup(object):
             raise TypeError('exp_data attribute of InferenceSetup object must be a list of Pandas DataFrames or a single Pandas DataFrame. ')
         return data
 
-    def setup_cost_function(self):
+    def setup_cost_function(self, **kwargs):
         if self.sim_type == 'stochastic':
-            self.pid_interface = StochasticInference(self.params_to_estimate, self.M, self.prior)
+            self.pid_interface = StochasticInference(self.params_to_estimate, self.M, self.prior, **kwargs)
             self.pid_interface.setup_likelihood_function(self.LL_data, self.timepoints, self.measurements, 
                                                             self.initial_conditions, norm_order = self.norm_order, 
-                                                            N_simulations = self.N_simulations, debug = self.debug)
+                                                            N_simulations = self.N_simulations, debug = self.debug, **kwargs)
         elif self.sim_type == 'deterministic':
-            self.pid_interface = DeterministicInference(self.params_to_estimate, self.M, self.prior)
+            self.pid_interface = DeterministicInference(self.params_to_estimate, self.M, self.prior, **kwargs)
             self.pid_interface.setup_likelihood_function(self.LL_data, self.timepoints, self.measurements, 
-                                                            self.initial_conditions, norm_order = self.norm_order, debug = self.debug)
+                                                            self.initial_conditions, norm_order = self.norm_order, debug = self.debug, **kwargs)
 
     def cost_function(self, params):
         if self.pid_interface is None:
@@ -358,18 +359,21 @@ class InferenceSetup(object):
         return cost_value
 
     def run_emcee(self, **kwargs):
-        self.setup_cost_function()
+        self.setup_cost_function(**kwargs)
         progress = kwargs.get('progress')
-        convergence_check = kwargs.get('convergence_check')
-        convergence_diagnostics = kwargs.get('convergence_diagnostics')
-        if not 'convergence_check' in kwargs:
-            convergence_check = True
-        if not 'convergence_diagnostics' in kwargs:
-            convergence_diagnostics = True
-            if not convergence_check:
-                convergence_diagnostics = False
-        if not 'progress' in kwargs:
-            progress = True
+        convergence_check = kwargs.get('convergence_check', True)
+        convergence_diagnostics = kwargs.get('convergence_diagnostics', convergence_check)
+        skip_initial_state_check = kwargs.get('skip_initial_state_check', False)
+        progress = kwargs.get('progess', True)
+        #if not 'convergence_check' in kwargs:
+        #    convergence_check = True
+        #if not 'convergence_diagnostics' in kwargs:
+        #    convergence_diagnostics = True
+        #    if not convergence_check:
+        #        convergence_diagnostics = False
+        #if not 'progress' in kwargs:
+        #    progress = True
+
         try:
             import emcee
         except:
@@ -385,7 +389,7 @@ class InferenceSetup(object):
             p0 = np.array(params_values) + self.init_seed * np.random.randn(self.nwalkers, ndim)
         assert p0.shape == (self.nwalkers, ndim)
         sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function)
-        sampler.run_mcmc(p0, self.nsteps, progress = progress)
+        sampler.run_mcmc(p0, self.nsteps, progress = progress, skip_initial_state_check = skip_initial_state_check)
         if convergence_check:
             self.autocorrelation_time = sampler.get_autocorr_time()
         if convergence_diagnostics:

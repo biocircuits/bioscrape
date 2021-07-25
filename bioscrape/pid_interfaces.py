@@ -16,7 +16,7 @@ class PIDInterface():
     log-likelihood functions. You can even have your own check_prior function in that class if you do not 
     prefer to use the built in priors with this package.
     '''
-    def __init__(self, params_to_estimate, M, prior):
+    def __init__(self, params_to_estimate, M, prior, **kwargs):
         '''
         Parent class for all PID interfaces.
         Arguments:
@@ -70,7 +70,7 @@ class PIDInterface():
                 custom_fuction = self.prior[key][-1]
                 lp += custom_fuction(key, value)
             else:
-                raise ValueError('Prior type undefined.')
+                raise ValueError(f'Prior type undefined: recieved prior {value[0]} for param {key}.')
         return lp
 
     def uniform_prior(self, param_name, param_value):
@@ -209,7 +209,7 @@ class PIDInterface():
 
 # Add a new class similar to this to create new interfaces.
 class StochasticInference(PIDInterface):
-    def __init__(self, params_to_estimate, M, prior):
+    def __init__(self, params_to_estimate, M, prior, **kwargs):
         self.LL_stoch = None
         self.dataStoch = None
         super().__init__(params_to_estimate, M, prior)
@@ -228,7 +228,7 @@ class StochasticInference(PIDInterface):
         #If there are multiple initial conditions in a data-set, should correspond to multiple initial conditions for inference.
         #Note len(initial_conditions) must be equal to the number of trajectories N
         self.LL_stoch = STLL(model = self.M, init_state = initial_conditions,
-        data = self.dataStoch, N_simulations = N_simulations, norm_order = norm_order)
+        data = self.dataStoch, N_simulations = N_simulations, norm_order = norm_order, **kwargs)
 
     def get_likelihood_function(self, params):
         # Set params here and return the likelihood object.
@@ -252,10 +252,10 @@ class StochasticInference(PIDInterface):
        
 # Add a new class similar to this to create new interfaces.
 class DeterministicInference(PIDInterface):
-    def __init__(self, params_to_estimate, M, prior):
+    def __init__(self, params_to_estimate, M, prior, **kwargs):
         self.LL_det = None
         self.dataDet = None
-        super().__init__(params_to_estimate, M, prior)
+        super().__init__(params_to_estimate, M, prior, **kwargs)
         return
 
     def setup_likelihood_function(self, data, timepoints, measurements, initial_conditions, norm_order = 2, debug = False, **kwargs):
@@ -273,7 +273,7 @@ class DeterministicInference(PIDInterface):
             print('The N is {0}'.format(N))
             print('Using the initial conditions: {0}'.format(initial_conditions))
         #Create Likelihood object
-        self.LL_det = DLL(model = self.M, init_state = initial_conditions, data = self.dataDet, norm_order = norm_order)
+        self.LL_det = DLL(model = self.M, init_state = initial_conditions, data = self.dataDet, norm_order = norm_order, **kwargs)
 
     def get_likelihood_function(self, params):
         if self.LL_det is None:
@@ -295,10 +295,10 @@ class DeterministicInference(PIDInterface):
         
 class LMFitInference(PIDInterface):
     
-    def __init__(self, params_to_estimate, M, prior):
+    def __init__(self, params_to_estimate, M, prior, **kwargs):
         self.residual_function = None
         self.dataLMFit = None
-        super().__init__(params_to_estimate, M, prior)
+        super().__init__(params_to_estimate, M, prior, **kwargs)
         return
 
     def get_minimizer_results(self, data, timepoints, measurements, initial_conditions, 

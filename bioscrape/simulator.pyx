@@ -327,10 +327,8 @@ cdef class CSimInterface:
     cdef void set_dt(self, double dt):
         self.dt = dt
 
-
     def py_set_dt(self, double dt):
         self.set_dt(dt)
-
 
     cdef double get_dt(self):
         return self.dt
@@ -1441,6 +1439,7 @@ cdef class CustomSplitter(VolumeSplitter):
 cdef void* global_simulator
 cdef np.ndarray global_derivative_buffer
 cdef double global_dt
+cdef double global_state_buffer
 
 def py_global_derivative_buffer():
     global global_derivative_buffer
@@ -1449,6 +1448,7 @@ def py_global_derivative_buffer():
 def py_set_globals(CSimInterface sim):
     global global_simulator
     global global_derivative_buffer
+    global global_state_buffer
     global_simulator = <void*> sim
     global_derivative_buffer = np.empty(sim.py_get_num_species(),)
 
@@ -1466,7 +1466,7 @@ def rhs_global(np.ndarray[np.double_t,ndim=1] state, double t):
                                                                          <double*> global_derivative_buffer.data, t)
     return global_derivative_buffer
 
-def rhs_ode(double t, np.ndarray[np.double_t, ndim=1] state):
+def rhs_ivp(double t, np.ndarray[np.double_t, ndim=1] state):
     return rhs_global(state,t)
 
 
@@ -1498,6 +1498,7 @@ cdef class DeterministicSimulator(RegularSimulator):
         self.atol = 1E-8
         self.rtol = 1E-8
         self.mxstep = 500000
+        self.hmax = 0.01 #Maximum step to use during simulation
 
     def py_set_tolerance(self, double atol, double rtol):
         self.set_tolerance(atol, rtol)
@@ -1505,7 +1506,10 @@ cdef class DeterministicSimulator(RegularSimulator):
     def py_set_mxstep(self, unsigned mxstep):
         self.mxstep = mxstep
 
-    def _helper_simulate(self, CSimInterface sim, np.ndarray timepoints):
+    def py_set_hmax(self, double hmax):
+        self.hmax = hmax
+
+    def _helper_simulate(self, CSimInterface sim, np.ndarray timepoints, **keywords):
         """
         This function allows for definition of the rhs function inside the simulation function. Otherwise, Cython
         does not allow closures inside cdef functions. Having a separate rhs function is also impossible because
@@ -1526,36 +1530,56 @@ cdef class DeterministicSimulator(RegularSimulator):
 
         cdef unsigned index = 0
         cdef unsigned steps_allowed = 500
+        cdef double hmax = self.hmax
         cdef np.ndarray[np.double_t, ndim=2] results
 
-        while True:
+        #Copy the dictionary
+        keywords = dict(keywords)
+        if 'atol' in keywords:
+            self.atol = keywords['atol']
+            del keywords['atol']
+        if 'rtol' in keywords:
+            self.rtol = keywords['rtol'] 
+            del keywords['rtol']
+        if 'hmax' in keywords:
+            hmax = keywords['hmax']
+            del keywords['hmax']
+
+        success = None
+        while not success:
             results, full_output = odeint(rhs_global, x0, timepoints,atol=self.atol, rtol=self.rtol,
-                                         mxstep=steps_allowed, full_output=True)
+                                     mxstep=steps_allowed, full_output=True, hmax = hmax, **keywords)
+            success = full_output['message'] == 'Integration successful.'
 
-            if full_output['message'] == 'Integration successful.':
-                if sim.get_number_of_rules() > 0:
-                    sim.py_set_param_values(p0) #reset the parameter values before reapplying rules
-                    for index in range(timepoints.shape[0]):
-                        sim.apply_repeated_rules( &(results[index,0]),timepoints[index], True)
-                return SSAResult(timepoints,results)
-
-            logging.info('odeint failed with mxstep=%d...' % (steps_allowed))
-
+            if not success:
+                logging.info('odeint failed with mxstep=%d...' % (steps_allowed))
             # make the mxstep bigger if the user specified a bigger max
             if steps_allowed >= self.mxstep:
+                sys.stderr.write('odeint failed completely.\n')
                 break
             else:
                 steps_allowed *= 10
-                if steps_allowed > self.mxstep:
-                    steps_allowed = self.mxstep
 
-        sys.stderr.write('odeint failed entirely\n')
+            if steps_allowed > self.mxstep:
+                steps_allowed = self.mxstep
 
-        return SSAResult(timepoints,results * np.nan)
+        if success:
+            if sim.get_number_of_rules() > 0:
+                    sim.py_set_param_values(p0) #reset the parameter values before reapplying rules
+                    for index in range(timepoints.shape[0]):
+                        sim.apply_repeated_rules( &(results[index,0]),timepoints[index], True)
+            return SSAResult(timepoints,results)
+        else:
+            return SSAResult(timepoints,results * np.nan)
 
 
     cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints):
         return self._helper_simulate(sim,timepoints)
+
+    def py_simulate(self, CSimInterface sim, np.ndarray timepoints, **keywords):
+        #suggested that interfaces do some error checking on themselves to prevent kernel crashes.
+        sim.check_interface()
+        return self._helper_simulate(sim, timepoints, **keywords)
 
 cdef class SSASimulator(RegularSimulator):
     """
@@ -2075,7 +2099,7 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
 
 #A wrapper function to allow easy simulation of Models
 def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = False, 
-                    delay = None, safe = False, volume = False, return_dataframe = True):
+                    delay = None, safe = False, volume = False, return_dataframe = True, **keywords):
     
 
     #Check model and interface
@@ -2143,7 +2167,7 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
             logging.info("uncessary volume parameter for deterministic simulation.")
         Sim = DeterministicSimulator()
         Interface.py_prep_deterministic_simulation()
-        result = Sim.py_simulate(Interface, timepoints)
+        result = Sim.py_simulate(Interface, timepoints, **keywords)
 
     if return_dataframe:
         return result.py_get_dataframe(Model = Model)

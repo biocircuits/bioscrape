@@ -129,6 +129,24 @@ cdef class BulkData(Data):
     def has_multiple_timepoints(self):
         return self.multiple_timepoints
 
+    def get_minimum_dt(self):
+        """
+        Returns the minimum delta between measured timepoints
+        """
+        if not self.multiple_timepoints:
+            dt = self.timepoints[self.nT-1] - self.timepoints[0]
+            for i in range(1, self.nT-1):
+                dt = min([dt, self.timepoints[i] - self.timepoints[i-1]])
+        else:
+            dt = self.timepoints[0, self.nT-1] - self.timepoints[0, 0]
+            for j in range(self.N):
+                for i in range(1, self.nT):
+                    dt = min([dt, self.timepoints[j, i] - self.timepoints[j, i-1]])
+
+        return dt
+
+
+
 #Data consists of a set of N flow samples which each contain measurements for M measured_species
 #Data Dimensions:
 # timepoints: None
@@ -216,6 +234,26 @@ cdef class ModelLikelihood(Likelihood):
         else:
             print("Warning: No Data passed into likelihood constructor. Must call set_data seperately.")
 
+        #hmax is used in deterministic simulation to set the maximum step size of the integrator
+        if 'hmax' in keywords and hasattr(self, 'py_set_hmax'):
+            self.py_set_hmax(keywords['hmax'])
+
+        #atol and rtol are the absolute and relative error tollerances used by the integrator
+        if ('rtol' in keywords or 'atol' in keywords) and hasattr(self.propagator, "py_set_tolerance"):
+            if 'atol' not in keywords:
+                print(f"{self} only recieved 'rtol' keyword. Setting 'atol' to the 'rtol' value.")
+                atol = keywords['rtol']
+                rtol = keywords['rtol']
+            elif 'rtol' not in keywords:
+                print(f"{self} only recieved 'atol' keyword. Setting 'rtol' to the 'atol' value.")
+                atol = keywords['atol']
+                rtol = keywords['atol']
+            else:
+                atol = keywords['atol']
+                rtol = keywords['rtol']
+
+            self.propagator.py_set_tolerance(atol, rtol)
+
     def set_model(self, Model m, RegularSimulator prop, CSimInterface csim = None, DelaySimulator prop_delay = None):
         if csim is None:
             self.csim = ModelCSimInterface(m)
@@ -290,6 +328,7 @@ cdef class DeterministicLikelihood(ModelLikelihood):
         #Set bulk data
         self.bd = bd
         self.N = self.bd.get_N() #Number of samples
+        self.propagator.py_set_hmax(self.bd.get_minimum_dt()) 
 
         #Get species indices in Model
         species_list = bd.get_measured_species()
@@ -306,11 +345,15 @@ cdef class DeterministicLikelihood(ModelLikelihood):
     def py_get_data(self):
         return self.bd
 
-    def set_likelihood_options(self, norm_order = 1):
+    def set_likelihood_options(self, norm_order = 1, **keywords):
         self.norm_order = norm_order
 
     def py_get_norm_order(self):
         return self.norm_order
+
+    def py_set_hmax(self, hmax):
+        self.hmax = hmax
+        self.propagator.py_set_hmax(hmax)
 
     cdef double get_log_likelihood(self):
         # Write in the specific parameters and species values.
@@ -400,7 +443,7 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
     def py_get_data(self):
         return self.sd
 
-    def set_likelihood_options(self, N_simulations = None, norm_order = None):
+    def set_likelihood_options(self, N_simulations = None, norm_order = None, **keywords):
         if norm_order is not None:
             self.norm_order = norm_order
         if norm_order in [None, 0]:
@@ -468,7 +511,7 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
         return -1.0*error/(1.0*self.N_simulations)
 
 cdef class StochasticTrajectoryMomentLikelihood(StochasticTrajectoriesLikelihood):
-    def set_likelihood_options(self, N_simulations = 1, initial_state_matching = False, Moments = 2):
+    def set_likelihood_options(self, N_simulations = 1, initial_state_matching = False, Moments = 2, **keywords):
         self.N_simulations = 1
         self.initial_state_matching = initial_state_matching
         if Moments > 2:

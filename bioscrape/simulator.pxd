@@ -363,6 +363,7 @@ cdef class DeterministicSimulator(RegularSimulator):
     """
     cdef double atol
     cdef double rtol
+    cdef double hmax
     cdef unsigned mxstep
 
     cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints)
