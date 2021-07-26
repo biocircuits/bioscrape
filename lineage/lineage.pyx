@@ -1817,7 +1817,7 @@ cdef class LineageSSASimulator:
 		cdef unsigned current_index = 0
 		cdef unsigned reaction_choice = 4294967295 # https://en.wikipedia.org/wiki/4,294,967,295
 		cdef unsigned species_index = 4294967295
-		cdef double delta_t
+		cdef double delta_t = timepoints[1] - timepoints[0]
 		cdef double next_queue_time = timepoints[current_index+1]
 		cdef double move_to_queued_time = 0
 		cdef double initial_volume = v.get_initial_volume()
