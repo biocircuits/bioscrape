@@ -1817,7 +1817,7 @@ cdef class LineageSSASimulator:
 		cdef unsigned current_index = 0
 		cdef unsigned reaction_choice = 4294967295 # https://en.wikipedia.org/wiki/4,294,967,295
 		cdef unsigned species_index = 4294967295
-		cdef double delta_t = timepoints[1] - timepoints[0]
+		cdef double delta_t
 		cdef double next_queue_time = timepoints[current_index+1]
 		cdef double move_to_queued_time = 0
 		cdef double initial_volume = v.get_initial_volume()
@@ -1861,6 +1861,9 @@ cdef class LineageSSASimulator:
 				return SCR
 			else:
 				delta_t = timepoints[0] - current_time
+				next_queue_time = timepoints[0]
+		else:
+			delta_t = timepoints[1] - timepoints[0]
 
 		if timepoints[0] > timepoints[num_timepoints-1]:
 			ts_string = "[" + str(timepoints[0])
@@ -2428,12 +2431,18 @@ cdef class LineageSSASimulator:
 					self.c_truncated_timepoints = self.truncate_timepoints_less_than(self.c_timepoints, self.cs.get_time())
 
 					# Simulate daughter 1
+					if debug:
+						print("Daughter 1...")
 					self.r = self.SimulateSingleCell(self.d1, self.c_truncated_timepoints, mode = 0)
 					self.turbidostat_queue.push_event(self.r.get_final_cell_state())
+					if debug:
+						print(" done.\nDaughter 2...")
 
 					# Simulate daughter 2
 					self.r = self.SimulateSingleCell(self.d2, self.c_truncated_timepoints, mode = 0)
 					self.turbidostat_queue.push_event(self.r.get_final_cell_state())
+					if debug:
+						print(" done.")
 					continue
 
 				if self.cs.get_time() >= next_sample_time - dt:
