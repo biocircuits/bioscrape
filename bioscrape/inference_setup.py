@@ -391,7 +391,7 @@ class InferenceSetup(object):
         
         #Ensure parameters are positive, if their priors are declared to be positive
         for i, p in enumerate(self.params_to_estimate):
-            if "positive" in prior:
+            if "positive" in self.prior[p]:
                 p0[:, i] = p0[:, i]*(p0[:, i] > 0)
 
         return p0
