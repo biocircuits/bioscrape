@@ -291,6 +291,7 @@ class DeterministicInference(PIDInterface):
         #apply cost function
         LL_det_cost = self.LL_det.py_log_likelihood()
         ln_prob = lp + LL_det_cost
+        #print("params", params, "ln_prob", ln_prob)
         return ln_prob
         
 class LMFitInference(PIDInterface):

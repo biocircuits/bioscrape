@@ -427,7 +427,7 @@ cdef class ModelCSimInterface(CSimInterface):
         self.update_array = self.model.get_update_array()
         self.delay_update_array = self.model.get_delay_update_array()
         self.initial_state = self.model.get_species_values()
-        self.np_param_values = (self.model.get_params_values())
+        self.np_param_values = self.model.get_params_values()
         self.c_param_values = <double*>(self.np_param_values.data)
         self.num_reactions = self.update_array.shape[1]
         self.num_species = self.update_array.shape[0]
@@ -487,6 +487,10 @@ cdef class ModelCSimInterface(CSimInterface):
 
     cdef double* get_param_values(self):
         return self.c_param_values
+
+    cdef void set_param_values(self, np.ndarray params):
+        self.np_param_values = params
+        self.c_param_values = <double*>(self.np_param_values.data)
 
     def py_get_param_values(self):
         return self.np_param_values
@@ -2119,7 +2123,7 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
     #check timestep
     dt = timepoints[1]-timepoints[0]
     if not np.allclose(timepoints[1:] - timepoints[:-1], dt):
-        raise ValueError("the timestep in timepoints is not uniform! Timepoints must be a linear set of points.")
+        warnings.warn("The timestep in timepoints is not uniform! Timepoints should be a linear set of points...but we'll try to simulate anyways.")
     else:
         Interface.py_set_dt(dt)
 

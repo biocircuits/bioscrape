@@ -130,6 +130,7 @@ cdef class ModelCSimInterface(CSimInterface):
     cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time)
     cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
     cdef np.ndarray get_initial_state(self)
+    cdef void set_param_values(self, np.ndarray params)
 
     cdef void apply_repeated_rules(self, double *state,double time, unsigned rule_step)
     cdef unsigned get_number_of_rules(self)

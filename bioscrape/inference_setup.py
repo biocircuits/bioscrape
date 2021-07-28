@@ -365,6 +365,7 @@ class InferenceSetup(object):
         convergence_diagnostics = kwargs.get('convergence_diagnostics', convergence_check)
         skip_initial_state_check = kwargs.get('skip_initial_state_check', False)
         progress = kwargs.get('progess', True)
+        threads = kwargs.get('threads', 1)
         #if not 'convergence_check' in kwargs:
         #    convergence_check = True
         #if not 'convergence_diagnostics' in kwargs:
@@ -388,7 +389,8 @@ class InferenceSetup(object):
         else:
             p0 = np.array(params_values) + self.init_seed * np.random.randn(self.nwalkers, ndim)
         assert p0.shape == (self.nwalkers, ndim)
-        sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function)
+        print("creating an ensemble sampler with threads=", threads)
+        sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function, threads = threads)
         sampler.run_mcmc(p0, self.nsteps, progress = progress, skip_initial_state_check = skip_initial_state_check)
         if convergence_check:
             self.autocorrelation_time = sampler.get_autocorr_time()
