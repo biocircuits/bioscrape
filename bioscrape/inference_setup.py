@@ -358,6 +358,44 @@ class InferenceSetup(object):
         self.cost_progress.append(cost_value)
         return cost_value
 
+
+
+    def seed_parameter_values(self, **kwargs):
+        ndim = len(self.params_to_estimate)
+        params_values = []
+        for p in self.params_to_estimate:
+            value = self.M.get_parameter_dictionary()[p]
+            params_values.append(value)
+        #Sample a one percent ball around a given initial value
+        if (isinstance(self.init_seed, np.ndarray) or isinstance(self.init_seed, list)) and len(self.initial_seed) == ndim:
+            p0 = np.array(self.init_seed) + 0.01*np.array(self.initial_seed)*np.random.randn(self.nwalkers, ndim)
+        #Use this exact start value
+        elif isinstance(self.init_seed, np.ndarray) and self.initial.seed.shape == (self.nwalkers, ndim):
+            p0 =  np.array(self.initial_seed)
+        #Sample the Prior Distributions to determine initial values
+        elif self.init_seed == "prior":
+            p0 = np.zeros((self.nwalkers, ndim))
+            for i, p in enumerate(self.params_to_estimate):
+                prior = self.prior[p]
+                if prior[0] == "uniform":
+                    p0[:, i] = np.random.rand(self.nwalkers)*(prior[2]-prior[1])+prior[1]
+                elif prior[0] == "gaussian":
+                    p0[:, i] = prior[2]*np.random.randn(self.nwalkers)+prior[1]
+                else:
+                    raise ValueError("Can only sample uniform and gaussian priors when 'initial_seed' is set to prior. Try setting intial seed to a number [0, 1] to sample a gaussian ball around the model parameters instead.")
+        #sample a gaussian ball around the initial model parameters
+        elif isinstance(self.init_seed, float):
+            p0 = np.array(params_values) + self.init_seed * np.array(params_values) * np.random.randn(self.nwalkers, ndim)
+        else:
+            raise ValueError("initial_seed must be a float (will sample a gaussian ball of this percent around the model initial condition), array (of size parameters or walkers x parameters), or the string 'prior' (will sample from uniform and guassian priors)")
+        
+        #Ensure parameters are positive, if their priors are declared to be positive
+        for i, p in enumerate(self.params_to_estimate):
+            if "positive" in prior:
+                p0[:, i] = p0[:, i]*(p0[:, i] > 0)
+
+        return p0
+
     def run_emcee(self, **kwargs):
         self.setup_cost_function(**kwargs)
         progress = kwargs.get('progress')
@@ -366,28 +404,15 @@ class InferenceSetup(object):
         skip_initial_state_check = kwargs.get('skip_initial_state_check', False)
         progress = kwargs.get('progess', True)
         threads = kwargs.get('threads', 1)
-        #if not 'convergence_check' in kwargs:
-        #    convergence_check = True
-        #if not 'convergence_diagnostics' in kwargs:
-        #    convergence_diagnostics = True
-        #    if not convergence_check:
-        #        convergence_diagnostics = False
-        #if not 'progress' in kwargs:
-        #    progress = True
 
         try:
             import emcee
         except:
             raise ImportError('emcee package not installed.')
         ndim = len(self.params_to_estimate)
-        params_values = []
-        for p in self.params_to_estimate:
-            value = self.M.get_parameter_dictionary()[p]
-            params_values.append(value)
-        if isinstance(self.init_seed, np.ndarray) or isinstance(self.init_seed, list):
-            p0 = np.array(self.init_seed) + 0.01*np.random.randn(self.nwalkers, ndim)
-        else:
-            p0 = np.array(params_values) + self.init_seed * np.random.randn(self.nwalkers, ndim)
+
+        p0 = self.seed_parameter_values(**kwargs)
+
         assert p0.shape == (self.nwalkers, ndim)
         print("creating an ensemble sampler with threads=", threads)
         sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function, threads = threads)
