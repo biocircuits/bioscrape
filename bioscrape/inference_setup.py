@@ -367,11 +367,11 @@ class InferenceSetup(object):
             value = self.M.get_parameter_dictionary()[p]
             params_values.append(value)
         #Sample a one percent ball around a given initial value
-        if (isinstance(self.init_seed, np.ndarray) or isinstance(self.init_seed, list)) and len(self.initial_seed) == ndim:
-            p0 = np.array(self.init_seed) + 0.01*np.array(self.initial_seed)*np.random.randn(self.nwalkers, ndim)
+        if (isinstance(self.init_seed, np.ndarray) or isinstance(self.init_seed, list)) and len(self.init_seed) == ndim:
+            p0 = np.array(self.init_seed) + 0.01*np.array(self.init_seed)*np.random.randn(self.nwalkers, ndim)
         #Use this exact start value
-        elif isinstance(self.init_seed, np.ndarray) and self.initial.seed.shape == (self.nwalkers, ndim):
-            p0 =  np.array(self.initial_seed)
+        elif isinstance(self.init_seed, np.ndarray) and self.init_seed.shape == (self.nwalkers, ndim):
+            p0 =  np.array(self.init_seed)
         #Sample the Prior Distributions to determine initial values
         elif self.init_seed == "prior":
             p0 = np.zeros((self.nwalkers, ndim))
@@ -382,12 +382,12 @@ class InferenceSetup(object):
                 elif prior[0] == "gaussian":
                     p0[:, i] = prior[2]*np.random.randn(self.nwalkers)+prior[1]
                 else:
-                    raise ValueError("Can only sample uniform and gaussian priors when 'initial_seed' is set to prior. Try setting intial seed to a number [0, 1] to sample a gaussian ball around the model parameters instead.")
+                    raise ValueError("Can only sample uniform and gaussian priors when 'init_seed' is set to prior. Try setting intial seed to a number [0, 1] to sample a gaussian ball around the model parameters instead.")
         #sample a gaussian ball around the initial model parameters
         elif isinstance(self.init_seed, float):
             p0 = np.array(params_values) + self.init_seed * np.array(params_values) * np.random.randn(self.nwalkers, ndim)
         else:
-            raise ValueError("initial_seed must be a float (will sample a gaussian ball of this percent around the model initial condition), array (of size parameters or walkers x parameters), or the string 'prior' (will sample from uniform and guassian priors)")
+            raise ValueError("init_seed must be a float (will sample a gaussian ball of this percent around the model initial condition), array (of size parameters or walkers x parameters), or the string 'prior' (will sample from uniform and guassian priors)")
         
         #Ensure parameters are positive, if their priors are declared to be positive
         for i, p in enumerate(self.params_to_estimate):
