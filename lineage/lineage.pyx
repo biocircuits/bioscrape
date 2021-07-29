@@ -769,7 +769,7 @@ cdef class LineageModel(Model):
 	def create_death_event(self, str event_type, dict event_params, str event_propensity_type, dict propensity_params, print_out = False):
 		event_params = dict(event_params)
 		propensity_params = dict(propensity_params)
-		prop_object = self.create_propensity(event_propensity_type, propensity_params, print_out = print_out)
+		prop_object = self.create_propensity(event_propensity_type, propensity_params, input_printout = print_out)
 		if event_type.lower() in ["", "death", "deathevent", "death event", "default"]:
 			event_object = DeathEvent()
 		else:
@@ -781,7 +781,7 @@ cdef class LineageModel(Model):
 			print("Adding New DivisionEvent with event_type=", event_type, "params=", event_params, "propensity_type=",event_propensity_type, "propensity_params=", propensity_params, "and VolumeSplitter=", volume_splitter)
 		event_params = dict(event_params)
 		propensity_params = dict(propensity_params)
-		prop_object = self.create_propensity(event_propensity_type, propensity_params, print_out = print_out)
+		prop_object = self.create_propensity(event_propensity_type, propensity_params, input_printout = print_out)
 		if event_type.lower() in ["", "division", "divisionevent", "division event", "default"]:
 			event_object = DivisionEvent()
 		else:
@@ -795,7 +795,7 @@ cdef class LineageModel(Model):
 		propensity_params = dict(propensity_params)
 		if print_out:
 			warnings.warn("Creating New Volume event\n\ttype="+event_type+"\n\tparams="+str(event_params)+"\n\tprop_type="+str(event_propensity_type)+"\n\tprop_params="+str(propensity_params))
-		prop_object = self.create_propensity(event_propensity_type, propensity_params, print_out = print_out)
+		prop_object = self.create_propensity(event_propensity_type, propensity_params, input_printout = print_out)
 
 		if event_type.lower() in ["linear", "linear volume", "linearvolume" "linearvolumeevent", "linear volume event"]:
 			self._param_dict_check(event_params, "growth_rate", "DummyVar_LinearVolumeEvent")
@@ -1801,8 +1801,9 @@ cdef class LineageSSASimulator:
 	#Before calling this for a given interface, must call initialize_single_cell_interface to set up internal variables
 	#Python wrapper below takes care of all the details, but will be slower if used repeatedly
 	#unsigned mode: if 1 returns a full SingleCellSSAResult. If 0 returns a dummy SingleCellSSAResult of length 1
-	cdef SingleCellSSAResult SimulateSingleCell(self, LineageVolumeCellState v, double[:] timepoints, unsigned mode):
-		# print("SimulateSingleCell", "mode=", mode)
+	cdef SingleCellSSAResult SimulateSingleCell(self, LineageVolumeCellState v, double[:] timepoints, unsigned mode):		
+		#These are kept as local numpy arrays because they are returned after every simulation
+		cdef SingleCellSSAResult SCR
 
 		#Memory views are reused from other objects for less allocation
 		cdef unsigned num_timepoints = len(timepoints)
@@ -1816,7 +1817,7 @@ cdef class LineageSSASimulator:
 		cdef unsigned current_index = 0
 		cdef unsigned reaction_choice = 4294967295 # https://en.wikipedia.org/wiki/4,294,967,295
 		cdef unsigned species_index = 4294967295
-		cdef double delta_t = timepoints[1]-timepoints[0]
+		cdef double delta_t
 		cdef double next_queue_time = timepoints[current_index+1]
 		cdef double move_to_queued_time = 0
 		cdef double initial_volume = v.get_initial_volume()
@@ -1834,8 +1835,46 @@ cdef class LineageSSASimulator:
 		cdef np.ndarray[np.double_t,ndim=1] dummy_v
 		cdef np.ndarray[np.double_t,ndim=2] dummy_r
 
-		#These are kept as local numpy arrays because they are returned after every simulation
-		cdef SingleCellSSAResult SCR
+		# Check that timepoints are sane.
+		if num_timepoints < 1:
+			SCR = SingleCellSSAResult(np.zeros(0), np.zeros(0), np.zeros(0), 0)
+			SCR.set_divided(0)
+			SCR.set_dead(0)
+			SCR.set_initial_volume(-1)
+			SCR.set_initial_time(-1)
+			return SCR
+
+		if num_timepoints == 1:
+			if v.get_initial_time() >= timepoints[0]:
+				dummy_t = np.zeros(1)
+				dummy_v = np.zeros(1)
+				dummy_r = np.zeros((1, self.num_species))
+				dummy_t[0] = current_time
+				dummy_v[0] = current_volume
+				for species_index in range(self.num_species):
+					dummy_r[0, species_index] = self.c_current_state[species_index]
+				SCR = SingleCellSSAResult(dummy_t, dummy_r, dummy_v, <unsigned>(cell_divided >= 0))
+				SCR.set_divided(cell_divided)
+				SCR.set_dead(cell_dead)
+				SCR.set_initial_volume(self.c_volume_trace[0])
+				SCR.set_initial_time(timepoints[0])
+				return SCR
+			else:
+				delta_t = timepoints[0] - current_time
+				next_queue_time = timepoints[0]
+		else:
+			delta_t = timepoints[1] - timepoints[0]
+
+		if timepoints[0] > timepoints[num_timepoints-1]:
+			ts_string = "[" + str(timepoints[0])
+			for t in timepoints:
+				ts_string += f",{t}"
+			ts_string += "]"
+			raise ValueError(f"Tried to run single-cell lineage SSA with bad timepoints ({ts_string}).")
+
+		# Check that volume is sane.
+		if current_volume <= 0:
+			raise ValueError(f"Tried to run single-cell lineage SSA with nonpositive volume f{current_volume}.")
 
 		#If Mode is 1 we will need to allocate new memory for this simulation
 		if mode == 1:
@@ -1929,6 +1968,9 @@ cdef class LineageSSASimulator:
 			if move_to_queued_time == 1:
 				# Update the volume every dtyp
 				current_volume = self.interface.apply_volume_rules(&self.c_current_state[0], current_volume, current_time, delta_t, rule_step)
+				if current_volume <= 0:
+					raise ValueError(f"Volume rule created nonpositive volume {current_volume} with c_current_state = {self.c_current_state}, "
+									 f"current_time = {current_time}, delta_t = {delta_t}, and rule_step = {rule_step}.")
 				# v.set_volume(current_volume)
 
 			# if an actual reaction happened, do the reaction and maybe update the queue as well.
@@ -1953,6 +1995,10 @@ cdef class LineageSSASimulator:
 				elif reaction_choice >= self.num_reactions and reaction_choice < self.num_reactions + self.num_volume_events:
 
 					current_volume = self.interface.apply_volume_event(reaction_choice - self.num_reactions, &self.c_current_state[0], current_time, current_volume)
+
+					if current_volume <= 0:
+						raise ValueError(f"Volume rule created nonpositive volume {current_volume} with c_current_state = {self.c_current_state}, "
+									 f"event number = {reaction_choice-self.num_reactions}, and current_time = {current_time}..")
 
 				#Propensity is a DivisionEvent.
 				elif reaction_choice >= self.num_reactions+self.num_volume_events and reaction_choice < self.num_reactions + self.num_volume_events+self.num_division_events:
@@ -1987,10 +2033,11 @@ cdef class LineageSSASimulator:
 					self.c_results = self.c_results[:current_index+1,:]
 					timepoints = timepoints[:current_index+1]
 				else:
-					timepoints = timepoints[:current_index]
-					self.c_volume_trace = self.c_volume_trace[:current_index]
-					self.c_results = self.c_results[:current_index,:]
-					timepoints = timepoints[:current_index]
+					last_idx = min(current_index, num_timepoints)
+					timepoints = timepoints[:last_idx]
+					self.c_volume_trace = self.c_volume_trace[:last_idx]
+					self.c_results = self.c_results[:last_idx,:]
+					timepoints = timepoints[:last_idx]
 
 
 		if current_time > final_time + 10e-8:
@@ -2055,7 +2102,7 @@ cdef class LineageSSASimulator:
 		for j in range(array.shape[0]):
 			if array[j] >= value:
 				return array[j:]
-		return array #If nothing is less than the value, return the entire array
+		return array[:0] #If nothing is less than the value, return an empty array.
 
 	#Functions to simulate linages of cells
 	#returns a truncated version of the memoryview array[:x]
@@ -2386,12 +2433,19 @@ cdef class LineageSSASimulator:
 					self.c_truncated_timepoints = self.truncate_timepoints_less_than(self.c_timepoints, self.cs.get_time())
 
 					# Simulate daughter 1
+					if debug:
+						print("Daughter 1...")
 					self.r = self.SimulateSingleCell(self.d1, self.c_truncated_timepoints, mode = 0)
 					self.turbidostat_queue.push_event(self.r.get_final_cell_state())
+					if debug:
+						print(" done.\nDaughter 2...")
 
 					# Simulate daughter 2
 					self.r = self.SimulateSingleCell(self.d2, self.c_truncated_timepoints, mode = 0)
 					self.turbidostat_queue.push_event(self.r.get_final_cell_state())
+
+					if debug:
+						print(" done.")
 					continue
 
 				if self.cs.get_time() >= next_sample_time - dt:
@@ -2403,13 +2457,14 @@ cdef class LineageSSASimulator:
 
 					# OPTIMIZATION POSSIBLE HERE: implement a peek function in the queue so we can check for this
 					# case and just return the whole thing instead of doing a log(N) pop and a log(N) push.
+
 					self.turbidostat_queue.push_event(self.cs)
 					if debug:
 						print("Adding to samples:")
 					returnme = self.turbidostat_queue.get_underlying_array()[:self.turbidostat_queue.pop_size]
 					if debug:
 						for i in range(len(returnme)):
-							print(f"\t{returnme[i].py_get_time()}: {returnme[i].py_get_state()} ({returnme[i].py_get_initial_time()})")
+							print(f"\tT={returnme[i].py_get_time()}, V={returnme[i].py_get_volume()}: {returnme[i].py_get_state()} ({returnme[i].py_get_initial_time()})")
 					samples.append(returnme)
 					break
 
@@ -2419,7 +2474,8 @@ cdef class LineageSSASimulator:
 					self.c_truncated_timepoints = self.truncate_timepoints_less_than(self.c_timepoints, self.cs.get_time())
 					if debug:
 						print("(self.cs.get_time(): " + str(self.cs.get_time()))
-						print(f"timepoints: {[t for t in self.c_truncated_timepoints]}")
+						print(f"timepoints: {self.c_truncated_timepoints[0]} through {self.c_truncated_timepoints[len(self.c_truncated_timepoints)-1]}") #{[t for t in self.c_truncated_timepoints]}")
+
 					self.r = self.SimulateSingleCell(self.cs, self.c_truncated_timepoints, mode = 0)
 					self.turbidostat_queue.push_event(self.r.get_final_cell_state())
 					if debug:

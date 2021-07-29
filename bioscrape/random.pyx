@@ -93,7 +93,8 @@ def py_rand_int():
 # Seed the random number generator
 cdef seed_random(unsigned long long seed):
     """
-    Seed the C random number generator with the current system time.
+    Seed the C random number generator with a specific number, or
+    with the current system time.
     :return: none
     """
     if seed == 0:
