@@ -404,6 +404,7 @@ class InferenceSetup(object):
         skip_initial_state_check = kwargs.get('skip_initial_state_check', False)
         progress = kwargs.get('progess', True)
         threads = kwargs.get('threads', 1)
+        fname = kwargs.get('results_filename', 'mcmc_results.csv')
 
         try:
             import emcee
@@ -415,6 +416,7 @@ class InferenceSetup(object):
 
         assert p0.shape == (self.nwalkers, ndim)
         print("creating an ensemble sampler with threads=", threads)
+        print("results will be written to", fname)
         sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function, threads = threads)
         sampler.run_mcmc(p0, self.nsteps, progress = progress, skip_initial_state_check = skip_initial_state_check)
         if convergence_check:
@@ -428,7 +430,8 @@ class InferenceSetup(object):
                                     'Acceptance fraction (fraction of steps that were accepted)':sampler.acceptance_fraction}
         # Write results
         import csv
-        with open('mcmc_results.csv','w', newline = "") as f:
+        
+        with open(fname,'w', newline = "") as f:
             writer = csv.writer(f)
             writer.writerows(sampler.get_chain(flat = True))
             if convergence_diagnostics:
