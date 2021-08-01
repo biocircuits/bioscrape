@@ -381,6 +381,12 @@ class InferenceSetup(object):
                     p0[:, i] = np.random.rand(self.nwalkers)*(prior[2]-prior[1])+prior[1]
                 elif prior[0] == "gaussian":
                     p0[:, i] = prior[2]*np.random.randn(self.nwalkers)+prior[1]
+                elif prior[0] == "log-uniform":
+                    a = np.log(prior[1])
+                    b = np.log(prior[2])
+
+                    u = np.random.randn(self.nwalkers)*(b - a)+a
+                    p0[:, i] = np.exp(u)
                 else:
                     raise ValueError("Can only sample uniform and gaussian priors when 'init_seed' is set to prior. Try setting intial seed to a number [0, 1] to sample a gaussian ball around the model parameters instead.")
         #sample a gaussian ball around the initial model parameters
