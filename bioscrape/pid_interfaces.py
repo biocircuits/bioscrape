@@ -36,6 +36,8 @@ class PIDInterface():
         self.params_to_estimate = params_to_estimate
         self.M = M
         self.prior = prior
+        self.log_space_parameters = kwargs.get('log_space_parameters', False)
+        print("using log_space_parameters=", self.log_space_parameters)
         return
     
     def check_prior(self, params_dict):
@@ -212,7 +214,7 @@ class StochasticInference(PIDInterface):
     def __init__(self, params_to_estimate, M, prior, **kwargs):
         self.LL_stoch = None
         self.dataStoch = None
-        super().__init__(params_to_estimate, M, prior)
+        super().__init__(params_to_estimate, M, prior, **kwargs)
         return
 
     def setup_likelihood_function(self, data, timepoints, measurements, initial_conditions, norm_order = 2, N_simulations = 3, debug = False, **kwargs):
@@ -238,17 +240,21 @@ class StochasticInference(PIDInterface):
         #Set params
         params_dict = {}
         for key, p in zip(self.params_to_estimate, params):
-            params_dict[key] = p
-        self.LL_stoch.set_init_params(params_dict)
+            if self.log_space_parameters:
+                params_dict[key] = np.exp(p)
+            else:
+                params_dict[key] = p
 
         #Prior
         lp = self.check_prior(params_dict)
         if not np.isfinite(lp):
             return -np.inf
+        else:
+            self.LL_stoch.set_init_params(params_dict)
 
-        LL_stoch_cost = self.LL_stoch.py_log_likelihood()
-        ln_prob = lp + LL_stoch_cost
-        return ln_prob
+            LL_stoch_cost = self.LL_stoch.py_log_likelihood()
+            ln_prob = lp + LL_stoch_cost
+            return ln_prob
        
 # Add a new class similar to this to create new interfaces.
 class DeterministicInference(PIDInterface):
@@ -281,18 +287,23 @@ class DeterministicInference(PIDInterface):
         #this part is the only part that is called repeatedly
         params_dict = {}
         for key, p in zip(self.params_to_estimate, params):
-            params_dict[key] = p
-        self.LL_det.set_init_params(params_dict)
+            if self.log_space_parameters:
+                params_dict[key] = np.exp(p)
+            else:
+                params_dict[key] = p
+        
         # Check prior
         lp = 0
         lp = self.check_prior(params_dict)
         if not np.isfinite(lp):
             return -np.inf
-        #apply cost function
-        LL_det_cost = self.LL_det.py_log_likelihood()
-        ln_prob = lp + LL_det_cost
-        #print("params", params, "ln_prob", ln_prob)
-        return ln_prob
+        else:
+            self.LL_det.set_init_params(params_dict)
+            #apply cost function
+            LL_det_cost = self.LL_det.py_log_likelihood()
+            ln_prob = lp + LL_det_cost
+            #print("params", params, "ln_prob", ln_prob)
+            return ln_prob
         
 class LMFitInference(PIDInterface):
     

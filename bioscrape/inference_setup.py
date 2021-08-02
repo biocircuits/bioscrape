@@ -396,10 +396,20 @@ class InferenceSetup(object):
             raise ValueError("init_seed must be a float (will sample a gaussian ball of this percent around the model initial condition), array (of size parameters or walkers x parameters), or the string 'prior' (will sample from uniform and guassian priors)")
         
         #Ensure parameters are positive, if their priors are declared to be positive
+        #When working in log space, a small non-zero value is used
+        if hasattr(self.pid_interface, "log_space_parameters") and self.pid_interface.log_space_parameters:
+            epsilon = 10**-8
+        else:
+            epsilon = 0
+
         for i, p in enumerate(self.params_to_estimate):
             if "positive" in self.prior[p]:
-                p0[:, i] = p0[:, i]*(p0[:, i] > 0)
+                p0[:, i] = p0[:, i]*(p0[:, i] > 0) + (p0[:, i] <= 0)*epsilon
 
+
+        #convert to log space, if pid_interface.log_space_parameters
+        if hasattr(self.pid_interface, "log_space_parameters") and self.pid_interface.log_space_parameters:
+            p0 = np.log(p0)
         return p0
 
     def run_emcee(self, **kwargs):
