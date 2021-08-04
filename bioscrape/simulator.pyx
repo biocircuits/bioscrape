@@ -9,10 +9,13 @@ from vector cimport vector
 from libc.math cimport fabs
 from types cimport Model, Delay, Propensity, Rule
 from scipy.integrate import odeint, ode
+from libc.math cimport floor
 import sys
+import copy
 import warnings
 import logging
 
+from bioscrape.random cimport poisson_rnd
 
 ##################################################                ####################################################
 ######################################              DELAY QUEUE TYPES                   ##############################
@@ -1831,12 +1834,12 @@ cdef class VolumeSSASimulator(VolumeSimulator):
 
 
         # Do the SSA part now
-
         while current_index < num_timepoints:
             # Compute the propensity in place
             sim.apply_repeated_volume_rules(<double*> c_current_state.data, current_volume, current_time, rule_step)
             sim.compute_stochastic_volume_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data),
                                             current_volume, current_time)
+            
             Lambda = cyrandom.array_sum(<double*> (c_propensity.data), num_reactions)
 
             # Either we are going to move to the next queued time, or we move to the next reaction time.
@@ -1904,12 +1907,6 @@ cdef class VolumeSSASimulator(VolumeSimulator):
 
         return vsr
 
-
-
-
-
-
-
 cdef class AdaptiveTauVolumeSSASimulator(VolumeSSASimulator):
     """
     Volume SSA implementation with a custom adaptive tau-leaping algorithm to speed up
@@ -1920,6 +1917,7 @@ cdef class AdaptiveTauVolumeSSASimulator(VolumeSSASimulator):
     to change any species S's concentration by more than epsilon*[S], where epsilon is a parameter
     of the simulation call. 
 
+    NOT IMPLEMENTED YET: 
     Reactions can also be grouped into reaction sets, which represent balanced cycles of reactions
     that may individually be fast but don't substantively change the concentrations of any species. 
     If all of the reactions in a set are likely to fire more than once in a dt AND tau-leaping ALL 
@@ -1928,23 +1926,25 @@ cdef class AdaptiveTauVolumeSSASimulator(VolumeSSASimulator):
     the add_reaction_set method. Symmetric two-reaction sets (e.g., binding-unbinding reactions) will
     be auto-detected by the simulator. 
     """
-    def __init__(self):
-        self.initialized = False
-        self.user_defined_reaction_sets = []
-        self.my_reaction_sets = []
+    def __init__(self, epsilon = 1e-3):
+        # # self.initialized = False
+        # self.user_defined_reaction_sets = []
+        # self.my_reaction_sets = []
+        self.epsilon = epsilon
 
     def add_reaction_set(self, reactions):
         """
         Adds a reaction set to this simulator's list of reaction sets. 
         :param reactions: (Iterable) An iterable of indexes of reactions. 
         """
-        self.user_defined_reaction_sets.append(reactions)
+        raise NotImplementedError("Reaction sets not yet implemented.")
+        # self.user_defined_reaction_sets.append((reactions))
 
-    cdef VolumeSSAResult volume_simulate(self, CSimInterface sim, Volume v, np.ndarray timepoints, double eps):
+    cdef VolumeSSAResult volume_simulate(self, CSimInterface sim, Volume v, np.ndarray timepoints):
         """
         Implements a volume simulation using a regular SSA with volume updates as a dt interval set by calling
-        sim.set_dt(), adaptively deciding whether or not to tau-leap each reaction on the fly, where eps is the 
-        greatest expected (fraction) change in count allowed by any species in a tau-leaped reaction (default 
+        sim.set_dt(), adaptively deciding whether or not to tau-leap each reaction on the fly, where self.epsilon
+        is the greatest expected (fraction) change in count allowed by any species in a tau-leaped reaction (default 
         1e-3).
         """
         # Set up the needed variables in C
@@ -1974,33 +1974,36 @@ cdef class AdaptiveTauVolumeSSASimulator(VolumeSSASimulator):
         cdef unsigned move_to_queued_time = 0
         cdef unsigned reaction_fired = 0
         cdef unsigned rule_step = 1
+        
 
         cdef double current_volume = v.get_volume()
         cdef unsigned cell_divided = 0
 
-        cdef np.ndarray[np.int_t,ndim=1] c_tau_leap = np.zeros(num_reactions)
-        cdef np_ndarray[np.int_t,ndim=1] c_simulate_explicit = np.zeros(num_reactions)
-        cdef np_ndarray[np.double_t,ndim=1] c_stoich_sum = np.zeros(num_species)
-        cdef int stoich_change
-        cdef np_ndarray[np.int_t,ndim=1] c_safe_set = np.zeros(len(self.my_reaction_sets))
+        cdef np.ndarray[np.int_t,ndim=1] c_tau_leap = np.zeros(num_reactions, dtype = np.int_)
+        cdef np.ndarray[np.int_t,ndim=1] c_simulate_explicit = np.zeros(num_reactions, dtype = np.int_)
+        cdef np.ndarray[np.double_t,ndim=1] c_stoich_sum = np.zeros(num_species)
+        cdef unsigned n_firings = 0
+        cdef double expected_firings
+        cdef double stoich_change
+        # cdef int set_is_safe
+        # cdef np.ndarray[np.int_t,ndim=1] c_safe_set = np.zeros(num_reactions, dtype = np.int_)
 
-        # Auto-detect likely balanced reaction sets. 
-        self.my_reaction_sets = copy.copy(self.user_defined_reaction_sets)
-        for i in range(num_reactions-1):
-            for j in range(i+1, num_reactions):
-                if c_stoich[:,i] = -1 * c_stoich[:,j]:
-                    self.my_reaction_sets.append([i, j])
+        # Auto-detect likely balanced reaction sets.
+        # self.my_reaction_sets = copy.copy(self.user_defined_reaction_sets)
+        # for i in range(num_reactions-1):
+        #     for j in range(i+1, num_reactions):
+        #         if np.all(c_stoich[:,i] == -1 * c_stoich[:,j]):
+        #             self.my_reaction_sets.append([i, j])
+        # print(f"reaction sets: {self.my_reaction_sets}")
 
 
         # Do the SSA part now
-
         while current_index < num_timepoints:
             # Compute the propensity in place
             sim.apply_repeated_volume_rules(<double*> c_current_state.data, current_volume, current_time, rule_step)
             sim.compute_stochastic_volume_propensities(<double*> (c_current_state.data), <double*> (c_propensity.data),
                                             current_volume, current_time)
 
-            # CHECK POISSON SAMPLING ACCURACY
 
             # Decide which reactions should be tau-leaped and which should be simulated explicitly
             # Simulate a reaction R explicitly if:
@@ -2010,46 +2013,50 @@ cdef class AdaptiveTauVolumeSSASimulator(VolumeSSASimulator):
             #   AND 
             #   (R is not expected to change any species S's concentration by more than eps*[S]
             #   OR R is part of a reaction set that doesn't change any species S by more than eps*[S])
-            for reaction_set in self.my_reaction_sets:
-                c_stoich_sum = np.zeros(num_species)
-                for r_idx in range(len(reaction_set)):
-                    for s_idx in range(num_species):
-                        c_stoich_sum[s_idx] += c_stoich[reaction_set[r_idx],s_idx]
-                set_is_safe = 1
-                for s_idx in range(num_species):
-                    if (c_stoich_sum[s_idx] != 0) and (abs(c_stoich_sum[s_idx]/c_current_state[s_idx]) > eps):
-                        set_is_safe = 0
-                        break
-                for r_idx in range(len(reaction_set)):
-                    c_safe_set[reaction_set[r_idx]] = set_is_safe
+            # for reaction_set in self.my_reaction_sets:
+            #     c_stoich_sum = np.zeros(num_species)
+            #     for r_idx in range(len(reaction_set)):
+            #         expected_firings = delta_t * c_propensity[r_idx]
+            #         for s_idx in range(num_species):
+            #             c_stoich_sum[s_idx] += expected_firings * c_stoich[s_idx, reaction_set[r_idx]]
+            #     set_is_safe = 1
+            #     for s_idx in range(num_species):
+            #         if (c_stoich_sum[s_idx] != 0) and (fabs(c_stoich_sum[s_idx]/c_current_state[s_idx]) > self.epsilon):
+            #             set_is_safe = 0
+            #             break
+            #     for r_idx in range(len(reaction_set)):
+            #         c_safe_set[reaction_set[r_idx]] = set_is_safe
 
             for r_idx in range(num_reactions):
-                if delta_t * c_propensity[r_idx] < 2:
+                expected_firings = delta_t * c_propensity[r_idx]
+                # if c_safe_set[r_idx] == 1:
+                #     c_simulate_explicit[r_idx] = 0
+                #     c_tau_leap[r_idx] = 1
+                if expected_firings < 2:
                     c_simulate_explicit[r_idx] = 1
                     c_tau_leap[r_idx] = 0
-                elif c_safe_set[r_idx] == 1:
-                    c_simulate_eplicit[r_idx] = 0
-                    c_tau_leap[r_idx] = 1
                 else:
-                    c_simulate_eplicit[r_idx] = 0
+                    c_simulate_explicit[r_idx] = 0
                     c_tau_leap[r_idx] = 1
                     for s_idx in range(num_species):
-                        stoich_change = c_stoich[s_idx,r_idx]
-                        if or (stoich_change != 0 and abs(stoich_change/c_current_state[s_idx]) > eps):
+                        stoich_change = expected_firings * c_stoich[s_idx,r_idx]
+                        if stoich_change != 0 and fabs(stoich_change/c_current_state[s_idx]) > self.epsilon:
                             c_simulate_explicit[r_idx] = 1
                             c_tau_leap[r_idx] = 0
                             break
 
-            if proposed_time <= current_time:
-                Lambda = cyrandom.array_masked_sum(<double*> (c_propensity.data), 
-                                                   <int*> (c_simulate_explicit.data), 
-                                                   num_reactions)
+            #if proposed_time <= current_time:
+            Lambda = cyrandom.array_masked_sum(<double*> (c_propensity.data), 
+                                               <long*> (c_simulate_explicit.data), # Cast must be to long!
+                                               num_reactions)
 
+            # Lambda: Total propensity (used to calculate the next explicit (non-tau) reaction)
+            # proposed_time: The proposed next time for a non-tau event to fire.
+            # current_index: The index of the next stored simulation timepoint. 
+            # next_queued_time: The next time we'll have to stop and store results. 
+            # current_time: where we are in the simulation, which may need to be updated based 
+            #               on what's happened since the last time.
 
-
-
-
-            # CONTINUE HERE
 
             # Either we are going to move to the next queued time, or we move to the next reaction time.
             if Lambda == 0:
@@ -2074,6 +2081,18 @@ cdef class AdaptiveTauVolumeSSASimulator(VolumeSSASimulator):
 
             # Update the results array with the state for the time period that we just jumped through.
             while current_index < num_timepoints and c_timepoints[current_index] <= current_time:
+                # Apply tau-leaps. 
+                for reaction_index in range(num_reactions):
+                    if c_tau_leap[reaction_index] == 1:
+                        # First figure out if you need to clip reactions because they're forcing a species past zero.
+                        n_firings = poisson_rnd(c_propensity[reaction_index])
+                        for species_index in range(num_species):
+                            if n_firings * c_stoich[species_index, reaction_index] > c_current_state[species_index]:
+                                warnings.warn(f"Tau-leap forced species #{species_index} below zero; clipping at zero.")
+                                n_firings = int(floor(c_current_state[species_index] / c_stoich[species_index, reaction_index]))
+                        # Now update current state with as many reaction firings as you can fit (up to sampled number).
+                        for species_index in range(num_species):
+                            c_current_state[species_index] += n_firings * c_stoich[species_index, reaction_index]
                 for species_index in range(num_species):
                     c_results[current_index,species_index] = c_current_state[species_index]
                 c_volume_trace[current_index] = current_volume
@@ -2097,7 +2116,8 @@ cdef class AdaptiveTauVolumeSSASimulator(VolumeSSASimulator):
             # if an actual reaction happened, do the reaction and maybe update the queue as well.
             elif reaction_fired:
                 # select a reaction
-                reaction_choice = cyrandom.sample_discrete(num_reactions, <double*> c_propensity.data, Lambda )
+                reaction_choice = cyrandom.sample_discrete_masked(num_reactions, <double*> c_propensity.data, 
+                                                                  <long*> c_simulate_explicit.data, Lambda )
 
                 # Do the reaction's initial stoichiometry.
                 for species_index in range(num_species):
@@ -2113,9 +2133,6 @@ cdef class AdaptiveTauVolumeSSASimulator(VolumeSSASimulator):
         vsr.set_volume_object(v)
 
         return vsr
-
-    cdef VolumeSSAResult volume_simulate(self, CSimInterface sim, Volume v, np.ndarray timepoints):
-        return self.volume_simulate(sim, v, timepoints, 1e-3)
 
 
 
@@ -2289,8 +2306,29 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
 
 #A wrapper function to allow easy simulation of Models
 def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = False, 
-                    delay = None, safe = False, volume = False, return_dataframe = True):
-    
+                      delay = None, tau_leap = False, safe = False, volume = False, 
+                      return_dataframe = True, epsilon = 1e-2):
+    '''
+    :param timepoints: (array-like) Times at which the simulation state will be returned (also used for application 
+                        of rules).
+    :param Model: (Model) A bioscrape Model object specifying what to simulate. Use this OR Interface, not both.
+    :param Interface: (CSimInterface) A bioscrape CSimInterface object specifying a Model and other information. Use 
+                        this OR Model, not both.
+    :param stochastic: (boolean) If true, simulation will be stochastic using SSA; otherwise, simulation result will 
+                        be a deterministic ODE solution.
+    :param delay: (boolean) Iff true, simulates with delay. Not currently compatible with Lineages or tau-leaping.
+    :param tau_leap: (boolean) Iff true, adaptively switches SSA algorithm to use tau-leaping when safe (and efficient).
+                    Will slow down a simulation with small numbers of molecules, but may be faster with large numbers 
+                    of molecules. Currently not compatible with delay. 
+    :param safe: (boolean) Iff true, uses a slower simulator that prints warnings when species concentrations get too 
+                big (or go negative). 
+    :param volume: (boolean or double) If true or a number, simulates with a known volume. True ==> volume = 1
+    :param return_dataframe: (boolean) Iff true, package results into a dataframe. Otherwise, return results as an array.
+    :param epsilon: (double) Error paramter for tau-leaping simulations. Tau leaping will only fire if the expected 
+                            change in every species S caused by a tau-leap is less than [S]*epsilon. Default 1e-2.
+    '''
+    if not tau_leap and epsilon != 1e-2:
+        warnings.warn("Epsilon is only used in tau-leaping; ignoring.")
 
     #Check model and interface
     if Model is None and Interface is None:
@@ -2337,6 +2375,9 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
         if not stochastic:
             warnings.warn("Delay Simulators only exist for stochastic simulations. Defaulting to Stochastic simulation")
 
+        if tau_leap:
+            warnings.warn("Tau-leaping is not yet compatible with delay simulations; tau-leaping will be dropped.")
+
         q = ArrayDelayQueue.setup_queue(Interface.py_get_num_reactions(),len(timepoints),timepoints[1]-timepoints[0])
         if v == None:
             Sim = DelaySSASimulator()
@@ -2346,9 +2387,15 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
             result = Sim.py_delay_volume_simulate(Interface, q, v, timepoints)
     elif stochastic:
         if v == None:
+            if tau_leap:
+                warnings.warn("Tau-leaping is currently only compatible with volume simulation; assuming volume 1.")
+                Sim = AdaptiveTauVolumeSSASimulator(epsilon = epsilon)
+                result = Sim.py_simulate(Interface, 1, timepoints)
             Sim = SSASimulator()
             result = Sim.py_simulate(Interface, timepoints)
-
+        elif tau_leap:
+            Sim = AdaptiveTauVolumeSSASimulator()
+            result = Sim.py_volume_simulate(Interface, v, timepoints)
         else:
             Sim = VolumeSSASimulator()
             result = Sim.py_volume_simulate(Interface, v, timepoints)

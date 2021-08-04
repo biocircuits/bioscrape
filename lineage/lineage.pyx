@@ -4,7 +4,7 @@
 
 import numpy as np
 import copy
-from libc.math cimport round
+from libc.math cimport round, fabs, floor
 cimport numpy as np
 from bioscrape.simulator cimport DeterministicSimulator, VolumeCellState, \
 								 VolumeSSAResult, DelayVolumeSSAResult, \
@@ -1705,7 +1705,9 @@ cdef class LineageSSASimulator:
 	#Memory Views are reused between each individual cell
 	#Sometimes, to be compatable with the double* used in original bioscrape, these are cast to double*
 	#these are used by SimulateSingleCell
-	cdef double[:] c_timepoints, c_current_state, c_propensity, c_truncated_timepoints, c_volume_trace
+	cdef double[:] c_timepoints, c_current_state, c_propensity, c_truncated_timepoints, c_volume_trace, c_stoich_sum
+	cdef long[:] c_tau_leap, c_simulate_explicit
+	cdef double tau_leap_tol
 	cdef double[:, :] c_stoich, c_results
 
 	#An Interface is stored ina  linear model for fast helper functions
@@ -1726,6 +1728,12 @@ cdef class LineageSSASimulator:
 
 	#Used for SimulateTurbidostat
 	cdef CappedStateQueue turbidostat_queue
+
+	def __init__(self, tau_leap_tol = None):
+		if tau_leap_tol is None:
+			self.tau_leap_tol = 0
+		else:
+			self.tau_leap_tol = tau_leap_tol
 
 	#Used to create a propensity buffer from an interface
 	cdef create_propensity_buffer(self, LineageCSimInterface interface):
@@ -1781,10 +1789,16 @@ cdef class LineageSSASimulator:
 	def py_initialize_single_cell_interface(self, LineageCSimInterface interface):
 		self.initialize_single_cell_interface(interface)
 
+	def py_set_tau_tolerance(self, new_tau_tol):
+		self.tau_leap_tol = new_tau_tol
+
 	#Allocates buffer to store results from SimulateSingleCell
 	cdef void initialize_single_cell_results_arrays(self, unsigned num_timepoints):
 		cdef np.ndarray[np.double_t,ndim=2] results 
 		cdef np.ndarray[np.double_t,ndim=1] volume_trace
+		cdef np.ndarray[np.double_t,ndim=1] stoich_sum
+		cdef np.ndarray[np.int_t,ndim=1] tau_leap
+		cdef np.ndarray[np.int_t,ndim=1] simulate_explicit
 
 		if num_timepoints == 0:
 			num_timepoints = 1 
@@ -1792,6 +1806,13 @@ cdef class LineageSSASimulator:
 		self.c_results = results
 		volume_trace = np.zeros(num_timepoints,)
 		self.c_volume_trace = volume_trace
+
+		tau_leap = np.zeros(self.num_propensities, dtype = np.int_)
+		self.c_tau_leap = tau_leap
+		simulate_explicit = np.ones(self.num_propensities, dtype = np.int_)
+		self.c_simulate_explicit = simulate_explicit
+		stoich_sum = np.zeros(self.num_species)
+		self.c_stoich_sum = stoich_sum
 
 	#python accessible version
 	def py_initialize_single_cell_results_arrays(self, int num_timepoints):
@@ -1801,7 +1822,8 @@ cdef class LineageSSASimulator:
 	#Before calling this for a given interface, must call initialize_single_cell_interface to set up internal variables
 	#Python wrapper below takes care of all the details, but will be slower if used repeatedly
 	#unsigned mode: if 1 returns a full SingleCellSSAResult. If 0 returns a dummy SingleCellSSAResult of length 1
-	cdef SingleCellSSAResult SimulateSingleCell(self, LineageVolumeCellState v, double[:] timepoints, unsigned mode):		
+	cdef SingleCellSSAResult SimulateSingleCell(self, LineageVolumeCellState v, double[:] timepoints, 
+												unsigned mode):
 		#These are kept as local numpy arrays because they are returned after every simulation
 		cdef SingleCellSSAResult SCR
 
@@ -1827,6 +1849,12 @@ cdef class LineageSSASimulator:
 		cdef int cell_dead = -1
 		cdef double Lambda = 0
 		cdef unsigned rule_step = 1
+		cdef bool tau_leaping = self.tau_leap_tol <= 0.0
+
+		# only used when tau-leaping.
+		cdef unsigned n_firings = 0
+		cdef double expected_firings
+		cdef double stoich_change
 
 		# print("single cell simulation starting at ", current_time, "till", final_time)
 
@@ -1879,7 +1907,6 @@ cdef class LineageSSASimulator:
 		#If Mode is 1 we will need to allocate new memory for this simulation
 		if mode == 1:
 			self.initialize_single_cell_results_arrays(num_timepoints)
-
 		elif mode == 0:
 			dummy_t = np.zeros(1)
 			dummy_v = np.zeros(1)
@@ -1900,6 +1927,15 @@ cdef class LineageSSASimulator:
 		if (self.interface.py_get_delay_update_array() != np.zeros(self.interface.py_get_delay_update_array().shape)).any():
 			warnings.warn("Delay reactions found in the model. SingleCellSSASimulator will simulate these reactions without delay. Delays are not yet supported for LineageModels but can be simulated as regular Models with the DelayVolumeSSASimulator.")
 
+		#Set up some tau-leap specific arrays.
+		#Note that c_tau_leap and c_simualte_explicit are used as masks for the propensity array, so must be 
+		#long enough to cover all propensities (not just reaction propensities).
+		# if tau_leaping:
+		# 	# print("a-1 tau")
+		# 	self.c_tau_leap = np.zeros(self.num_propensities, dtype = np.int_)
+		# 	self.c_simulate_explicit = np.ones(self.num_propensities, dtype = np.int_)
+		# 	self.c_stoich_sum = np.zeros(self.num_species)
+
 		# Do the SSA part now
 		# print("SingleCell loop start", self.interface, v)
 		while current_index < num_timepoints:
@@ -1912,7 +1948,7 @@ cdef class LineageSSASimulator:
 			# print("a3", len(self.c_current_state))
 			# print("self.c_current_state", self.c_current_state[0], self.c_current_state[1], self.c_current_state[2])
 			# print("current_time", current_time, "initial_volume", initial_volume, "initial_time", initial_time)
-			#returns the index of the first DivisionRule that returned True and -1 otherwise
+			# returns the index of the first DivisionRule that returned True and -1 otherwise
 			cell_divided = self.interface.apply_division_rules(&self.c_current_state[0], current_volume, current_time, initial_volume, initial_time, rule_step)
 
 			# print("A", "prop len", len(self.c_propensity))
@@ -1927,8 +1963,29 @@ cdef class LineageSSASimulator:
 				break
 			#Compute Reaction and Event propensities in-place
 			self.interface.compute_lineage_propensities(&self.c_current_state[0], &self.c_propensity[0], current_volume, current_time)
-
-			Lambda = cyrandom.array_sum(&self.c_propensity[0], self.num_propensities)
+			# print("a4")
+			if tau_leaping:
+				# print("a4 tau")
+				for r_idx in range(self.num_reactions):
+					expected_firings = delta_t * self.c_propensity[r_idx]
+					if expected_firings < 2:
+						self.c_simulate_explicit[r_idx] = 1
+						self.c_tau_leap[r_idx] = 0
+					else:
+						self.c_simulate_explicit[r_idx] = 0
+						self.c_tau_leap[r_idx] = 1
+						for s_idx in range(self.num_species):
+							stoich_change = expected_firings * self.c_stoich[s_idx,r_idx]
+							if stoich_change != 0 and fabs(stoich_change/self.c_current_state[s_idx]) > self.tau_leap_tol:
+								self.c_simulate_explicit[r_idx] = 1
+								self.c_tau_leap[r_idx] = 0
+								break
+				Lambda = cyrandom.array_masked_sum(&self.c_propensity[0],
+													<long*>&self.c_simulate_explicit[0], # Cast must be to long!
+													self.num_propensities)
+			else:
+				# print("a4 no tau")
+				Lambda = cyrandom.array_sum(&self.c_propensity[0], self.num_propensities)
 
 			# Either we are going to move to the next queued time, or we move to the next reaction time.
 			# print("B")
@@ -1958,6 +2015,20 @@ cdef class LineageSSASimulator:
 
 			# Update the results array with the state for the time period that we just jumped through.
 			while current_index < num_timepoints and timepoints[current_index] <= current_time:
+				# Apply tau-leaps. 
+				if tau_leaping:
+					# print(f"Applying tau leaps at time {timepoints[current_index]}")
+					for reaction_index in range(self.num_reactions):
+						if self.c_tau_leap[reaction_index] == 1:
+							# First figure out if you need to clip reactions because they're forcing a species past zero.
+							n_firings = cyrandom.poisson_rnd(self.c_propensity[reaction_index])
+							for species_index in range(self.num_species):
+								if n_firings * self.c_stoich[species_index, reaction_index] > self.c_current_state[species_index]:
+									warnings.warn(f"Tau-leap forced species #{species_index} below zero; clipping at zero.")
+									n_firings = int(floor(self.c_current_state[species_index] / self.c_stoich[species_index, reaction_index]))
+							# Now update current state with as many reaction firings as you can fit (up to sampled number).
+							for species_index in range(self.num_species):
+								self.c_current_state[species_index] += n_firings * self.c_stoich[species_index, reaction_index]
 				for species_index in range(self.num_species):
 					self.c_results[current_index, species_index] = self.c_current_state[species_index]
 				self.c_volume_trace[current_index] = current_volume
@@ -1977,7 +2048,9 @@ cdef class LineageSSASimulator:
 			else:
 				# print("D")
 				# select a reaction
-				reaction_choice = cyrandom.sample_discrete(self.num_propensities, &self.c_propensity[0], Lambda)
+				reaction_choice = cyrandom.sample_discrete_masked(self.num_propensities, &self.c_propensity[0], 
+																  <long*> &self.c_simulate_explicit[0], Lambda)
+				# reaction_choice = cyrandom.sample_discrete(self.num_propensities, &self.c_propensity[0], Lambda)
 				#Propensities are Ordered:
 				# Reactions, Divison Events, Volume Events, Death Events
 
@@ -2074,7 +2147,9 @@ cdef class LineageSSASimulator:
 		# print("Simulate Single Cell Complete")
 		return SCR
 
-	def py_SimulateSingleCell(self, np.ndarray timepoints, LineageModel Model = None, LineageCSimInterface interface = None, LineageVolumeCellState v = None, safe = False):
+	def py_SimulateSingleCell(self, np.ndarray timepoints, LineageModel Model = None, 
+							  LineageCSimInterface interface = None, LineageVolumeCellState v = None, 
+							  safe = False):
 
 		if Model == None and interface == None:
 			raise ValueError('py_SimulateSingleCell requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
@@ -2361,7 +2436,8 @@ cdef class LineageSSASimulator:
 	#	diluted out. This is fine for now, since the function has no option to return dead cells. IF YOU 
 	# 	WANT TO ADD the ability to return dead cells, be aware that you'll either get back diluted cells, too,
 	# 	or you'll have to add another flag to LineageVolumeCellState.
-	cdef list SimulateTurbidostat(self, list initial_cell_states, double[:] timepoints, double[:] sample_times, unsigned int population_cap, bool debug = False):
+	cdef list SimulateTurbidostat(self, list initial_cell_states, double[:] timepoints, double[:] sample_times, 
+								  unsigned int population_cap, bool debug = False):
 		cdef list samples = []
 		cdef unsigned i = 0
 		cdef unsigned mode = 0
@@ -2555,7 +2631,9 @@ cdef class LineageSSASimulator:
 #Auxilary wrapper functions for quick access to Lineage Simulations
 
 #SingleCellLineage simulates the trajectory of a single cell, randomly discarding one of its daughters every division.
-def py_SingleCellLineage(timepoints, initial_cell_state = None, LineageModel Model = None, LineageCSimInterface interface = None, LineageSSASimulator simulator = None, return_dataframes = True, safe = False):
+def py_SingleCellLineage(timepoints, initial_cell_state = None, LineageModel Model = None, 
+						 LineageCSimInterface interface = None, LineageSSASimulator simulator = None, 
+						 return_dataframes = True, safe = False, tau_leap_tol = 0.0):
 	if Model == None and interface == None:
 		raise ValueError('py_SingleCellLineage requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 	elif interface == None:
@@ -2571,7 +2649,7 @@ def py_SingleCellLineage(timepoints, initial_cell_state = None, LineageModel Mod
 		raise ValueError("initial_cell_state must be of type LineageVolumeCellState or None (in which case it will default to the Model's initial state).")
 
 	if simulator == None:
-		simulator = LineageSSASimulator()
+		simulator = LineageSSASimulator(tau_leap_tol = tau_leap_tol)
 	result = simulator.py_SingleCellLineage(timepoints, initial_cell_state, interface)
 	cell_lineage = []
 	if return_dataframes:#Converts list of cell states into a Pandas dataframe
@@ -2589,7 +2667,8 @@ def py_SingleCellLineage(timepoints, initial_cell_state = None, LineageModel Mod
 #return data_frames returns all the results as a pandas dataframe. Otherwise results are returned as a list of LineageVolumeCellStates
 def  py_PropagateCells(timepoints, initial_cell_states = [], LineageModel Model = None, 
 	LineageCSimInterface interface = None, LineageSSASimulator simulator = None, 
-	sample_times = 1, include_dead_cells = False, return_dataframes = True, return_sample_times = True, safe = False):
+	sample_times = 1, include_dead_cells = False, return_dataframes = True, return_sample_times = True, 
+	safe = False, tau_leap_tol = 0.0):
 
 	if Model == None and interface == None:
 		raise ValueError('py_PropagateCells requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
@@ -2607,7 +2686,7 @@ def  py_PropagateCells(timepoints, initial_cell_states = [], LineageModel Model 
 	elif not isinstance(initial_cell_states, list):
 		raise ValueError("Initial Cell States must be a list of LineageVolumeCell states or and positive integer")
 	if simulator == None:
-		simulator = LineageSSASimulator()
+		simulator = LineageSSASimulator(tau_leap_tol = tau_leap_tol)
 
 	if isinstance(sample_times, int): #Return N=sample_times evenly spaced samples starting at the end of the simulation
 		sample_times = timepoints[::-int(len(timepoints)/sample_times)]
@@ -2644,9 +2723,10 @@ def  py_PropagateCells(timepoints, initial_cell_states = [], LineageModel Model 
 
 #SimulateCellLineage simulates a lineage of growing, dividing, and dieing cells over timepoints.
 #The entire time trajectory of the simulation is returned as a Lineage which contains a binary tree of Schnitzes each containing a LineageSingleCellSSAResult.
-def py_SimulateCellLineage(timepoints, initial_cell_states = [], initial_cell_count = 1, interface = None, Model = None, safe = False):
+def py_SimulateCellLineage(timepoints, initial_cell_states = [], initial_cell_count = 1, interface = None, 
+						   Model = None, safe = False, tau_leap_tol = 0.0):
 
-	simulator = LineageSSASimulator()
+	simulator = LineageSSASimulator(tau_leap_tol = tau_leap_tol)
 	if Model == None and interface == None:
 		raise ValueError('py_SimulateCellLineage requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 	elif interface == None:
@@ -2667,8 +2747,9 @@ def py_SimulateCellLineage(timepoints, initial_cell_states = [], initial_cell_co
 
 
 #SimulateSingleCell performs an SSA simulation on a single cell until it divides, dies, or the final timepoint arrives.
-def py_SimulateSingleCell(timepoints, Model = None, interface = None, initial_cell_state = None, return_dataframes = True, safe = False):
-	simulator = LineageSSASimulator()
+def py_SimulateSingleCell(timepoints, Model = None, interface = None, initial_cell_state = None, 
+						  return_dataframes = True, safe = False, tau_leap_tol = 0):
+	simulator = LineageSSASimulator(tau_leap_tol = tau_leap_tol)
 	if Model == None and interface == None:
 		raise ValueError('py_SimulateSingleCell requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 	elif interface == None:
@@ -2690,8 +2771,9 @@ def py_SimulateSingleCell(timepoints, Model = None, interface = None, initial_ce
 
 #Python class-free wrapper of LinageSSASimulator' SimulateTurbidostat function.
 def py_SimulateTurbidostat(initial_cell_states, timepoints, sample_times, population_cap, 
-	Model = None, interface = None, debug = False, safe = False, return_dataframes = True, return_sample_times = True):
-	simulator = LineageSSASimulator()
+						   Model = None, interface = None, debug = False, safe = False, 
+						   return_dataframes = True, return_sample_times = True, tau_leap_tol = 0):
+	simulator = LineageSSASimulator(tau_leap_tol = tau_leap_tol)
 	if Model == None and interface == None:
 		raise ValueError('py_SimulateTurbidostat requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 	elif interface == None:

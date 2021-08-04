@@ -1917,7 +1917,7 @@ cdef class Model:
 
         if unspecified_parameters:
             error_string += f" (params2index is {self.params2index}; param_values is {self.params_values})"
-            raise ValueError(error_string[:-2])
+            raise ValueError(error_string[:len(error_string)-2])
 
     #Checks that species' values are all set. Unset values default to 0 and warning is raised.
     def check_species(self):

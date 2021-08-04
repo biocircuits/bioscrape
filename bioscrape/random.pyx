@@ -224,6 +224,30 @@ def py_sample_discrete(int choices, np.ndarray[np.double_t,ndim=1] data, double 
     return sample_discrete(choices, <double*> (data.data), Lambda)
 
 
+cdef int sample_discrete_masked(int choices, double* data, long* mask, double Lambda):
+    """
+    Sample from a discrete set of options according to some un-normalized probability weights, with allowed
+    options set by a mask array (include when mask[i] == 1).
+    :param choices: (int) the number of possible choices. should be positive.
+    :param data: (double *) pointer to an array containing an un-normalized weight associated with each choice. (must
+            have length = choices)
+    :param mask: (long *) pointer to the mask array (must have len(mask) >= choices)
+    :param Lambda: (double) the sum of all the probability weights in data where mask==1. Used as the normalization 
+                    factor.
+    :return: (int) A non-negative index randomly sampled according to the weights. 0 <= return < choices
+    """
+    cdef double q = uniform_rv()*Lambda
+    cdef int i = 0
+    cdef double p_sum = 0.0
+    while p_sum < q and i < choices:
+        if mask[i] == 1:
+            p_sum += data[i]
+        i += 1
+    return i - 1
+
+def py_sample_discrete_masked(int choices, np.ndarray[np.double_t,ndim=1] data, np.ndarray[np.int_t,ndim=1] mask, 
+                              double Lambda):
+    return sample_discrete_masked(choices, <double*> (data.data), <long*> (mask.data), Lambda)
 
 
 
@@ -245,12 +269,12 @@ def py_array_sum(np.ndarray[np.double_t,ndim=1] data, int length):
     return array_sum(<double*> data.data, length)
 
 
-cdef double array_masked_sum(double* data, int* mask, int length):
+cdef double array_masked_sum(double* data, long* mask, int length):
     """
     Sum the values of an array of floating point numbers only in positions where a mask
     is value 1.
     :param data: (double *) pointer to the array of numbers (must have len(data) >= length)
-    :param mask: (int*) pointer to the mask array (must have len(mask) >= length)
+    :param mask: (long *) pointer to the mask array (must have len(mask) >= length)
     :param length: (int) the length of the arrays.
     :return: (double) the sum of all the numbers in data where mask==1.
     """
@@ -262,7 +286,7 @@ cdef double array_masked_sum(double* data, int* mask, int length):
     return answer
 
 def py_array_masked_sum(np.ndarray[np.double_t,ndim=1] data, np.ndarray[np.int_t,ndim=1] mask, int length):
-    return array_masked_sum(<double*> data.data, <int*> mask.data, length)
+    return array_masked_sum(<double*> data.data, <long*> mask.data, length)
 
 cdef unsigned binom_rnd(unsigned n, double p):
     """
@@ -367,7 +391,7 @@ cdef double loggamma_rnd(double x):
 cdef unsigned poisson_rnd(double lam):
     """
     Generate a Poisson random variable using one of two generation algorithms, depending on the 
-    scale factor mu. 
+    scale factor lam. 
     :param lam: (double) The rate constant (equivalently, the mean).
     :return: (unsigned) random number sample. 
     """
