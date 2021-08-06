@@ -71,6 +71,7 @@ class InferenceSetup(object):
         if 'debug' in kwargs:
             self.debug = kwargs.get('init_seed')
         self.cost_progress = []
+        self.cost_params = []
         self.hmax = kwargs.get('hmax', None)
         return 
 
@@ -356,6 +357,7 @@ class InferenceSetup(object):
 
         cost_value = self.pid_interface.get_likelihood_function(params)
         self.cost_progress.append(cost_value)
+        self.cost_params.append(params)
         return cost_value
 
 

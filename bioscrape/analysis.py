@@ -18,12 +18,13 @@ def py_get_sensitivity_to_parameter(model, state, param_name, **kwargs):
     return SensitivityAnalysis(model).compute_Zj(state, param_name, **kwargs)
 
 class SensitivityAnalysis(Model):
-    def __init__(self, M, dx = 0.01):
+    def __init__(self, M, dx = 0.01, precision = 10):
         """
         Local Sensitivity Analysis for Bioscrape models.
         Arguments:
         * M: The Bioscrape Model object.
         * dx: Small parameter used in approximate computation methods. 
+        * precision: the number of decimal places to round to
         """
         self.M = M
         sim = ModelCSimInterface(self.M)
@@ -33,6 +34,7 @@ class SensitivityAnalysis(Model):
         self.num_equations = sim.py_get_num_species()
         self.dx = 0.01
         self.original_parameters = dict(M.get_parameter_dictionary())
+        self.precision = precision
     
     def _evaluate_model(self, states, params = None, time = 0.0):
         """
@@ -43,11 +45,11 @@ class SensitivityAnalysis(Model):
             self.M.set_params(params)
         states = np.array(states, dtype = 'float64')
         derivative_array = np.zeros((self.num_equations), dtype = 'float64')
-        sim.py_calculate_deterministic_derivative(states, derivative_array, time)
         sim.py_apply_repeated_rules(states, time, True)
+        sim.py_calculate_deterministic_derivative(states, derivative_array, time)
         return derivative_array
 
-    def compute_J(self, x, **kwargs):
+    def compute_J(self, x, time = 0.0, **kwargs):
         """
         Compute the Jacobian J = df/dx at a point x.
         Returns a matrix of size n x n.
@@ -68,25 +70,25 @@ class SensitivityAnalysis(Model):
         # store the variable with respect to which we approximate the differentiation (df/dvar)
         state_input = np.array(x)
         for i in range(n):
-            f_0 = self._evaluate_model(state_input)[i]
+            f_0 = self._evaluate_model(state_input, time = time)[i]
             for j in range(n):
-                h = state_input[j]*self.dx
+                h = self.dx
                 if h == 0:
-                    raise ValueError('Small parameter exactly equal to 0, cannot compute Zj')
+                    raise ValueError('Small parameter exactly equal to 0, cannot compute Jacobian')
                 x = np.array(state_input)
                 x[j] = x[j] + h
-                f_h = self._evaluate_model(x)[i]
+                f_h = self._evaluate_model(x, time = time)[i]
                 x = np.array(state_input)
                 x[j] = x[j] - h
-                f_mh = self._evaluate_model(x)[i]
+                f_mh = self._evaluate_model(x, time = time)[i]
                 if method == 'fourth_order_central_difference':
                     # Gets O(h^4) central difference on df_i/dvar_j
                     x = np.array(state_input)
                     x[j] = x[j] + 2*h
-                    f_2h = self._evaluate_model(x)[i]
+                    f_2h = self._evaluate_model(x, time = time)[i]
                     x = np.array(state_input)
                     x[j] = x[j] - 2*h
-                    f_m2h = self._evaluate_model(x)[i]
+                    f_m2h = self._evaluate_model(x, time = time)[i]
                     J[i,j]= (-f_2h + 8*f_h - 8*f_mh + f_m2h)/(12*h)
                 if method == 'central_difference':
                     J[i,j]= (f_h - f_mh)/(2*h) 
@@ -101,9 +103,9 @@ class SensitivityAnalysis(Model):
                 elif J[i, j] == np.NaN:
                     warnings.warn('NaN found while conputing the Jacobian. Replacing 0. Check model.')
                     J[i, j] = 0
-        return J
+        return np.round(J, decimals = self.precision)
         
-    def compute_Zj(self, x, param_name, **kwargs):
+    def compute_Zj(self, x, param_name, time = 0.0, **kwargs):
         """
         Compute Z_j, i.e. df/dparam_name at a particular point x
         Returns a vector of size n x 1. 
@@ -115,31 +117,31 @@ class SensitivityAnalysis(Model):
         n = len(x)
         Z = np.zeros(n)    
         params_dict = dict(self.original_parameters)
-        array_f_0 = self._evaluate_model(x, params_dict)
-        h = params_dict[param_name]*self.dx # Small parameter for this parameter
+        array_f_0 = self._evaluate_model(x, params_dict, time = time)
+        h = self.dx # Small parameter for this parameter
         # For each state
         for i in range(n):
             if h == 0:
-                raise ValueError('Small parameter exactly equal to 0, cannot compute Zj')
+                raise ValueError(f'Small parameter exactly equal to 0, cannot compute Zj for parameter {param_name}')
             f_0 = array_f_0[i]
             params_dict[param_name] = params_dict[param_name] + h
             self.M.set_params(params_dict)
-            f_h = self._evaluate_model(x, params_dict)[i]
+            f_h = self._evaluate_model(x, params_dict, time = time)[i]
             # Reset
             params_dict = dict(self.original_parameters)
             params_dict[param_name] = params_dict[param_name] - h
             self.M.set_params(params_dict)
-            f_mh = self._evaluate_model(x, params_dict)[i]
+            f_mh = self._evaluate_model(x, params_dict, time = time)[i]
             params_dict = dict(self.original_parameters)
             if method == 'fourth_order_central_difference':
                 # Gets O(4) central difference on dfi/dpj
                 params_dict[param_name] = params_dict[param_name] + 2*h
                 self.M.set_params(params_dict)
-                f_2h = self._evaluate_model(x, params_dict)[i]
+                f_2h = self._evaluate_model(x, params_dict, time = time)[i]
                 params_dict = dict(self.original_parameters)
                 params_dict[param_name] = params_dict[param_name] - 2*h
                 self.M.set_params(params_dict)
-                f_m2h = self._evaluate_model(x, params_dict)[i]
+                f_m2h = self._evaluate_model(x, params_dict, time = time)[i]
                 params_dict = dict(self.original_parameters)
                 #Store approx. dfi/dp[param_name] into Z
                 Z[i]= (-f_2h + 8*f_h - 8*f_mh + f_m2h)/(12*h)
@@ -156,9 +158,9 @@ class SensitivityAnalysis(Model):
             elif Z[i] == np.NaN:
                 warnings.warn('NaN found while compute Zj, replacing by 0. Check model.')
                 Z[i] = 0
-        return Z
+        return np.round(Z, decimals = self.precision)
 
-    def compute_SSM(self, solutions, timepoints, normalize = False, **kwargs):
+    def compute_SSM(self, solutions, timepoints, normalize = False, params = None, **kwargs):
         """
         Returns the sensitivity coefficients S_j for each parameter p_j. 
         Solutions is the ODE solution to self for timepoints.
@@ -169,13 +171,19 @@ class SensitivityAnalysis(Model):
         * solutions: Pandas dataframe object returned by py_simulate_model that contains solutions for all model variables.
         * timepoints: The time points at which sensitivity coefficients are needed (this is the same as timepoints used for solutions).
         * normalize: (bool, default is False): When set to True, the returned sensitivity coefficients are normalized with state and parameter values.
+        * params: (list of parameters, default is None): The parameters to compute sensitivty to. When None defaults to all model parameters
         * kwargs: Other kwargs passed to `compute_J` and `compute_Z` functions.
         """
         def sensitivity_ode(t, x, J, Z):
             # ODE to solve for sensitivity coefficient S
             dsdt = J@x + Z
             return dsdt
-        all_params = self.M.get_param_list()
+
+        if params is None:
+            all_params = self.M.get_param_list()
+        else:
+            all_params = params
+
         number_of_params = len(all_params)
         n = self.num_equations
         S0 = np.zeros(n) # Initial value for S_i  
@@ -188,12 +196,12 @@ class SensitivityAnalysis(Model):
             if len(timepoints_ssm) == 1:
                 continue
             # get the jacobian matrix
-            J = self.compute_J(xs[k,:], **kwargs)
+            J = self.compute_J(xs[k,:], time = timepoints[k], **kwargs)
             #Solve for S = dx/dp for all x and all P (or theta, the parameters) at time point k
             for j in range(len(all_params)):
                 param_name = all_params[j]
                 # get the pmatrix
-                Zj = self.compute_Zj(xs[k,:], param_name, **kwargs)
+                Zj = self.compute_Zj(xs[k,:], param_name, time = timepoints[k], **kwargs)
                 # solve for S
                 f_sensitivity_ode = lambda t, x : sensitivity_ode(t, x, J, Zj)
                 sol = odeint(f_sensitivity_ode, S0, timepoints_ssm, tfirst = True)
@@ -201,8 +209,10 @@ class SensitivityAnalysis(Model):
                 S = np.reshape(S, (len(timepoints_ssm), n))
                 SSM[k,j,:] = S[k,:]
         if normalize:
-            SSM = self.normalize_SSM(SSM, xs, self.M.get_parameter_values()) #Identifiablity was estimated using an normalized SSM
-        return SSM
+            param_dict = self.M.get_parameter_dictionary()
+            param_vals = np.array([param_dict[p] for p in all_params])
+            SSM = self.normalize_SSM(SSM, xs, param_vals) #Identifiablity was estimated using an normalized SSM
+        return np.round(SSM, decimals = self.precision)
 
     def normalize_SSM(self, SSM, solutions, params_values):
         """
