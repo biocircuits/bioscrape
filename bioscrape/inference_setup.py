@@ -363,6 +363,8 @@ class InferenceSetup(object):
 
 
     def seed_parameter_values(self, **kwargs):
+        if 'init_seed' in kwargs:
+            self.set_init_seed(kwargs['init_seed'])
         ndim = len(self.params_to_estimate)
         params_values = []
         for p in self.params_to_estimate:
@@ -415,7 +417,9 @@ class InferenceSetup(object):
         return p0
 
     def run_emcee(self, **kwargs):
-        self.setup_cost_function(**kwargs)
+        if kwargs.get("reuse_likelihood", False) is False: 
+            self.setup_cost_function(**kwargs)
+
         progress = kwargs.get('progress')
         convergence_check = kwargs.get('convergence_check', True)
         convergence_diagnostics = kwargs.get('convergence_diagnostics', convergence_check)
@@ -423,6 +427,7 @@ class InferenceSetup(object):
         progress = kwargs.get('progess', True)
         threads = kwargs.get('threads', 1)
         fname = kwargs.get('results_filename', 'mcmc_results.csv')
+        printout = kwargs.get('printout', True)
 
         try:
             import emcee
@@ -433,8 +438,8 @@ class InferenceSetup(object):
         p0 = self.seed_parameter_values(**kwargs)
 
         assert p0.shape == (self.nwalkers, ndim)
-        print("creating an ensemble sampler with threads=", threads)
-        print("results will be written to", fname)
+        if printout: print("creating an ensemble sampler with threads=", threads)
+        
         sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function, threads = threads)
         sampler.run_mcmc(p0, self.nsteps, progress = progress, skip_initial_state_check = skip_initial_state_check)
         if convergence_check:
@@ -447,18 +452,21 @@ class InferenceSetup(object):
                 self.convergence_diagnostics = {'Autocorrelation time for each parameter':self.autocorrelation_time,
                                     'Acceptance fraction (fraction of steps that were accepted)':sampler.acceptance_fraction}
         # Write results
-        import csv
-        
-        with open(fname,'w', newline = "") as f:
-            writer = csv.writer(f)
-            writer.writerows(sampler.get_chain(flat = True))
-            if convergence_diagnostics:
-                writer.writerow('\nMCMC convergence diagnostics\n')
-                writer.writerow(self.convergence_diagnostics)
-            writer.writerow('\nCost function progress\n')
-            writer.writerow(self.cost_progress)
-            f.close()
-        print('Successfully completed MCMC parameter identification procedure. Parameter distribution data written to mcmc_results.csv file. Check the MCMC diagnostics to evaluate convergence.')
+        if fname:
+            import csv
+            
+            with open(fname,'w', newline = "") as f:
+                writer = csv.writer(f)
+                writer.writerows(sampler.get_chain(flat = True))
+                if convergence_diagnostics:
+                    writer.writerow('\nMCMC convergence diagnostics\n')
+                    writer.writerow(self.convergence_diagnostics)
+                writer.writerow('\nCost function progress\n')
+                writer.writerow(self.cost_progress)
+                f.close()
+                if printout: print("results written to", fname)
+        elif printout: print("results_filename keyword is False or None - results will not saved to a file.")
+        if printout: print('Successfully completed MCMC parameter identification procedure. Check the MCMC diagnostics to evaluate convergence.')
         return sampler
     
     def plot_mcmc_results(self, sampler, plot_show = True, **kwargs):
