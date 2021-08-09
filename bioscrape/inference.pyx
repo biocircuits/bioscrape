@@ -260,8 +260,18 @@ cdef class ModelLikelihood(Likelihood):
         self.m = m
         self.propagator = prop
         self.propagator_delay = prop_delay
-        self.default_params = dict(self.m.get_parameter_dictionary())
-        self.default_species = self.m.get_species_array()
+        self.set_default_params(dict(self.m.get_parameter_dictionary()))
+        self.set_default_species(self.m.get_species_array())
+
+
+    def set_default_species(self, species):
+        self.default_species = species
+       
+    def set_default_params(self, params):
+        if hasattr(self, "default_params"):
+            self.default_params.update(params)
+        else:
+            self.default_params = dict(params)
 
     def set_init_species(self, list sds):
         self.initial_states = np.zeros((self.Nx0, self.m.get_number_of_species()))

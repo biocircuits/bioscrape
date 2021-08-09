@@ -37,7 +37,6 @@ class PIDInterface():
         self.M = M
         self.prior = prior
         self.log_space_parameters = kwargs.get('log_space_parameters', False)
-        print("using log_space_parameters=", self.log_space_parameters)
         return
     
     def check_prior(self, params_dict):
