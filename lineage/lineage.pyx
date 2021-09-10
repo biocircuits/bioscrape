@@ -1845,10 +1845,11 @@ cdef class LineageSSASimulator:
 			return SCR
 
 		if num_timepoints == 1:
+			# Return the initial state, unchanged, at the time given.
 			dummy_t = np.zeros(1)
 			dummy_v = np.zeros(1)
 			dummy_r = np.zeros((1, self.num_species))
-			dummy_t[0] = current_time
+			dummy_t[0] = timepoints[0]
 			# print(f"\tdummy_t = {dummy_t}")
 			# print(f"Final time at end of SimulateSingleCell: {final_time}")
 			dummy_v[0] = current_volume
