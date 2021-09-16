@@ -1671,7 +1671,7 @@ cdef class CappedStateQueue():
 				i = j
 			else:
 				break
-
+        
 	cdef bool empty(self):
 		return self.pop_size == 0
 
@@ -1849,7 +1849,7 @@ cdef class LineageSSASimulator:
 				dummy_t = np.zeros(1)
 				dummy_v = np.zeros(1)
 				dummy_r = np.zeros((1, self.num_species))
-				dummy_t[0] = current_time
+				dummy_t[0] = timepoints[0]
 				dummy_v[0] = current_volume
 				for species_index in range(self.num_species):
 					dummy_r[0, species_index] = self.c_current_state[species_index]
