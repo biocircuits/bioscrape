@@ -27,7 +27,7 @@ def model_setup():
 
     species = ['y']
     parameters = {'m':m_true, 'b': b_true}
-    rule = ('assignment',{'equation':'y = _m*t + _b'})
+    rule = ('assignment',{'equation':'y = m*t + b'})
     x0 = {'y':0}
     M = Model(species = species, parameters = parameters, rules = [rule], initial_condition_dict = x0)
     params_to_estimate = ['m','b']
