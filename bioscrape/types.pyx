@@ -583,8 +583,6 @@ cdef class BinaryTerm(Term):
     def py_add_term(self, Term trm):
         self.add_term(trm)
 
-    
-
 cdef class SumTerm(BinaryTerm):
     cdef double evaluate(self, double *species, double *params, double time):
         cdef double ans = 0.0
@@ -607,7 +605,6 @@ cdef class SumTerm(BinaryTerm):
         string_rep += ") "
         return string_rep
 
-
 cdef class ProductTerm(BinaryTerm):
     cdef double evaluate(self, double *species, double *params, double time):
         cdef double ans = 1.0
@@ -629,7 +626,6 @@ cdef class ProductTerm(BinaryTerm):
             string_rep += " * " + str(self.terms_list[i])
         string_rep += ") "
         return string_rep
-
 
 cdef class MaxTerm(BinaryTerm):
     cdef double evaluate(self, double *species, double *params, double time):
@@ -681,6 +677,7 @@ cdef class MinTerm(BinaryTerm):
             if temp < ans:
                 ans = temp
         return ans
+
 
     def __str__(self):
         string_rep = " min(" + str(self.terms_list[0])
@@ -777,7 +774,6 @@ cdef class TimeTerm(Term):
 
     def __str__(self):
         return " {time} "
-
 
 def sympy_species_and_parameters(instring, species2index = None, params2index = None):
     instring = instring.replace('^','**')
@@ -937,7 +933,6 @@ cdef class GeneralPropensity(Propensity):
 
     def __str__(self):
         return str(self.term)
-
 
 
 ##################################################                ####################################################
@@ -2540,7 +2535,6 @@ cdef class Model:
                 deriv_strings[sp] += term_string
 
         return deriv_strings
-
 
     # Update this if you change any of Model's member variables!
     def __getstate__(self):
