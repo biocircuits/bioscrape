@@ -71,6 +71,8 @@ class InferenceSetup(object):
         if 'debug' in kwargs:
             self.debug = kwargs.get('init_seed')
         self.cost_progress = []
+        self.cost_params = []
+        self.hmax = kwargs.get('hmax', None)
         return 
 
     def set_model(self, M):
@@ -338,16 +340,16 @@ class InferenceSetup(object):
             raise TypeError('exp_data attribute of InferenceSetup object must be a list of Pandas DataFrames or a single Pandas DataFrame. ')
         return data
 
-    def setup_cost_function(self):
+    def setup_cost_function(self, **kwargs):
         if self.sim_type == 'stochastic':
-            self.pid_interface = StochasticInference(self.params_to_estimate, self.M, self.prior)
+            self.pid_interface = StochasticInference(self.params_to_estimate, self.M, self.prior, **kwargs)
             self.pid_interface.setup_likelihood_function(self.LL_data, self.timepoints, self.measurements, 
                                                             self.initial_conditions, norm_order = self.norm_order, 
-                                                            N_simulations = self.N_simulations, debug = self.debug)
+                                                            N_simulations = self.N_simulations, debug = self.debug, **kwargs)
         elif self.sim_type == 'deterministic':
-            self.pid_interface = DeterministicInference(self.params_to_estimate, self.M, self.prior)
+            self.pid_interface = DeterministicInference(self.params_to_estimate, self.M, self.prior, **kwargs)
             self.pid_interface.setup_likelihood_function(self.LL_data, self.timepoints, self.measurements, 
-                                                            self.initial_conditions, norm_order = self.norm_order, debug = self.debug)
+                                                            self.initial_conditions, norm_order = self.norm_order, debug = self.debug, **kwargs)
 
     def cost_function(self, params):
         if self.pid_interface is None:
@@ -355,37 +357,91 @@ class InferenceSetup(object):
 
         cost_value = self.pid_interface.get_likelihood_function(params)
         self.cost_progress.append(cost_value)
+        self.cost_params.append(params)
         return cost_value
 
-    def run_emcee(self, **kwargs):
-        self.setup_cost_function()
-        progress = kwargs.get('progress')
-        convergence_check = kwargs.get('convergence_check')
-        convergence_diagnostics = kwargs.get('convergence_diagnostics')
-        if not 'convergence_check' in kwargs:
-            convergence_check = True
-        if not 'convergence_diagnostics' in kwargs:
-            convergence_diagnostics = True
-            if not convergence_check:
-                convergence_diagnostics = False
-        if not 'progress' in kwargs:
-            progress = True
-        try:
-            import emcee
-        except:
-            raise ImportError('emcee package not installed.')
+
+
+    def seed_parameter_values(self, **kwargs):
+        if 'init_seed' in kwargs:
+            self.set_init_seed(kwargs['init_seed'])
         ndim = len(self.params_to_estimate)
         params_values = []
         for p in self.params_to_estimate:
             value = self.M.get_parameter_dictionary()[p]
             params_values.append(value)
-        if isinstance(self.init_seed, np.ndarray) or isinstance(self.init_seed, list):
-            p0 = np.array(self.init_seed) + 0.01*np.random.randn(self.nwalkers, ndim)
+        #Sample a one percent ball around a given initial value
+        if (isinstance(self.init_seed, np.ndarray) or isinstance(self.init_seed, list)) and len(self.init_seed) == ndim:
+            p0 = np.array(self.init_seed) + 0.01*np.array(self.init_seed)*np.random.randn(self.nwalkers, ndim)
+        #Use this exact start value
+        elif isinstance(self.init_seed, np.ndarray) and self.init_seed.shape == (self.nwalkers, ndim):
+            p0 =  np.array(self.init_seed)
+        #Sample the Prior Distributions to determine initial values
+        elif self.init_seed == "prior":
+            p0 = np.zeros((self.nwalkers, ndim))
+            for i, p in enumerate(self.params_to_estimate):
+                prior = self.prior[p]
+                if prior[0] == "uniform":
+                    p0[:, i] = np.random.rand(self.nwalkers)*(prior[2]-prior[1])+prior[1]
+                elif prior[0] == "gaussian":
+                    p0[:, i] = prior[2]*np.random.randn(self.nwalkers)+prior[1]
+                elif prior[0] == "log-uniform":
+                    a = np.log(prior[1])
+                    b = np.log(prior[2])
+
+                    u = np.random.randn(self.nwalkers)*(b - a)+a
+                    p0[:, i] = np.exp(u)
+                else:
+                    raise ValueError("Can only sample uniform and gaussian priors when 'init_seed' is set to prior. Try setting intial seed to a number [0, 1] to sample a gaussian ball around the model parameters instead.")
+        #sample a gaussian ball around the initial model parameters
+        elif isinstance(self.init_seed, float):
+            p0 = np.array(params_values) + self.init_seed * np.array(params_values) * np.random.randn(self.nwalkers, ndim)
         else:
-            p0 = np.array(params_values) + self.init_seed * np.random.randn(self.nwalkers, ndim)
+            raise ValueError("init_seed must be a float (will sample a gaussian ball of this percent around the model initial condition), array (of size parameters or walkers x parameters), or the string 'prior' (will sample from uniform and guassian priors)")
+        
+        #Ensure parameters are positive, if their priors are declared to be positive
+        #When working in log space, a small non-zero value is used
+        if hasattr(self.pid_interface, "log_space_parameters") and self.pid_interface.log_space_parameters:
+            epsilon = 10**-8
+        else:
+            epsilon = 0
+
+        for i, p in enumerate(self.params_to_estimate):
+            if "positive" in self.prior[p]:
+                p0[:, i] = p0[:, i]*(p0[:, i] > 0) + (p0[:, i] <= 0)*epsilon
+
+
+        #convert to log space, if pid_interface.log_space_parameters
+        if hasattr(self.pid_interface, "log_space_parameters") and self.pid_interface.log_space_parameters:
+            p0 = np.log(p0)
+        return p0
+
+    def run_emcee(self, **kwargs):
+        if kwargs.get("reuse_likelihood", False) is False: 
+            self.setup_cost_function(**kwargs)
+
+        progress = kwargs.get('progress')
+        convergence_check = kwargs.get('convergence_check', True)
+        convergence_diagnostics = kwargs.get('convergence_diagnostics', convergence_check)
+        skip_initial_state_check = kwargs.get('skip_initial_state_check', False)
+        progress = kwargs.get('progess', True)
+        threads = kwargs.get('threads', 1)
+        fname = kwargs.get('results_filename', 'mcmc_results.csv')
+        printout = kwargs.get('printout', True)
+
+        try:
+            import emcee
+        except:
+            raise ImportError('emcee package not installed.')
+        ndim = len(self.params_to_estimate)
+
+        p0 = self.seed_parameter_values(**kwargs)
+
         assert p0.shape == (self.nwalkers, ndim)
-        sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function)
-        sampler.run_mcmc(p0, self.nsteps, progress = progress)
+        if printout: print("creating an ensemble sampler with threads=", threads)
+        
+        sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function, threads = threads)
+        sampler.run_mcmc(p0, self.nsteps, progress = progress, skip_initial_state_check = skip_initial_state_check)
         if convergence_check:
             self.autocorrelation_time = sampler.get_autocorr_time()
         if convergence_diagnostics:
@@ -396,17 +452,21 @@ class InferenceSetup(object):
                 self.convergence_diagnostics = {'Autocorrelation time for each parameter':self.autocorrelation_time,
                                     'Acceptance fraction (fraction of steps that were accepted)':sampler.acceptance_fraction}
         # Write results
-        import csv
-        with open('mcmc_results.csv','w', newline = "") as f:
-            writer = csv.writer(f)
-            writer.writerows(sampler.get_chain(flat = True))
-            if convergence_diagnostics:
-                writer.writerow('\nMCMC convergence diagnostics\n')
-                writer.writerow(self.convergence_diagnostics)
-            writer.writerow('\nCost function progress\n')
-            writer.writerow(self.cost_progress)
-            f.close()
-        print('Successfully completed MCMC parameter identification procedure. Parameter distribution data written to mcmc_results.csv file. Check the MCMC diagnostics to evaluate convergence.')
+        if fname:
+            import csv
+            
+            with open(fname,'w', newline = "") as f:
+                writer = csv.writer(f)
+                writer.writerows(sampler.get_chain(flat = True))
+                if convergence_diagnostics:
+                    writer.writerow('\nMCMC convergence diagnostics\n')
+                    writer.writerow(self.convergence_diagnostics)
+                writer.writerow('\nCost function progress\n')
+                writer.writerow(self.cost_progress)
+                f.close()
+                if printout: print("results written to", fname)
+        elif printout: print("results_filename keyword is False or None - results will not saved to a file.")
+        if printout: print('Successfully completed MCMC parameter identification procedure. Check the MCMC diagnostics to evaluate convergence.')
         return sampler
     
     def plot_mcmc_results(self, sampler, plot_show = True, **kwargs):

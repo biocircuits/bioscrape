@@ -73,6 +73,7 @@ cdef class Likelihood:
     cdef double get_log_likelihood(self)
 
 
+
 cdef class ModelLikelihood(Likelihood):
     cdef Model m
     cdef CSimInterface csim
@@ -83,16 +84,21 @@ cdef class ModelLikelihood(Likelihood):
     cdef np.ndarray init_state_vals
     cdef np.ndarray init_param_indices
     cdef np.ndarray init_param_vals
+    cdef np.ndarray initial_states
     cdef unsigned Nx0 #number of initial conditions
     cdef unsigned N #number of samples
     cdef unsigned M #number of measurements
+    cdef dict default_params
+    cdef np.ndarray default_species
 
     cdef double get_log_likelihood(self)
+    cdef np.ndarray get_initial_state(self, int n)
 
 cdef class DeterministicLikelihood(ModelLikelihood):
     cdef BulkData bd
     cdef unsigned norm_order
     cdef double get_log_likelihood(self)
+    cdef double hmax
 
 
 cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
