@@ -583,8 +583,6 @@ cdef class BinaryTerm(Term):
     def py_add_term(self, Term trm):
         self.add_term(trm)
 
-    
-
 cdef class SumTerm(BinaryTerm):
     cdef double evaluate(self, double *species, double *params, double time):
         cdef double ans = 0.0
@@ -679,6 +677,7 @@ cdef class MinTerm(BinaryTerm):
             if temp < ans:
                 ans = temp
         return ans
+
 
     def __str__(self):
         string_rep = " min(" + str(self.terms_list[0])
