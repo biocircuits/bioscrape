@@ -1,26 +1,26 @@
 ---
 title: 'Fast and flexible simulation and parameter estimation for synthetic biology using bioscrape'
 tags:
-  - Cython/Python
+  - Python
   - synthetic biology
   - systems biology
   - deterministic and stochastic simulations
   - parameter inference
 authors:
   - name: Anandh Swaminathan^[Co-first author] # note this makes a footnote saying 'Co-first author'
-    orcid: 0000-0000-0000-0000
+    orcid: 0000-0001-9935-6530
     affiliation: "1" # (Multiple affiliations must be quoted)
   - name: William Poole^[Co-first author] # note this makes a footnote saying 'Co-first author'
-    orcid: 0000-0000-0000-0000
+    orcid: 0000-0002-2958-6776
     affiliation: "2" # (Multiple affiliations must be quoted)
   - name: Ayush Pandey^[Co-first author] # note this makes a footnote saying 'Co-first author'
-    orcid: 
+    orcid: 0000-0003-3590-4459
     affiliation: "3" # (Multiple affiliations must be quoted)
   - name: Victoria Hsiao # note this makes a footnote saying 'Co-first author'
-    orcid: 0000-0000-0000-0000
+    orcid: 0000-0001-9297-1522
     affiliation: "4" # (Multiple affiliations must be quoted)
   - name: Richard M Murray # note this makes a footnote saying 'Co-first author'
-    orcid: 0000-0000-0000-0000
+    orcid: 0000-0002-5785-7481
     affiliation: "5" # (Multiple affiliations must be quoted)
   # - name: Author Without ORCID^[Co-first author] # note this makes a footnote saying 'Co-first author'
   #   affiliation: 2
@@ -37,7 +37,7 @@ affiliations:
    index: 4
  - name: Control and Dynamical Systems and Biology and Biological Engineering, California Institute of Technology, Pasadena, CA, USA
    index: 5
-date: 13 August 2017
+date: 17 May 2022
 bibliography: paper.bib
 
 # Optional fields if submitting to a AAS journal too, see this blog post:
