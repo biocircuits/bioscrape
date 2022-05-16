@@ -1,12 +1,11 @@
 ---
 title: 'Fast and flexible simulation and parameter estimation for synthetic biology using bioscrape'
 tags:
-  - Python
+  - Cython/Python
   - synthetic biology
   - systems biology
-  - dynamics
+  - deterministic and stochastic simulations
   - parameter inference
-  - stochastic simulations
 authors:
   - name: Anandh Swaminathan^[Co-first author] # note this makes a footnote saying 'Co-first author'
     orcid: 0000-0000-0000-0000
@@ -15,7 +14,7 @@ authors:
     orcid: 0000-0000-0000-0000
     affiliation: "2" # (Multiple affiliations must be quoted)
   - name: Ayush Pandey^[Co-first author] # note this makes a footnote saying 'Co-first author'
-    orcid: 0000-0000-0000-0000
+    orcid: 
     affiliation: "3" # (Multiple affiliations must be quoted)
   - name: Victoria Hsiao # note this makes a footnote saying 'Co-first author'
     orcid: 0000-0000-0000-0000
@@ -28,15 +27,15 @@ authors:
   # - name: Author with no affiliation^[Corresponding author]
   #   affiliation: 3
 affiliations:
- - name: Institution Name, Country
+ - name: Ghost Locomotion, Mountain View, CA, USA
    index: 1
- - name: Institution Name, Country
+ - name: Computation and Neural Systems, California Institute of Technology, Pasadena, CA, USA
    index: 2
- - name: Independent Researcher, Country
+ - name: Control and Dynamical Systems, California Institute of Technology, Pasadena, CA, USA
    index: 3
- - name: Independent Researcher, Country
+ - name: Amyris, Emeryville, CA, USA
    index: 4
- - name: Independent Researcher, Country
+ - name: Control and Dynamical Systems and Biology and Biological Engineering, California Institute of Technology, Pasadena, CA, USA
    index: 5
 date: 13 August 2017
 bibliography: paper.bib
