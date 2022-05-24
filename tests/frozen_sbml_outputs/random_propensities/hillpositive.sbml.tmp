@@ -24,9 +24,7 @@
     <listOfReactions>
       <reaction id="r0" name="r0" reversible="false">
         <annotation>
-          <BioscrapeAnnotation>
-            <PropensityType> type=hillpositive k=DummyVar_PositiveHillPropensity_k_0 K=DummyVar_PositiveHillPropensity_K_1 n=DummyVar_PositiveHillPropensity_n_2 s1=A</PropensityType>
-          </BioscrapeAnnotation>
+          <PropensityType> type=hillpositive k=DummyVar_PositiveHillPropensity_k_0 K=DummyVar_PositiveHillPropensity_K_1 n=DummyVar_PositiveHillPropensity_n_2 s1=A</PropensityType>
         </annotation>
         <listOfReactants>
           <speciesReference species="A" stoichiometry="1" constant="false"/>
@@ -41,12 +39,12 @@
               <divide/>
               <apply>
                 <times/>
-                <ci> DummyVar_PositiveHillPropensity_k_0 </ci>
                 <apply>
                   <power/>
                   <ci> A </ci>
                   <ci> n </ci>
                 </apply>
+                <ci> DummyVar_PositiveHillPropensity_k_0 </ci>
               </apply>
               <apply>
                 <plus/>

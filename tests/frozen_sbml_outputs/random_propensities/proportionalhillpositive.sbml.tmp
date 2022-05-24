@@ -24,9 +24,7 @@
     <listOfReactions>
       <reaction id="r0" name="r0" reversible="false">
         <annotation>
-          <BioscrapeAnnotation>
-            <PropensityType> type=proportionalhillpositive k=DummyVar_PositiveProportionalHillPropensity_k_0 K=DummyVar_PositiveProportionalHillPropensity_K_1 n=DummyVar_PositiveProportionalHillPropensity_n_2 s1=A d=B</PropensityType>
-          </BioscrapeAnnotation>
+          <PropensityType> type=proportionalhillpositive k=DummyVar_PositiveProportionalHillPropensity_k_0 K=DummyVar_PositiveProportionalHillPropensity_K_1 n=DummyVar_PositiveProportionalHillPropensity_n_2 s1=A d=B</PropensityType>
         </annotation>
         <listOfReactants>
           <speciesReference species="A" stoichiometry="1" constant="false"/>
@@ -41,13 +39,13 @@
               <divide/>
               <apply>
                 <times/>
-                <ci> DummyVar_PositiveProportionalHillPropensity_k_0 </ci>
-                <ci> B </ci>
                 <apply>
                   <power/>
                   <ci> A </ci>
                   <ci> n </ci>
                 </apply>
+                <ci> B </ci>
+                <ci> DummyVar_PositiveProportionalHillPropensity_k_0 </ci>
               </apply>
               <apply>
                 <plus/>
