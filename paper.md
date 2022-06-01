@@ -78,10 +78,10 @@ Some popular software packages that do somewhat similar tasks as the bioscrape p
 
 We conclude with a list of Bioscrape features:
 
-1. The bioscrape package uses Cython [@cython], an extension for Python that compiles code using a C compiler to vastly increase speed. This helps assuage the computational time issues that arise in parameter estimation and stochastic simulation. 
-2. Bioscrape provides an object oriented framework which allows for easily customizable models that can be simulated in many different ways including deterministically, stochastically, or as growing and dividing lineages of single cells. Flexible easy-to-use wrapper and a Python API make it straightforward for a researcher to change their model and try simulations under diverse conditions. 
-3. Bayesian inference
-4. Sensitivity analysis
+1. Bioscrape provides a Cython [@cython] based simulator that compiles code using a C compiler to vastly increase speed. This helps assuage the computational time issues that arise in parameter estimation and stochastic simulation. 
+2. Kinds of possible simulations include: deterministic, stochastic, growing and dividing lineages of single cells, and stochastic simulation of delayed chemical reaction networks. A flexible easy-to-use wrapper and a Python API make it straightforward for a researcher to change their model and try simulations under diverse conditions. 
+3. Markov Chain Monte Carlo (MCMC) sampler based inference tools to identify parameter distributions of biological circuit models using experimental data. Bioscrape provides interfaces to easily use common biological data types such as time-series fluorescence data and flow cytometry data. The MCMC sampler is a wrapper around Python emcee [@emcee].
+4. Bioscrape can be used to perform local sensitivity analysis of a model to study the sensitivities of each parameter with time.
 
 # Acknowledgements
 
