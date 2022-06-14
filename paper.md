@@ -47,16 +47,16 @@ bibliography: paper.bib
 ---
 
 # Summary
+
 In systems and synthetic biology, it is common to build chemical reaction network (CRN) models of biochemical circuits and networks. Although automation and other high-throughput techniques have led to an abundance of data enabling data-driven quantitative modeling and parameter estimation, the intense amount of simulation needed for these methods still frequently results in a computational bottleneck. Here we present bioscrape (Bio-circuit Stochastic Single-cell Reaction Analysis and Parameter Estimation) - a Python package for fast and flexible modeling and simulation of highly customizable chemical reaction networks. Specifically, bioscrape supports deterministic and stochastic simulations, which can incorporate delay, cell growth, and cell division. All functionalities - reaction models, simulation algorithms, cell growth models, partioning models, and Bayesian inference - are implemented as interfaces in an easily extensible and modular object-oriented framework. Models can be constructed via Systems Biology Markup Language (SBML) or specified programmatically via a Python API. Simulation run times obtained with the package are comparable to those obtained using C code - this is particularly advantageous for computationally expensive applications such as Bayesian inference or simulation of cell lineages. We show the package's simulation capabilities on a variety of example simulations of stochastic gene expression. We also demonstrate the package by using it to do parameter inference on a model of integrase enzyme-mediated DNA recombination dynamics with experimental data. The bioscrape package is publicly available online [@github_bioscrape] along with more detailed documentation and examples.
 
 
 
 # Statement of need
 
-In the fields of systems and synthetic biology, it has become increasingly common to build mathematical models of biochemical networks. In principle, such models allow for quantitative predictions of the behavior of complex biological systems and efficient testing of hypotheses regarding how real biological networks function. Such predictions would transform the way in which we design and debug synthetic engineered biological circuits. 
+A central theme of research in systems and synthetic biology is the quantitative predictions of the behavior of complex biological systems and efficient testing of hypotheses. Mathematical modeling and analysis tools play an integral role in such predictions and can transform the way in which we design and debug synthetic engineered biological circuits. 
 
-
-Biological circuits can often be noisy [@elowitz_stochastic_2002;@eldar_functional_2010], especially in single cells with low molecular copy numbers [@paulsson2005models]. In these cases, a stochastic model is often necessary to capture the noise characteristics of a circuit.
+circuits can often be noisy [@elowitz_stochastic_2002;@eldar_functional_2010], especially in single cells with low molecular copy numbers [@paulsson2005models]. In these cases, a stochastic model is often necessary to capture the noise characteristics of a circuit.
 
 Stochastic simulation also allows for the inclusion of delay into chemical reactions. Processes like protein production are not instantaneous, and there is often a significant delay between when transcription of a gene is initiated and when a mature protein is produced. This type of delay can lead to non-trivial behavior such as oscillations [@stricker], and thus it is often important to incorporate delay into the modeling framework. 
 
@@ -69,6 +69,7 @@ Once a given model is fully specified, it is then important to validate the mode
 The result is that a very large amount of data is needed to first parameterize and then validate models. The use of technologies for lab automation makes this data collection increasingly accessible and economical. For deterministic models, this may include data collected at many different operating conditions which can be achieved with high throughput measurement techniques involving liquid handling automation [@freemont_echo]. For stochastic models this may include large sample sizes of single cell cell measurements such as flow cytometry [@sachs_causal_2005;@zechner2012moment] and tracking single cell lineages with fluorescent microscopy [@kretzschmar2012lineage]. 
 
 Some popular software packages that do somewhat similar tasks as the bioscrape package are MATLAB's SimBiology toolbox [@MATLAB_2016] and Stochpy [@stochpy]. However, the bioscrape package is faster, supports fully general propensity functions, and allows more kinds of simulation than these alternatives making it more flexible and more efficient than alternative packages.
+
 # Summary of features
 
 ![(a) A simple model of gene expression with transcription, translation, mRNA degradation, and protein degradation. The quantity of the gene encoding for mRNA is considered constant and absorbed into the transcription rate $\beta$. (b) Example Python code to construct a CRN model of gene expression using Bioscrape. (c) Models constructed via SBML or the Python API can be easily simulated with results returned as a Pandas Dataframe [@mckinney-proc-scipy-2010]. (d) Deterministic and stochastic simulations (with and without delays) using Bioscrape.The empirical probability distribution and the autocorrelation function for mRNA in the stochastic simulation matches the theoretical Poisson and exponential curve respectively
