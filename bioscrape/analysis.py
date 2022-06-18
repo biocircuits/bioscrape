@@ -143,6 +143,7 @@ class SensitivityAnalysis(Model):
                 self.M.set_params(params_dict)
                 f_m2h = self._evaluate_model(x, params_dict, time = time)[i]
                 params_dict = dict(self.original_parameters)
+                self.M.set_params(params_dict)
                 #Store approx. dfi/dp[param_name] into Z
                 Z[i]= (-f_2h + 8*f_h - 8*f_mh + f_m2h)/(12*h)
             if method == 'central_difference':
@@ -180,7 +181,7 @@ class SensitivityAnalysis(Model):
             return dsdt
 
         if params is None:
-            all_params = self.M.get_param_list()
+            all_params = list(self.original_parameters.keys())
         else:
             all_params = params
 
