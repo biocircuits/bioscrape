@@ -488,6 +488,10 @@ cdef class ModelCSimInterface(CSimInterface):
     cdef double* get_param_values(self):
         return self.c_param_values
 
+    cdef void set_param_values(self, np.ndarray params):
+        self.np_param_values = params
+        self.c_param_values = <double*>(self.np_param_values.data)
+
     def py_get_param_values(self):
         return self.np_param_values
 
@@ -1559,10 +1563,17 @@ cdef class DeterministicSimulator(RegularSimulator):
                 break
             else:
                 steps_allowed *= 10
+<<<<<<< HEAD
 
             if steps_allowed > self.mxstep:
                 steps_allowed = self.mxstep
 
+=======
+
+            if steps_allowed > self.mxstep:
+                steps_allowed = self.mxstep
+
+>>>>>>> 44e59bc0adf4d2ab0918d5a4776a03323c734cd1
         if success:
             if sim.get_number_of_rules() > 0:
                     sim.py_set_param_values(p0) #reset the parameter values before reapplying rules
