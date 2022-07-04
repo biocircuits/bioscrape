@@ -454,9 +454,9 @@ cdef class DeterministicLikelihood(ModelLikelihood):
             #self.csim.py_prep_deterministic_simulation()
 
             self.csim.set_initial_state(self.get_initial_state(n))
-            print('current params conditions', self.csim.py_get_param_values())
+            # print('current params conditions', self.csim.py_get_param_values())
             self.csim.py_set_param_values(self.get_initial_params(n))
-            print('new params conditions', self.csim.py_get_param_values())
+            # print('new params conditions', self.csim.py_get_param_values())
 
 
             #self.csim.set_initial_time(timepoints[0])
