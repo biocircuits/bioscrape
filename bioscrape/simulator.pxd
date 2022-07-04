@@ -96,8 +96,8 @@ cdef class CSimInterface:
     cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
     cdef unsigned requires_delay(self)
 
-    cdef void apply_repeated_rules(self, double *state, double time)
-    cdef void apply_repeated_volume_rules(self, double *state, double volume, double time)
+    cdef void apply_repeated_rules(self, double *state, double time, unsigned rule_step)
+    cdef void apply_repeated_volume_rules(self, double *state, double volume, double time, unsigned rule_step)
     cdef unsigned get_number_of_rules(self)
 
     cdef np.ndarray get_initial_state(self)
@@ -131,7 +131,7 @@ cdef class ModelCSimInterface(CSimInterface):
     cdef void compute_stochastic_volume_propensities(self, double *state, double *propensity_destination, double volume, double time)
     cdef np.ndarray get_initial_state(self)
 
-    cdef void apply_repeated_rules(self, double *state,double time)
+    cdef void apply_repeated_rules(self, double *state,double time, unsigned rule_step)
     cdef unsigned get_number_of_rules(self)
     cdef unsigned get_number_of_species(self)
     cdef unsigned get_number_of_reactions(self)
@@ -146,8 +146,8 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
     cdef unsigned s_ind
     cdef unsigned prop_is_0
     cdef int[:, :, :] reaction_input_indices
-    cdef int max_species_count
-    cdef int max_volume
+    cdef double max_species_count
+    cdef double max_volume
 
     cdef void initialize_reaction_inputs(self)
     cdef void compute_stochastic_propensities(self, double *state, double *propensity_destination, double time)
@@ -161,6 +161,12 @@ cdef class SSAResult:
     """
     cdef np.ndarray timepoints
     cdef np.ndarray simulation_result
+
+    cdef np.ndarray empirical_distribution(self, double burn_in, list species_inds, double tend, list max_counts_list)
+    cdef np.ndarray first_moment(self, double start_time, double final_time, list species_inds)
+    cdef np.ndarray standard_deviation(self, double start_time, double final_time, list species_inds)
+    cdef np.ndarray second_moment(self, double start_time, double final_time, list species_inds1, list species_inds2)
+    cdef np.ndarray correlations(self, double start_time, double final_time, list species_inds1, list species_inds2)
 
     cdef inline np.ndarray get_timepoints(self):
         return self.timepoints
@@ -357,6 +363,7 @@ cdef class DeterministicSimulator(RegularSimulator):
     """
     cdef double atol
     cdef double rtol
+    cdef double hmax
     cdef unsigned mxstep
 
     cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints)
@@ -442,17 +449,3 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
     """
     cdef DelayVolumeSSAResult delay_volume_simulate(self, CSimInterface sim, DelayQueue q,
                                                     Volume v, np.ndarray timepoints)
-
-
-
-# Simulation functions for doing cell division related stuff.
-cdef Lineage simulate_cell_lineage(CSimInterface sim, Volume v, np.ndarray timepoints,
-                                    VolumeSimulator vsim, VolumeSplitter vsplit)
-cdef Lineage simulate_delay_cell_lineage(CSimInterface sim, DelayQueue q, Volume v, np.ndarray timepoints,
-                                   DelayVolumeSimulator dvsim, DelayVolumeSplitter dvsplit)
-
-
-cdef list propagate_cell(ModelCSimInterface sim, VolumeCellState cell, double end_time,
-                               VolumeSimulator vsim, VolumeSplitter vsplit)
-cdef list propagate_cells(ModelCSimInterface sim, list cells, double end_time,
-                          VolumeSimulator vsim, VolumeSplitter vsplit)
