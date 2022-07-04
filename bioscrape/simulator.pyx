@@ -488,6 +488,10 @@ cdef class ModelCSimInterface(CSimInterface):
     cdef double* get_param_values(self):
         return self.c_param_values
 
+    cdef void set_param_values(self, np.ndarray params):
+        self.np_param_values = params
+        self.c_param_values = <double*>(self.np_param_values.data)
+
     def py_get_param_values(self):
         return self.np_param_values
 

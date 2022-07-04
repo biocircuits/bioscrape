@@ -16,12 +16,6 @@ from bioscrape.types import *
 seed = 54173
 
 all_delay_types = ["fixed", "gaussian", "gamma"]
-delay_classes   = {
-                    "no": Delay,
-                    "fixed": FixedDelay,
-                    "gaussian": GaussianDelay,
-                    "gamma": GammaDelay
-                  }
 delay_required_params = {
                     "fixed":["delay"], 
                     "gaussian":["mean", "std"], 
@@ -56,7 +50,6 @@ def random_delay_model(delay_type):
     consolidation_rxn = (["A", "B"], ["C"], "massaction", {'k': consol_k})
 
     # A-->B reaction, with delay.
-    delay_class = delay_classes[delay_type]
     delay_k = round(np.exp(np.random.uniform(low = -1,
                                              high = 1)), 3)
     delay_params = dict()
@@ -75,8 +68,6 @@ def random_delay_model(delay_type):
 # results_s = py_simulate_model(timepoints, Model = M, stochastic = True, delay = True)
 # plt.plot(timepoints, results_s["C"], label = "stochastic "+str(delay_type)+"params = "+str(delay_params), color = color_list[ind])
 
-
-
 @pytest.mark.parametrize('delay_type', all_delay_types)
 def test_delay_model(delay_type):
     test_results = dict()
@@ -84,11 +75,10 @@ def test_delay_model(delay_type):
 
     timepoints = np.arange(0, 50, 0.01)
 
-    results_d = py_simulate_model(timepoints, Model = model, stochastic = False)
-    results_s = py_simulate_model(timepoints, Model = model, stochastic = True)
+    results_s = py_simulate_model(timepoints, Model = model, stochastic = True, 
+                                  return_dataframe = False).py_get_result()
 
-    test_results[delay_type + "_deterministic"] = results_d
-    test_results[delay_type + "_stochastic"]    = results_s
+    test_results[delay_type + "_stochastic"] = results_s
 
     test_utils.check_sim_results(TEST_NAME, test_results)
 

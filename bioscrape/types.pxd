@@ -233,7 +233,7 @@ cdef class VolumeTerm(Term):
 
 # Putting stuff together
 
-cdef class SumTerm(Term):
+cdef class BinaryTerm(Term):
     cdef vector[void*] terms
     cdef list terms_list
 
@@ -242,28 +242,25 @@ cdef class SumTerm(Term):
     cdef double evaluate(self, double *species, double *params, double time)
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
 
-cdef class ProductTerm(Term):
-    cdef vector[void*] terms
-    cdef list terms_list
+cdef class SumTerm(BinaryTerm):
+    cdef void add_term(self,Term trm)
 
+    cdef double evaluate(self, double *species, double *params, double time)
+    cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
+
+cdef class ProductTerm(BinaryTerm):
     cdef void add_term(self,Term trm)
     cdef double evaluate(self, double *species, double *params, double time)
 
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
 
-cdef class MaxTerm(Term):
-    cdef vector[void*] terms
-    cdef list terms_list
-
+cdef class MaxTerm(BinaryTerm):
     cdef void add_term(self,Term trm)
     cdef double evaluate(self, double *species, double *params, double time)
 
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time)
 
-cdef class MinTerm(Term):
-    cdef vector[void*] terms
-    cdef list terms_list
-
+cdef class MinTerm(BinaryTerm):
     cdef void add_term(self,Term trm)
     cdef double evaluate(self, double *species, double *params, double time)
 
@@ -412,8 +409,12 @@ cdef class Rule:
     A class for doing rules that must be done either at the beginning of a simulation or repeatedly at each step of
     the simulation.
     """
-    cdef void execute_rule(self, double *state, double *params, double time)
-    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time)
+    cdef double frequency_flag #-1 if the rule always repeats, -2 if the rule repeats every dt, otherwise the rule runs at time t == frequency flag.
+
+    cdef void rule_operation(self, double *state, double *params, double time, double dt)
+    cdef void rule_volume_operation(self, double *state, double *params, double volume, double time, double dt)
+    cdef void execute_rule(self, double *state, double *params, double time, double dt, unsigned rule_step)
+    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time, double dt, unsigned rule_step)
 
 
 cdef class AdditiveAssignmentRule(Rule):
@@ -423,8 +424,8 @@ cdef class AdditiveAssignmentRule(Rule):
     cdef vector[int] species_source_indices
     cdef unsigned dest_index
 
-    cdef void execute_rule(self, double *state, double *params, double time)
-    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time)
+    cdef void rule_operation(self, double *state, double *params, double time, double dt)
+    cdef void rule_volume_operation(self, double *state, double *params, double volume, double time, double dt)
 
 cdef class GeneralAssignmentRule(Rule):
     """
@@ -434,32 +435,20 @@ cdef class GeneralAssignmentRule(Rule):
     cdef unsigned dest_index
     cdef int param_flag # 1 if the assigned thing is a parameter, 0 if it's a species
 
-    cdef void execute_rule(self, double *state, double *params, double time)
-    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time)
 
+    cdef void rule_operation(self, double *state, double *params, double time, double dt)
+    cdef void rule_volume_operation(self, double *state, double *params, double volume, double time, double dt)
 
-cdef class GrowthRule(Rule):
+cdef class GeneralODERule(Rule):
     """
-    A class for assigning rules to govern volume growth in cell division simulations
+    A class for rules that implement Euler's method every dt. These rules are of the form dest = dest + f(state, params, time)*dt
     """
-    cdef void execute_rule(self, double *state, double *params, double time)
-    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time)
+    cdef Term rhs
+    cdef unsigned dest_index
+    cdef int param_flag # 1 if the assigned thing is a parameter, 0 if it's a species
 
-
-cdef class DivisionRule(Rule):
-    """
-    A class for assigning rules to govern cell division
-    """
-    cdef void execute_rule(self, double *state, double *params, double time)
-    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time)
-
-
-cdef class DeathRule(Rule):
-    """
-    A class for assigning rules to govern cell death
-    """
-    cdef void execute_rule(self, double *state, double *params, double time)
-    cdef void execute_volume_rule(self, double *state, double *params, double volume, double time)
+    cdef void rule_operation(self, double *state, double *params, double time, double dt)
+    cdef void rule_volume_operation(self, double *state, double *params, double volume, double time, double dt)
 
 
 
@@ -576,6 +565,25 @@ cdef class Model:
 
 
     """
+    ############################################################################
+    # DEVELOPER WARNING 
+    # 
+    # In order to be copiable and usable with multiprocessing, Model must be 
+    # picklable. To do that, Model implements a __getstate__ method and a 
+    # __setstate__ method, which respectively compress all of the Model's state 
+    # variables into a picklable tuple and use those tuples to make a new Model 
+    # identical to the old one. 
+    # 
+    # IF YOU ADD, REMOVE, OR CHANGE ANY VARIABLES HERE, YOU MUST REFLECT THOSE 
+    # CHANGES IN THE __getstate__ AND __setstate__ METHODS.
+    #
+    # This is especially important for newly-added variables. If you add 
+    # variables but don't update the pickling methods, then you will introduce 
+    # SILENT bugs whenever a user makes a copy of a Model or tries to use a 
+    # Model in multiple threads/processes with multiprocessing. 
+    ############################################################################
+    
+
     cdef unsigned _next_species_index
     cdef unsigned _next_params_index
     cdef unsigned _dummy_param_counter
