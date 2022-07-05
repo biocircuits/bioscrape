@@ -36,6 +36,7 @@ class PIDInterface():
         self.params_to_estimate = params_to_estimate
         self.M = M
         self.prior = prior
+        self.default_parameters = dict(M.get_parameter_dictionary())
         self.log_space_parameters = kwargs.get('log_space_parameters', False)
         return
     
@@ -257,6 +258,8 @@ class StochasticInference(PIDInterface):
         if not np.isfinite(lp):
             return -np.inf
         else:
+            # Reset to default
+            self.LL_stoch.set_init_params(self.default_parameters)
             self.LL_stoch.set_init_params(params_dict)
 
             LL_stoch_cost = self.LL_stoch.py_log_likelihood()
@@ -316,6 +319,9 @@ class DeterministicInference(PIDInterface):
         if not np.isfinite(lp):
             return -np.inf
         else:
+            # Reset to default
+            self.LL_det.set_init_params(self.default_parameters)
+            # Set new sampler parameter
             self.LL_det.set_init_params(params_dict)
             if self.debug:
                 print('current sample:', params_dict)

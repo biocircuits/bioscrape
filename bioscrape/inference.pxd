@@ -83,7 +83,7 @@ cdef class ModelLikelihood(Likelihood):
     cdef np.ndarray init_param_indices
     cdef np.ndarray init_param_vals
     cdef np.ndarray initial_states
-    cdef np.ndarray initial_parameters
+    cdef list initial_parameters
     cdef unsigned Nx0 #number of initial conditions
     cdef unsigned N #number of samples
     cdef unsigned M #number of measurements
@@ -92,7 +92,7 @@ cdef class ModelLikelihood(Likelihood):
 
     cdef double get_log_likelihood(self)
     cdef np.ndarray get_initial_state(self, int n)
-    cdef np.ndarray get_initial_params(self, int n)
+    cdef dict get_initial_params(self, int n)
 
 cdef class DeterministicLikelihood(ModelLikelihood):
     cdef BulkData bd

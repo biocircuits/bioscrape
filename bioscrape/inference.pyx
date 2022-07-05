@@ -339,24 +339,7 @@ cdef class ModelLikelihood(Likelihood):
     def set_init_params(self, dict pd):
 
         # print("before set", self.m.get_parameter_dictionary())
-        # Reset to old
-        self.m.set_params(dict(self.default_params))
-        # Check if there are conditions on parameters:
-        # def set_initial_params(self, list pds):
-        if len(self.initial_parameters):
-        params2index = self.m.get_params2index()
-        for i in range(self.Nx0):
-            for s in params2index:
-                j = params2index[s]
-                if s in pds[i]:
-                    self.initial_parameters[i, j] = pds[i][s]
-                else:
-                    self.initial_parameters[i, j] = self.m.get_parameter_dictionary()[s]
-
-        self.csim.py_set_param_values(self.get_initial_params(n))
-
-            self.m.set_params()
-        # Set to new
+        # print("asking to be set to", pd)
         self.m.set_params(pd)
         self.csim.py_set_param_values(self.m.get_params_values())
         # print("After set", self.m.get_parameter_dictionary())
@@ -371,12 +354,14 @@ cdef class ModelLikelihood(Likelihood):
         #    index +=  1
 
     cdef np.ndarray get_initial_state(self, int n):
-        #Return the initial state for the nth trajectory (this may correspond to multiple measurements m)
+        # Return the initial state for the nth trajectory 
+        # (this may correspond to multiple measurements m)
         return self.initial_states[n, :]
 
-    cdef np.ndarray get_initial_params(self, int n):
-        #Return the initial params for the nth trajectory (this may correspond to multiple measurements m)
-        return self.initial_parameters[n, :]
+    cdef dict get_initial_params(self, int n):
+        # Return the initial params dict for the nth trajectory 
+        # (this may correspond to multiple measurements m)
+        return self.initial_parameters[n]
 
     def set_likelihood_options(self, **keywords):
         raise NotImplementedError("set_likelihood_options must be implemented in subclasses of ModelLikelihood")
@@ -446,7 +431,6 @@ cdef class DeterministicLikelihood(ModelLikelihood):
         cdef np.ndarray[np.double_t, ndim = 3] measurements = self.bd.get_measurements()
         #cdef SSAResult res
 
-
         #Go through trajectories (which may have unique initial states)
         for n in range(self.N):
             #Set Timepoints
@@ -461,6 +445,8 @@ cdef class DeterministicLikelihood(ModelLikelihood):
 
             self.csim.set_initial_state(self.get_initial_state(n))
             # print('current params conditions', self.csim.py_get_param_values())
+            # print('lets set for new traj to', self.get_initial_params(n))
+            self.set_init_params(self.get_initial_params(n))
             # self.csim.py_set_param_values(self.get_initial_params(n))
             # print('new params conditions', self.csim.py_get_param_values())
 
@@ -585,6 +571,8 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
                 timepoints = self.sd.get_timepoints()[n, :]
             else:
                 timepoints = self.sd.get_timepoints()
+            # Set init params
+            self.set_init_params(self.get_initial_params(n))
             for s in range(self.N_simulations):
                 #Set initial parameters (inside loop in case they change in the simulation):
                 # if self.init_param_indices is not None:
