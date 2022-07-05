@@ -233,11 +233,11 @@ cdef class ModelLikelihood(Likelihood):
 
         if isinstance(init_params, dict):
             self.Nx0 = 1
-            self.set_initial_params([init_params])
+            self.initial_parameters = [init_params]
 
         elif isinstance(init_params, list):
             self.Nx0 = len(init_params)
-            self.set_initial_params(init_params)
+            self.initial_parameters = init_params
 
         else:
             raise ValueError("init_params must either be a dictionary or a list of dictionaries.")
@@ -298,17 +298,6 @@ cdef class ModelLikelihood(Likelihood):
                 else:
                     self.initial_states[i, j] = self.default_species[j]
 
-    def set_initial_params(self, list pds):
-        self.initial_parameters = np.zeros((self.Nx0, self.m.get_number_of_params()))
-        params2index = self.m.get_params2index()
-        for i in range(self.Nx0):
-            for s in params2index:
-                j = params2index[s]
-                if s in pds[i]:
-                    self.initial_parameters[i, j] = pds[i][s]
-                else:
-                    self.initial_parameters[i, j] = self.default_params[s]
-
     def set_init_species_old(self, list sds):
         pass
         """
@@ -350,7 +339,24 @@ cdef class ModelLikelihood(Likelihood):
     def set_init_params(self, dict pd):
 
         # print("before set", self.m.get_parameter_dictionary())
+        # Reset to old
         self.m.set_params(dict(self.default_params))
+        # Check if there are conditions on parameters:
+        # def set_initial_params(self, list pds):
+        if len(self.initial_parameters):
+        params2index = self.m.get_params2index()
+        for i in range(self.Nx0):
+            for s in params2index:
+                j = params2index[s]
+                if s in pds[i]:
+                    self.initial_parameters[i, j] = pds[i][s]
+                else:
+                    self.initial_parameters[i, j] = self.m.get_parameter_dictionary()[s]
+
+        self.csim.py_set_param_values(self.get_initial_params(n))
+
+            self.m.set_params()
+        # Set to new
         self.m.set_params(pd)
         self.csim.py_set_param_values(self.m.get_params_values())
         # print("After set", self.m.get_parameter_dictionary())
@@ -455,7 +461,7 @@ cdef class DeterministicLikelihood(ModelLikelihood):
 
             self.csim.set_initial_state(self.get_initial_state(n))
             # print('current params conditions', self.csim.py_get_param_values())
-            self.csim.py_set_param_values(self.get_initial_params(n))
+            # self.csim.py_set_param_values(self.get_initial_params(n))
             # print('new params conditions', self.csim.py_get_param_values())
 
 
@@ -463,9 +469,9 @@ cdef class DeterministicLikelihood(ModelLikelihood):
             #self.csim.apply_repeated_rules(<double*> species_vals.data, timepoints[0], True)
 
             #Set initial parameters
-            if self.init_param_indices is not None:
-                for i in range(self.init_param_indices.shape[0]):
-                    param_vals[ self.init_param_indices[i] ] = self.init_param_vals[i]
+            # if self.init_param_indices is not None:
+            #     for i in range(np.shape(self.init_param_indices)[0]):
+            #         param_vals[ self.init_param_indices[i] ] = self.init_param_vals[i]
 
             #if self.Nx0 == 1:#Run all the simulations from the same initial state
             #    for i in range(self.M):
@@ -581,9 +587,9 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
                 timepoints = self.sd.get_timepoints()
             for s in range(self.N_simulations):
                 #Set initial parameters (inside loop in case they change in the simulation):
-                if self.init_param_indices is not None:
-                    for i in range(self.init_param_indices.shape[0]):
-                        param_vals[ self.init_param_indices[i] ] = self.init_param_vals[i]                
+                # if self.init_param_indices is not None:
+                #     for i in range(np.shape(self.init_param_indices)[0]):
+                #         param_vals[ self.init_param_indices[i] ] = self.init_param_vals[i]                
 
                 #Set Initial Conditions (Inside loop in case things change in the simulation)
                 if self.Nx0 == 1:#Run all the simulations from the same initial state
