@@ -233,14 +233,13 @@ cdef class ModelLikelihood(Likelihood):
 
         if isinstance(init_params, dict):
             self.Nx0 = 1
-            self.initial_parameters = [init_params]
-
+            if init_params:
+                self.initial_parameters = [init_params]
         elif isinstance(init_params, list):
             self.Nx0 = len(init_params)
             self.initial_parameters = init_params
-
         else:
-            raise ValueError("init_params must either be a dictionary or a list of dictionaries.")
+            self.initial_parameters = None
         
         if data is not None:
             self.set_data(data)
@@ -361,6 +360,8 @@ cdef class ModelLikelihood(Likelihood):
     cdef dict get_initial_params(self, int n):
         # Return the initial params dict for the nth trajectory 
         # (this may correspond to multiple measurements m)
+        if self.initial_parameters is None:
+            return None
         return self.initial_parameters[n]
 
     def set_likelihood_options(self, **keywords):
@@ -446,7 +447,8 @@ cdef class DeterministicLikelihood(ModelLikelihood):
             self.csim.set_initial_state(self.get_initial_state(n))
             # print('current params conditions', self.csim.py_get_param_values())
             # print('lets set for new traj to', self.get_initial_params(n))
-            self.set_init_params(self.get_initial_params(n))
+            if self.get_initial_params(n) is not None:
+                self.set_init_params(self.get_initial_params(n))
             # self.csim.py_set_param_values(self.get_initial_params(n))
             # print('new params conditions', self.csim.py_get_param_values())
 
@@ -572,7 +574,8 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
             else:
                 timepoints = self.sd.get_timepoints()
             # Set init params
-            self.set_init_params(self.get_initial_params(n))
+            if self.get_initial_params(n) is not None:
+                self.set_init_params(self.get_initial_params(n))
             for s in range(self.N_simulations):
                 #Set initial parameters (inside loop in case they change in the simulation):
                 # if self.init_param_indices is not None:
@@ -659,8 +662,6 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
     if initial_conditions is None:
         initial_conditions = dict(Model.get_species_dictionary())
     pid.set_initial_conditions(initial_conditions)
-    if parameter_conditions is None:
-        parameter_conditions = dict(Model.get_parameter_dictionary())
     pid.set_parameter_conditions(parameter_conditions)
     if time_column is not None:
         pid.set_time_column(time_column)

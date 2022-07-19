@@ -161,9 +161,6 @@ class InferenceSetup(object):
         A list of such dictionaries may be passed in 
         corresponding to each measurement.
         '''
-        # Get parameter_conditions from the model if not given explicitly
-        if parameter_conditions is None: 
-            parameter_conditions = self.M.get_parameter_dictionary()
         self.parameter_conditions = parameter_conditions
         return True 
 
@@ -289,6 +286,8 @@ class InferenceSetup(object):
                                      'the length of the list must be the'
                                      'same as the number of trajectories.')
                 all_parameter_conditions = self.parameter_conditions
+            else:
+                all_parameter_conditions = None
             self.parameter_conditions = all_parameter_conditions
 
             data = np.array(data_list_final)
@@ -573,6 +572,8 @@ class InferenceSetup(object):
                                       stochastic = stochastic, debug = self.debug,
                                       method = method, plot_show = plot_show, **kwargs)
         else:   
+            if self.parameter_conditions is None:
+                self.parameter_conditions = [None]*N
             for i in range(N):
                 minimizer_result[i] = self.pid_interface.\
                     get_minimizer_results(self.LL_data[i,:,:], 

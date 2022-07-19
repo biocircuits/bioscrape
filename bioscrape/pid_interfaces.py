@@ -235,10 +235,16 @@ class StochasticInference(PIDInterface):
         # should correspond to multiple initial conditions for inference.
         # Note len(initial_conditions) must be equal to the number of trajectories N
         # Same holds for parameter_conditions
-        self.LL_stoch = STLL(model = self.M, init_state = initial_conditions,
-                             init_params = parameter_conditions,
-                             data = self.dataStoch, N_simulations = N_simulations,
-                             norm_order = norm_order, **kwargs)
+        if parameter_conditions is not None:
+            self.LL_stoch = STLL(model = self.M, init_state = initial_conditions,
+                                init_params = parameter_conditions,
+                                data = self.dataStoch, N_simulations = N_simulations,
+                                norm_order = norm_order, **kwargs)
+        else:
+            self.LL_stoch = STLL(model = self.M, init_state = initial_conditions,
+                                data = self.dataStoch, N_simulations = N_simulations,
+                                norm_order = norm_order, **kwargs)
+
 
     def get_likelihood_function(self, params):
         # Set params here and return the likelihood object.
@@ -298,9 +304,13 @@ class DeterministicInference(PIDInterface):
             print('Using the initial conditions: {0}'.format(initial_conditions))
             print('Using the parameter conditions: {0}'.format(parameter_conditions))
         #Create Likelihood object
-        self.LL_det = DLL(model = self.M, init_state = initial_conditions, 
-                          init_params = parameter_conditions, 
-                          data = self.dataDet, norm_order = norm_order, **kwargs)
+        if parameter_conditions is not None:
+            self.LL_det = DLL(model = self.M, init_state = initial_conditions, 
+                              init_params = parameter_conditions, 
+                              data = self.dataDet, norm_order = norm_order, **kwargs)
+        else:
+            self.LL_det = DLL(model = self.M, init_state = initial_conditions, 
+                              data = self.dataDet, norm_order = norm_order, **kwargs)
 
     def get_likelihood_function(self, params):
         if self.LL_det is None:
@@ -378,7 +388,8 @@ class LMFitInference(PIDInterface):
                 nans_array = np.array([np.nan]*len(timepoints))
                 return nans_array
             self.M.set_species(initial_conditions)
-            self.M.set_params(parameter_conditions)
+            if parameter_conditions is not None:
+                self.M.set_params(parameter_conditions)
             model_sim = py_simulate_model(timepoints, self.M, stochastic = stochastic)
             residual_value = np.zeros(len(timepoints))
             measurements_counter = 0
@@ -407,7 +418,8 @@ class LMFitInference(PIDInterface):
                                 method = method, nan_policy = 'propagate', **kwargs)
         if plot_show:
             self.M.set_species(initial_conditions)
-            self.M.set_params(parameter_conditions)
+            if parameter_conditions is not None:
+                self.M.set_params(parameter_conditions)
             self.M.set_params(dict(result.params.valuesdict()))
             model_sim_fit = py_simulate_model(timepoints, Model = self.M,
                                               stochastic = stochastic,
