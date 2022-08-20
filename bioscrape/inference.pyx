@@ -321,7 +321,8 @@ cdef class ModelLikelihood(Likelihood):
             for (key,val) in  pairs:
                 self.init_state_indices[index] = self.m.get_species_index( key  )
                 self.init_state_vals[index] = val
-                index +=  1"""
+                index +=  1
+        """
 
     def set_init_params(self, dict pd):
 
