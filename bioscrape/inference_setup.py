@@ -469,31 +469,37 @@ class InferenceSetup(object):
         if printout: print('Successfully completed MCMC parameter identification procedure. Check the MCMC diagnostics to evaluate convergence.')
         return sampler
     
-    def plot_mcmc_results(self, sampler, plot_show = True, **kwargs):
-        print('Parameter posterior distribution convergence plots:')
-        ndim = sampler.ndim
-        convergence_check = kwargs.get('convergence_check')
-        if not 'convergence_check' in kwargs:
-            convergence_check = True
-        if 'figsize' in kwargs:
-            figsize = kwargs.get('figsize')
-        else:
-            figsize = (10, 7)
-        if 'sharex' in kwargs:
-            sharex = kwargs.get('sharex')
-        else:
-            sharex = True
-        fig, axes = plt.subplots(ndim, figsize=figsize, sharex=sharex)
+    def plot_mcmc_results(self, sampler, **kwargs):
+        """Plots MCMC results collected in emcee.EnsembleSampler object as a corner plot.
 
+        Args:
+            sampler (emcee.EnsembleSampler): Go to emcee.EnsembleSampler documentation for more.
+    
+        Returns:
+            param_report: A dictionary consisting of true values and uncertainties associated with them
+                          for each parameter.
+                truth list: The truth values for each parameter are computed as 
+                            16th, 50th, and 84th percentiles from sampled data. 
+                            The percentiles may be computed at different values by passing
+                            in the `percentiles` keyword to the function with a list of values.
+                            Default `percentiles = [16,50,84]`.
+                uncertainty list: The uncertainties aaround the true values 
+                                  computed from the samples.
+            figure_objects: A list of three figure related objects:
+                            `[fig, axes, corner_fig]` where `fig` and `axes` correspond 
+                            to the MCMC chain plots and `corner_fig` is the corner figure
+                            object returned by the call to `corner.corner`. If corner plot is not 
+                            shown, then only `[fig, axes]` is returned.
+        """
+        print('Parameter posterior distribution convergence plots:')
+        figsize = kwargs.get('figsize', (10,7))
+        sharex = kwargs.get('sharex', True)
+        ndim = sampler.ndim
+        fig, axes = plt.subplots(ndim, figsize=figsize, sharex=sharex)
+        figure_objects = []
         samples = sampler.get_chain()
-        if 'labels' in kwargs.keys():
-            labels = kwargs.get('labels')
-        else:
-            labels = list(self.params_to_estimate)
-        if 'alpha' in kwargs:
-            alpha = kwargs.get('alpha')
-        else:
-            alpha = 0.3 
+        labels = kwargs.get('labels', list(self.params_to_estimate))
+        alpha = kwargs.get('alpha', 0.3)
         for i in range(ndim):
             if type(axes) is np.ndarray:
                 ax = axes[i]
@@ -506,49 +512,33 @@ class InferenceSetup(object):
             axes[-1].set_xlabel("step number")
         else:
             axes.set_xlabel("step number")
+        figure_objects.append(fig)
+        figure_objects.append(axes)
 
-        if 'discard' in kwargs.keys():
-            discard = kwargs.get('discard')
-        else:
-            discard = 100 #arbitrarily discard the first 100 steps
-        if 'thin' in kwargs.keys():
-            thin = kwargs.get('thin')
-        else:
-            if convergence_check:
-                thin = np.mean(np.array(self.autocorrelation_time)) / 2 #thin by half the autocorrelation time
-            else:
-                thin = 1
-            if not np.isfinite(thin):
-                thin = 1
-            else:
-                thin = int(thin)
-        if 'flat' in kwargs.keys():
-            flat = kwargs.get('flat')
-        else:
-            flat = True
+        discard = kwargs.get('discard', 100) #arbitrarily discard the first 100 steps
+        thin = int(kwargs.get('thin', 1))
+        flat = kwargs.get('flat', True)
         
         flat_samples = sampler.get_chain(discard=discard, thin=thin, flat=flat)
-        truth_list = [] 
-        uncertainty_list = [] 
+        param_report = {}
         # Percentiles to compute for numpy.percentile
-        if 'percentiles' in kwargs.keys():
-            percentiles = kwargs.get('percentiles')
-        else:
-            percentiles = [16, 50, 84] # Set percentiles to compute by default to q
+        percentiles = kwargs.get('percentiles', [16, 50, 84]) # Set percentiles to compute by default to q
         for i in range(ndim):
             mcmc = np.percentile(flat_samples[:, i], q = percentiles)
             q = np.diff(mcmc)
-            truth_list.append(mcmc[1])
+            param_report[self.params_to_estimate[i] + '_true'] = mcmc[1]
+            param_report[self.params_to_estimate[i] + '_uncertainties'] = q
             # uncertainty_list.append([-1.0*q[0], q[1]])
-            uncertainty_list.append(q)
+            # uncertainty_list.append(q)
         try:
             import corner
-            fig = corner.corner(
+            corner_fig = corner.corner(
                 flat_samples, labels=labels,
             )
+            figure_objects.append(corner_fig)
         except:
             warnings.warn('corner package not found - cannot plot parameter distributions.')
-        return truth_list, uncertainty_list
+        return param_report, figure_objects 
 
 
     def run_lmfit(self, method = 'leastsq', plot_show = True, **kwargs):
