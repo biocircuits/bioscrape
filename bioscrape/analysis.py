@@ -1,4 +1,3 @@
-
 import warnings
 from bioscrape.types import Model
 from bioscrape.simulator import ModelCSimInterface, DeterministicSimulator
