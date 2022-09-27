@@ -425,7 +425,8 @@ class InferenceSetup(object):
         skip_initial_state_check = kwargs.get('skip_initial_state_check', False)
         progress = kwargs.get('progess', True)
         threads = kwargs.get('threads', 1)
-        fname = kwargs.get('results_filename', 'mcmc_results.csv')
+        fname_csv = kwargs.get('filename_csv', 'mcmc_results.csv')
+        fname_txt = kwargs.get('filename_txt', 'mcmc_results.txt')
         printout = kwargs.get('printout', True)
 
         try:
@@ -452,21 +453,21 @@ class InferenceSetup(object):
                 self.convergence_diagnostics = {'Autocorrelation time for each parameter':self.autocorrelation_time,
                                     'Acceptance fraction (fraction of steps that were accepted)':sampler.acceptance_fraction}
         # Write results
-        if fname:
-            import csv
-            
-            with open(fname,'w', newline = "") as f:
-                writer = csv.writer(f)
-                writer.writerows(sampler.get_chain(flat = True))
-                if convergence_diagnostics:
-                    writer.writerow('\nMCMC convergence diagnostics\n')
-                    writer.writerow(self.convergence_diagnostics)
-                writer.writerow('\nCost function progress\n')
-                writer.writerow(self.cost_progress)
-                f.close()
-                if printout: print("results written to", fname)
-        elif printout: print("results_filename keyword is False or None - results will not saved to a file.")
-        if printout: print('Successfully completed MCMC parameter identification procedure. Check the MCMC diagnostics to evaluate convergence.')
+        import csv
+        with open(fname_csv,'w', newline = "") as f:
+            writer = csv.writer(f)
+            writer.writerows(sampler.get_chain(flat = True))
+            f.close()
+        with open(fname_txt, 'w', newline = "") as f:
+            f.write('\nCost function progress\n')
+            f.write(str(self.cost_progress))
+            if convergence_diagnostics:
+                f.write('\nMCMC convergence diagnostics\n')
+                f.write(str(self.convergence_diagnostics))
+            f.close()
+        if printout: print("Results written to" + fname_csv + " and " + fname_txt)
+        if printout: print('Successfully completed MCMC parameter identification procedure.'
+                           'Check the MCMC diagnostics to evaluate convergence.')
         return sampler
     
     def plot_mcmc_results(self, sampler, **kwargs):
