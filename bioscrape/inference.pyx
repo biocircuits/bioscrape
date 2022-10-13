@@ -297,44 +297,6 @@ cdef class ModelLikelihood(Likelihood):
                 else:
                     self.initial_states[i, j] = self.default_species[j]
 
-    def set_init_species_old(self, list sds):
-        pass
-        """
-        if len(sd.keys()) == 0 and len(sds) == 0:
-            sd = {self.m.get_species_dictionary()}
-        elif len(sd.keys()) > 0 and len(sds) == 0:
-            sds = [sd]
-        elif len(sd.keys()) > 0 and len(sds) > 0:
-            raise ValueError("set_init_species requires either a list of initial condition"
-            "dictionaries sds or a single initial condition dictionary sd as parameters, not both.")
-        self.Nx0 = len(sds)
-
-        if len(sds)>1:
-            pairs = sds[0].items()
-            len_pairs = len(pairs)
-            self.init_state_indices = np.zeros((len_pairs, self.Nx0), dtype=int)
-            self.init_state_vals = np.zeros((len_pairs, self.Nx0))
-            for n in range(self.Nx0 ):
-                index = 0
-                pairs = sds[n].items()
-
-                if  len(pairs) != len_pairs:
-                    raise ValueError("All initial condition dictionaries must have the same keys")
-
-                for (key,val) in  pairs:
-                    self.init_state_indices[index, n] = self.m.get_species_index( key  )
-                    self.init_state_vals[index, n] = val
-                    index +=  1
-        else:
-            index = 0
-            pairs = sds[0].items()
-            self.init_state_indices = np.zeros(len(pairs), dtype=int)
-            self.init_state_vals = np.zeros(len(pairs),)
-            for (key,val) in  pairs:
-                self.init_state_indices[index] = self.m.get_species_index( key  )
-                self.init_state_vals[index] = val
-                index +=  1"""
-
     def set_init_params(self, dict pd):
 
         # print("before set", self.m.get_parameter_dictionary())
@@ -449,30 +411,6 @@ cdef class DeterministicLikelihood(ModelLikelihood):
             # print('lets set for new traj to', self.get_initial_params(n))
             if self.get_initial_params(n) is not None:
                 self.set_init_params(self.get_initial_params(n))
-            # self.csim.py_set_param_values(self.get_initial_params(n))
-            # print('new params conditions', self.csim.py_get_param_values())
-
-
-            #self.csim.set_initial_time(timepoints[0])
-            #self.csim.apply_repeated_rules(<double*> species_vals.data, timepoints[0], True)
-
-            #Set initial parameters
-            # if self.init_param_indices is not None:
-            #     for i in range(np.shape(self.init_param_indices)[0]):
-            #         param_vals[ self.init_param_indices[i] ] = self.init_param_vals[i]
-
-            #if self.Nx0 == 1:#Run all the simulations from the same initial state
-            #    for i in range(self.M):
-            #        species_vals[ self.init_state_indices[i] ] = self.init_state_vals[i]
-            #elif self.Nx0 == self.N: #Different initial conditions for different simulations
-            #    for i in range(self.M):
-            #        species_vals[ self.init_state_indices[i, n] ] = self.init_state_vals[i, n]
-            
-            #print("n-loop setup", t11-t10)
-            # Do a simulation of the model with time points specified by the data.
-
-            #res = py_simulate_model(timepoints, Model = self.m, return_dataframe = False)
-            #ans = res.get_result()
             ans = self.propagator.simulate(self.csim, timepoints).get_result()
 
             #print("simulation", t12-t11)

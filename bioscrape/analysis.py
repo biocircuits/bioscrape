@@ -1,4 +1,3 @@
-
 import warnings
 from bioscrape.types import Model
 from bioscrape.simulator import ModelCSimInterface, DeterministicSimulator
@@ -6,6 +5,23 @@ from scipy.integrate import odeint
 import numpy as np
 
 def py_sensitivity_analysis(model, timepoints, normalize, **kwargs):
+    """User interface function to perform sensitivity analysis 
+    on a bioscrape model. The sensitivity coefficients are computed 
+    where each coefficient s_ij = rate of change of x_i with parameter p_j
+    for each time point in timepoints.
+
+    Args:
+        model (bioscrape.types.Model): A bioscrape Model object
+        timepoints (numpy.ndarray): Array of time points.
+        normalize (bool): when `True` the sensitivity coefficients returned are 
+                          normalized by state values at each time 
+                          (divides each coefficient by x_i/p_j).
+                          when `False` the sensitivity coefficients are not normalized.
+
+    Returns:
+        numpy.ndarray: A numpy array of size:
+                       len(timepoints) x len(parameters) x len(states)
+    """
     sens_obj = SensitivityAnalysis(model)
     ans_df = sens_obj.propagator.py_simulate(sens_obj.sim_interface, timepoints).py_get_dataframe(sens_obj.M)
     solutions_array = np.array(ans_df.iloc[:,range(0,len(ans_df.T) - 1)])
@@ -181,7 +197,7 @@ class SensitivityAnalysis(Model):
             return dsdt
 
         if params is None:
-            all_params = self.M.get_param_list()
+            all_params = list(self.original_parameters.keys())
         else:
             all_params = params
 
