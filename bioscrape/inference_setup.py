@@ -420,7 +420,7 @@ class InferenceSetup(object):
             self.setup_cost_function(**kwargs)
 
         progress = kwargs.get('progress')
-        convergence_check = kwargs.get('convergence_check', True)
+        convergence_check = kwargs.get('convergence_check', False)
         convergence_diagnostics = kwargs.get('convergence_diagnostics', convergence_check)
         skip_initial_state_check = kwargs.get('skip_initial_state_check', False)
         progress = kwargs.get('progess', True)
@@ -607,9 +607,7 @@ class InferenceSetup(object):
         with open('lmfit_results.csv','w') as f:
             f.write(str(df))
 
-        convergence_diagnostics = kwargs.get('convergence_diagnostics') 
-        if convergence_diagnostics is None:
-            convergence_diagnostics = True
+        convergence_diagnostics = kwargs.get('convergence_diagnostics', True) 
         if convergence_diagnostics:
             count = 0
             for result in minimizer_result:
