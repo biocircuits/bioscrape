@@ -11,5 +11,5 @@ To install Bioscrape, in your terminal run the command:
 
 Please note that Bioscrape is a cython extension module and requires a C++ compiler to be set up on your computer for installation. For more information, please visit https://github.com/biocircuits/bioscrape/wiki.
 
-.. |Build Status| image:: https://travis-ci.org/biocircuits/bioscrape.svg?branch=master
-   :target: https://travis-ci.org/biocircuits/bioscrape
+.. |Build Status| image:: https://github.com/biocircuits/bioscrape/actions/workflows/bioscrape.yml/badge.svg
+   :target: https://github.com/biocircuits/bioscrape
