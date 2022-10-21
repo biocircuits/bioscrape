@@ -133,8 +133,12 @@ examples/models/represillator_sbml_back.xml
 examples/models/txtl_model_sbml.xml
 inference examples/lmfit_results.csv
 inference examples/mcmc_results.csv
+inference examples/mcmc_results.txt
 inference examples/individual examples/lmfit_results.csv
 inference examples/individual examples/mcmc_results.csv
+inference examples/individual examples/mcmc_results.txt
 MANIFEST
 mcmc_results.csv
+mcmc_results.txt
 lmfit_results.csv
+mcmc_results.txt
