@@ -214,15 +214,18 @@ class StochasticInference(PIDInterface):
     def __init__(self, params_to_estimate, M, prior, **kwargs):
         self.LL_stoch = None
         self.dataStoch = None
+        if 'debug' in kwargs:
+            self.debug = kwargs.get('debug')
         super().__init__(params_to_estimate, M, prior, **kwargs)
         return
 
     def setup_likelihood_function(self, data, timepoints, measurements,
                                   initial_conditions, parameter_conditions,
                                   norm_order=2, N_simulations=3,
-                                  debug=False, **kwargs):
+                                  **kwargs):
         N = np.shape(data)[0]
-        if debug:
+        self.dataStoch = StochasticTrajectories(np.array(timepoints), data, measurements, N)
+        if self.debug:
             print('Stochastic inference attributes:')
             print('The timepoints shape is {0}'.format(np.shape(timepoints)))
             print('The data shape is {0}'.format(np.shape(data)))
@@ -230,7 +233,6 @@ class StochasticInference(PIDInterface):
             print('The N is {0}'.format(N))
             print('Using the initial conditions: {0}'.format(initial_conditions))
             print('Using the parameter conditions: {0}'.format(parameter_conditions))
-        self.dataStoch = StochasticTrajectories(np.array(timepoints), data, measurements, N)
         #If there are multiple initial conditions in a data-set,
         # should correspond to multiple initial conditions for inference.
         # Note len(initial_conditions) must be equal to the number of trajectories N
@@ -260,6 +262,7 @@ class StochasticInference(PIDInterface):
                 params_dict[key] = p
 
         #Prior
+        lp = 0
         lp = self.check_prior(params_dict)
         if not np.isfinite(lp):
             return -np.inf
@@ -267,9 +270,12 @@ class StochasticInference(PIDInterface):
             # Reset to default
             self.LL_stoch.set_init_params(self.default_parameters)
             self.LL_stoch.set_init_params(params_dict)
-
+            if self.debug:
+                print('current sample:', params_dict)
             LL_stoch_cost = self.LL_stoch.py_log_likelihood()
             ln_prob = lp + LL_stoch_cost
+            if self.debug:
+                print('current cost total:', ln_prob)
             return ln_prob
        
 # Add a new class similar to this to create new interfaces.
