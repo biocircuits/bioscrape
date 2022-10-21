@@ -48,7 +48,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
     # Parse through model components one by one
     allspecies = import_sbml_species(model)
     allparams = import_sbml_parameters(model)
-    allreactions, allspecies = import_sbml_reactions(model, allspecies, allparams, input_printout)
+    allreactions, allspecies = import_sbml_reactions(model, allspecies, allparams, input_printout, sbml_warnings)
     allrules, allreactions = import_sbml_rules(model, allspecies, allparams, allreactions, input_printout)
     # Check and warn if there are any unrecognized components (function definitions, packages, etc.)
     if len(model.getListOfCompartments()) > 0 or len(model.getListOfUnitDefinitions()) > 0  or len(model.getListOfEvents()) > 0: 
@@ -135,7 +135,7 @@ def import_sbml_parameters(sbml_model):
             allparams[pid] = p.getValue()
     return allparams
 
-def import_sbml_reactions(sbml_model, allspecies, allparams, input_printout):
+def import_sbml_reactions(sbml_model, allspecies, allparams, input_printout, sbml_warnings = True):
     """Import reactions from SBML model
 
     Args:
