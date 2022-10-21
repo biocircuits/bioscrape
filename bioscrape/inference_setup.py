@@ -286,17 +286,17 @@ class InferenceSetup(object):
                     raise TypeError('All elements of exp_data attribute of an InferenceSetup object must be Pandas DataFrame objects.')
                 # Extract timepoints
                 if self.time_column:
-                    timepoint_i = np.array(df.get(self.time_column)).flatten()
+                    timepoint_i = np.array(df.get(self.time_column), dtype='double').flatten()
                     timepoints_list.append(timepoint_i)
                 else:
                     raise TypeError('time_column attribute of InferenceSetup object must be a string.')
                 # Extract measurements    
                 if type(self.measurements) is list and len(self.measurements) == 1:
-                    data_list.append(np.array(df.get(self.measurements[0])))
+                    data_list.append(np.array(df.get(self.measurements[0]), dtype='double'))
                 elif type(self.measurements) is list and len(self.measurements) > 1:
                     for m in self.measurements:
                         # Error in multiple measurements
-                        data_list.append(np.array(df.get(m)))
+                        data_list.append(np.array(df.get(m), dtype='double'))
                 # Number of timepoints
                 T = len(timepoints_list[0])
                 if T != len(timepoint_i):
@@ -317,17 +317,17 @@ class InferenceSetup(object):
         elif type(exp_data) is pd.DataFrame:
             # Extract time
             if self.time_column:
-                self.timepoints = np.array(exp_data.get(self.time_column)).flatten()
+                self.timepoints = np.array(exp_data.get(self.time_column), dtype='double').flatten()
             else:
                 raise TypeError('time_column attribute of InferenceSetup object must be a string.')
             
             # Extract measurements
             if type(self.measurements) is list and len(self.measurements) == 1:
-                data = np.array(exp_data.get(self.measurements[0]))
+                data = np.array(exp_data.get(self.measurements[0]), dtype='double')
             elif type(self.measurements) is list and len(self.measurements) > 1:
                 data_list = []
                 for m in self.measurements:
-                    data_list.append(np.array(exp_data.get(m)))
+                    data_list.append(np.array(exp_data.get(m), dtype='double'))
                 data = np.array(data_list)
             else:
                 raise ValueError('Something wrong with experimental data input to inference.')
