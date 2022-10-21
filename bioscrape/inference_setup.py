@@ -438,7 +438,7 @@ class InferenceSetup(object):
         convergence_diagnostics = kwargs.get('convergence_diagnostics', convergence_check)
         skip_initial_state_check = kwargs.get('skip_initial_state_check', False)
         progress = kwargs.get('progess', True)
-        threads = kwargs.get('threads', 1)
+        # threads = kwargs.get('threads', 1)
         fname_csv = kwargs.get('filename_csv', 'mcmc_results.csv')
         fname_txt = kwargs.get('filename_txt', 'mcmc_results.txt')
         printout = kwargs.get('printout', True)
@@ -452,9 +452,9 @@ class InferenceSetup(object):
         p0 = self.seed_parameter_values(**kwargs)
 
         assert p0.shape == (self.nwalkers, ndim)
-        if printout: print("creating an ensemble sampler with threads=", threads)
+        # if printout: print("creating an ensemble sampler with threads=", threads)
         
-        sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function, threads = threads)
+        sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function)
         sampler.run_mcmc(p0, self.nsteps, progress=progress,
                          skip_initial_state_check=skip_initial_state_check)
         if convergence_check:
