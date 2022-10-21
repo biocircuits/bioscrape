@@ -440,6 +440,11 @@ class InferenceSetup(object):
         progress = kwargs.get('progess', True)
         # threads = kwargs.get('threads', 1)
         fname_csv = kwargs.get('filename_csv', 'mcmc_results.csv')
+        if 'results_filename' in kwargs:
+            warnings.warn('The keyword results_filename is deprecated and'
+                          'is being replaced by filename_csv and filename_txt where CSV is for'
+                          'the MCMC samples and cost function progress respectively.', DeprecationWarning)
+            fname_csv = kwargs.get('results_filename', 'mcmc_results.csv')
         fname_txt = kwargs.get('filename_txt', 'mcmc_results.txt')
         printout = kwargs.get('printout', True)
 
@@ -528,8 +533,8 @@ class InferenceSetup(object):
             axes.set_xlabel("step number")
         figure_objects.append(fig)
         figure_objects.append(axes)
-
-        discard = kwargs.get('discard', 100) #arbitrarily discard the first 100 steps
+        # arbitrarily discard 2*nwalkers steps 
+        discard = kwargs.get('discard', 2*self.nwalkers)
         thin = int(kwargs.get('thin', 1))
         flat = kwargs.get('flat', True)
         
