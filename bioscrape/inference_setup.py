@@ -224,9 +224,49 @@ class InferenceSetup(object):
                 self.set_timepoints(timepoints)
             else:
                 raise ValueError('Expected type list or np.ndarray for timepoints.')
-        self.LL_data = self.extract_data(self.exp_data)
+        self.prepare_initial_conditions()
+        self.prepare_parameter_conditions()
+        self.LL_data = self.extract_data()
 
-    def extract_data(self, exp_data):
+    def prepare_initial_conditions(self, ):
+        # Create initial conditions as required
+        N = 1 if type(self.exp_data) is dict else len(self.exp_data)
+        if type(self.initial_conditions) is dict:
+            all_initial_conditions = [self.initial_conditions]*N
+        elif type(self.initial_conditions) is list:
+            if len(self.initial_conditions) != N:
+                raise ValueError('For a list of initial conditions,'
+                                    'each item must be a dictionary and'
+                                    'the length of the list must be the'
+                                    'same as the number of trajectories.')
+            all_initial_conditions = self.initial_conditions
+        self.initial_conditions = all_initial_conditions
+        return
+
+    def prepare_parameter_conditions(self):
+        # Create parameter conditions as required
+        N = 1 if type(self.exp_data) is dict else len(self.exp_data)
+        if type(self.parameter_conditions) is dict:
+            all_parameter_conditions = [self.parameter_conditions]*N
+        elif type(self.parameter_conditions) is list:
+            if len(self.parameter_conditions) != N:
+                raise ValueError('For a list of parameter conditions,'
+                                    'each item must be a dictionary and'
+                                    'the length of the list must be the'
+                                    'same as the number of trajectories.')
+            all_parameter_conditions = self.parameter_conditions
+        else:
+            all_parameter_conditions = None
+        self.parameter_conditions = all_parameter_conditions
+        # Make sure that parameters to estimate do not intersect with parameters
+        # that are changing through parameter conditions
+        for param_condition in self.parameter_conditions:
+            for param in self.params_to_estimate:
+                assert param not in param_condition.keys()
+        return
+
+    def extract_data(self):
+        exp_data = self.exp_data
         # Get timepoints from given experimental data
         if isinstance(self.timepoints, (list, np.ndarray)):
             warnings.warn('Timepoints given by user, not using the data to extract the timepoints automatically.')
@@ -249,7 +289,6 @@ class InferenceSetup(object):
                     timepoints_list.append(timepoint_i)
                 else:
                     raise TypeError('time_column attribute of InferenceSetup object must be a string.')
-
                 # Extract measurements    
                 if type(self.measurements) is list and len(self.measurements) == 1:
                     data_list.append(np.array(df.get(self.measurements[0])))
@@ -264,32 +303,6 @@ class InferenceSetup(object):
                 data_i = np.array(data_list)
                 data_i = np.reshape(data_i, (T, M))
                 data_list_final.append(data_i)
-
-            # Create initial conditions as required
-            if type(self.initial_conditions) is dict:
-                all_initial_conditions = [self.initial_conditions]*N
-            elif type(self.initial_conditions) is list:
-                if len(self.initial_conditions) != N:
-                    raise ValueError('For a list of initial conditions,'
-                                     'each item must be a dictionary and'
-                                     'the length of the list must be the'
-                                     'same as the number of trajectories.')
-                all_initial_conditions = self.initial_conditions
-            self.initial_conditions = all_initial_conditions
-            # Create parameter conditions as required
-            if type(self.parameter_conditions) is dict:
-                all_parameter_conditions = [self.parameter_conditions]*N
-            elif type(self.parameter_conditions) is list:
-                if len(self.parameter_conditions) != N:
-                    raise ValueError('For a list of parameter conditions,'
-                                     'each item must be a dictionary and'
-                                     'the length of the list must be the'
-                                     'same as the number of trajectories.')
-                all_parameter_conditions = self.parameter_conditions
-            else:
-                all_parameter_conditions = None
-            self.parameter_conditions = all_parameter_conditions
-
             data = np.array(data_list_final)
             self.timepoints = timepoints_list
             T = len(timepoints_list[0])
@@ -322,7 +335,8 @@ class InferenceSetup(object):
             M = len(self.measurements)# Number of measurements
             data = np.reshape(data, (N,T,M))
         else:
-            raise TypeError('exp_data attribute of InferenceSetup object must be a list of Pandas DataFrames or a single Pandas DataFrame. ')
+            raise TypeError('exp_data attribute of InferenceSetup object must'
+                            'be a list of Pandas DataFrames or a single Pandas DataFrame. ')
         return data
 
     def setup_cost_function(self, **kwargs):
