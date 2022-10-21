@@ -175,6 +175,7 @@ def test_log_gaussian_priors(model_setup):
 @pytest.fixture
 def birth_death_process():
     """Set up the Model and data to be used for inference tests
+    with state initial conditions varying for each trajectory.
     """
     # Create a bioscrape model
     species = ['I','X', 'Y']
@@ -203,6 +204,57 @@ def birth_death_process():
         exp_data['Y' + str(i)] = result_list[i]['Y'] + np.random.normal(5, 1, size = np.shape(result_list[i]['Y']))
     exp_data.to_csv('tests/temp/birth_death_data_multiple_conditions.csv')
     return M, num_trajectories, initial_condition_list
+
+@pytest.fixture
+def birth_death_process_params():
+    """Set up the Model and data to be used for inference tests
+    with parameter conditions varying for each trajectory.
+    """
+    # Create a bioscrape model
+    species = ['I','X']
+    reactions = [(['X'], [], 'massaction', {'k':'d1'}), 
+                ([], ['X'], 'hillpositive', {'s1':'I', 'k':'k1', 'K':'KR', 'n':2})]
+    k1 = 50.0
+    d1 = 0.5
+    params = [('k1', k1), ('d1', d1), ('KR', 20)]
+    initial_condition = {'X':0, 'I':0}
+    M = Model(species = species, reactions = reactions, parameters = params, 
+            initial_condition_dict = initial_condition)
+    num_trajectories = 4 # each with different initial condition
+    parameter_condition_list = [{'d1':0.01},{'d1':0.1},{'d1':1},{'d1':10}] 
+    timepoints = np.linspace(0,5,100)
+    result_list = []
+    M.set_species({"I":20})
+    for param_cond in parameter_condition_list:
+        M.set_params(param_cond)
+        result = py_simulate_model(timepoints, Model = M)['X']
+        result_list.append(result)
+    exp_data = pd.DataFrame()
+    exp_data['timepoints'] = timepoints
+    for i in range(num_trajectories):
+        exp_data['X' + str(i)] = result_list[i] + np.random.normal(5, 1, size = np.shape(result))
+    exp_data.to_csv('tests/temp/birth_death_data_multiple_param_conditions.csv')
+    return M, num_trajectories, parameter_condition_list
+
+def test_multiple_parameter_conditions_inference(birth_death_process_params):
+    M, num_trajectories, parameter_condition_list = birth_death_process_params
+    # Import data from CSV
+    exp_data = []
+    for i in range(num_trajectories):
+        df = pd.read_csv('tests/temp/birth_death_data_multiple_param_conditions.csv', usecols = ['timepoints', 'X'+str(i)])
+        df.columns = ['timepoints', 'X']
+        exp_data.append(df)
+        
+    prior = {'k1' : ['uniform', 0, 100]}
+    sampler, pid = py_inference(Model = M, exp_data = exp_data, measurements = ['X'], time_column = ['timepoints'],
+                                parameter_conditions = parameter_condition_list,
+                                nwalkers = 5, init_seed = 0.15, nsteps = 2000, sim_type = 'deterministic',
+                                convergence_check = True,
+                                params_to_estimate = ['k1'], prior = prior)
+    assert(isinstance(sampler, EnsembleSampler) == True)
+    assert(isinstance(pid, InferenceSetup) == True)
+    assert np.array(sampler.get_autocorr_time())[0] < 50 
+    assert np.array(sampler.acceptance_fraction).all() < 2
 
 def test_multiple_conditions_inference(birth_death_process):
     """ Run MCMC inference on birth death model with data for multiple conditions
@@ -247,7 +299,7 @@ def test_stochastic_inference(birth_death_process):
     prior = {'d1' : ['uniform', 0.1, 10], 'k1' : ['uniform',0,100], 'KR' : ['uniform',0,100], 'k2':['uniform', 0, 100]}
     sampler, pid = py_inference(Model = M, exp_data = exp_data, measurements = ['X','Y'], time_column = ['timepoints'],
                                 initial_conditions = initial_condition_list,
-                                nwalkers = 10, init_seed = np.array([0.1,50,20,0.5]), nsteps = 500, sim_type = 'stochastic',
+                                nwalkers = 10, init_seed = np.array([0.1,50,20,0.5]), nsteps = 100, sim_type = 'stochastic', discard = 10,
                                 params_to_estimate = ['d1','k1','KR', 'k2'], prior = prior, debug=False)
     assert(isinstance(sampler, EnsembleSampler) == True)
     assert(isinstance(pid, InferenceSetup) == True)
