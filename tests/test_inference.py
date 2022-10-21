@@ -247,7 +247,7 @@ def test_stochastic_inference(birth_death_process):
     prior = {'d1' : ['uniform', 0.1, 10], 'k1' : ['uniform',0,100], 'KR' : ['uniform',0,100], 'k2':['uniform', 0, 100]}
     sampler, pid = py_inference(Model = M, exp_data = exp_data, measurements = ['X','Y'], time_column = ['timepoints'],
                                 initial_conditions = initial_condition_list,
-                                nwalkers = 10, init_seed = np.array([0.1,50,20,0.5]), nsteps = 100, sim_type = 'stochastic',
+                                nwalkers = 10, init_seed = np.array([0.1,50,20,0.5]), nsteps = 500, sim_type = 'stochastic',
                                 params_to_estimate = ['d1','k1','KR', 'k2'], prior = prior, debug=False)
     assert(isinstance(sampler, EnsembleSampler) == True)
     assert(isinstance(pid, InferenceSetup) == True)

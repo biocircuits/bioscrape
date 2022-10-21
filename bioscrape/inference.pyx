@@ -504,29 +504,22 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
         cdef np.ndarray[np.double_t, ndim = 2] ans
         cdef np.ndarray[np.double_t, ndim = 3] measurements = self.sd.get_measurements()
 
-        # Do N*N_simulations simulations of the model with time points specified by the data.
+        #Go through trajectories (which may have unique initial states)
         for n in range(self.N):
             #Set Timepoints
             if self.sd.has_multiple_timepoints():
                 timepoints = self.sd.get_timepoints()[n, :]
             else:
                 timepoints = self.sd.get_timepoints()
+            # Set initial state conditions
+            self.csim.set_initial_state(self.get_initial_state(n))
             # Set init params
             if self.get_initial_params(n) is not None:
                 self.set_init_params(self.get_initial_params(n))
+            # Do N*N_simulations simulations of the model with time points specified by the data.
             for s in range(self.N_simulations):
-                #Set initial parameters (inside loop in case they change in the simulation):
-                # if self.init_param_indices is not None:
-                #     for i in range(np.shape(self.init_param_indices)[0]):
-                #         param_vals[ self.init_param_indices[i] ] = self.init_param_vals[i]                
-
-                #Set Initial Conditions (Inside loop in case things change in the simulation)
-                if self.Nx0 == 1:#Run all the simulations from the same initial state
-                    for i in range(self.M):
-                        species_vals[self.init_state_indices[i]] = self.init_state_vals[i]
-                elif self.Nx0 == self.N: #Different initial conditions for different simulations
-                    for i in range(self.M):
-                        species_vals[ self.init_state_indices[i, n] ] = self.init_state_vals[i, n]
+                # Initial parameters are set for each trajectory passed in.
+                # Initial conditions are set for each trajectory passsed in.
                 if self.has_delay:
                     q = ArrayDelayQueue.setup_queue(self.csim.py_get_num_reactions(), len(timepoints),timepoints[1]-timepoints[0])
                     ans = self.propagator_delay.delay_simulate(self.csim, q, timepoints).get_result()
