@@ -57,7 +57,7 @@ def test_basic_inference(model_setup):
     prior = {'m' : ['gaussian', m_true, 500],'b' : ['gaussian', b_true, 1000]}
     sampler, pid = py_inference(Model = M, exp_data = exp_data, measurements = ['y'],
                         time_column = ['x'], params_to_estimate = ['m','b'],
-                        nwalkers = 32, nsteps = 2000, init_seed = 1e-4, prior = prior,
+                        nwalkers = 32, nsteps = 2000, discard = 100, init_seed = 1e-4, prior = prior,
                         sim_type = 'deterministic', plot_show = False)
     assert(isinstance(sampler, EnsembleSampler) == True)
     assert(isinstance(pid, InferenceSetup) == True)
@@ -272,15 +272,19 @@ def test_multiple_conditions_inference(birth_death_process):
     prior = {'d1' : ['uniform', 0.1, 10], 'k1' : ['uniform',0,100], 'KR' : ['uniform',0,100], 'k2':['uniform', 0, 100]}
     sampler, pid = py_inference(Model = M, exp_data = exp_data, measurements = ['X','Y'], time_column = ['timepoints'],
                                 initial_conditions = initial_condition_list,
-                                nwalkers = 8, init_seed = 0.15, nsteps = 8000, sim_type = 'deterministic',
-                                params_to_estimate = ['d1','k1','KR', 'k2'], prior = prior, convergence_check = True)
+                                nwalkers = 8, init_seed = 0.15, nsteps = 100, sim_type = 'deterministic', discard = 10,
+                                params_to_estimate = ['d1','k1','KR', 'k2'], prior = prior, convergence_check = False)
     assert(isinstance(sampler, EnsembleSampler) == True)
     assert(isinstance(pid, InferenceSetup) == True)
-    assert np.array(sampler.get_autocorr_time())[0] < 200 
-    assert np.array(sampler.get_autocorr_time())[1] < 200
-    assert np.array(sampler.get_autocorr_time())[2] < 200
-    assert np.array(sampler.get_autocorr_time())[3] < 200
-    assert np.array(sampler.acceptance_fraction).all() < 2
+    # Takes a long time to run the test if convergence is also checked
+    #### Recommend to uncomment when inference ####
+    #### changes are made to inference module directly. ####
+    #### Change nsteps = 9k, when uncommented. ####
+    # assert np.array(sampler.get_autocorr_time())[0] < 200 
+    # assert np.array(sampler.get_autocorr_time())[1] < 200
+    # assert np.array(sampler.get_autocorr_time())[2] < 200
+    # assert np.array(sampler.get_autocorr_time())[3] < 200
+    # assert np.array(sampler.acceptance_fraction).all() < 2
 
     
 def test_stochastic_inference(birth_death_process):

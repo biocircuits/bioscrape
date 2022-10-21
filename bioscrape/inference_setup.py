@@ -259,10 +259,11 @@ class InferenceSetup(object):
             all_parameter_conditions = None
         self.parameter_conditions = all_parameter_conditions
         # Make sure that parameters to estimate do not intersect with parameters
-        # that are changing through parameter conditions
-        for param_condition in self.parameter_conditions:
-            for param in self.params_to_estimate:
-                assert param not in param_condition.keys()
+        if self.parameter_conditions is not None:
+            # that are changing through parameter conditions
+            for param_condition in self.parameter_conditions:
+                for param in self.params_to_estimate:
+                    assert param not in param_condition.keys()
         return
 
     def extract_data(self):
