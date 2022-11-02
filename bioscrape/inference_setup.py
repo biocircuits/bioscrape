@@ -39,7 +39,66 @@ class InferenceSetup(object):
         self.cost_progress = []
         self.cost_params = []
         self.hmax = kwargs.get('hmax', None)
+        if self.exp_data is not None:
+            self.prepare_inference()
+            self.setup_cost_function()
         return 
+
+    #Whenever new settings are updated in the constructor, please add them to getstate and setstate
+    def __getstate__(self):
+        return (
+            self.M,
+            self.params_to_estimate,
+            self.init_seed,
+            self.prior,
+            self.nwalkers,
+            self.nsteps,
+            self.dimension,
+            self.exp_data,
+            self.sim_type,
+            self.method,
+            self.timepoints,
+            self.time_column,
+            self.measurements,
+            self.initial_conditions,
+            self.parameter_conditions,
+            self.norm_order,
+            self.N_simulations,
+            self.LL_data,
+            self.debug,
+            self.cost_progress,
+            self.cost_params,
+            self.hmax
+            )
+
+    def __setstate__(self, state):
+       
+        self.M = state[0]
+        self.params_to_estimate = state[1]
+        self.init_seed = state[2]
+        self.prior = state[3]
+        self.nwalkers = state[4]
+        self.nsteps = state[5]
+        self.dimension = state[6]
+        self.exp_data = state[7]
+        self.sim_type = state[8]
+        self.method = state[9]
+        self.timepoints = state[10]
+        self.time_column = state[11]
+        self.measurements = state[12]
+        self.initial_conditions = state[13]
+        self.parameter_conditions = state[14]
+        self.norm_order = state[15]
+        self.N_simulations = state[16]
+        self.LL_data = state[17]
+        self.debug = state[18]
+        self.cost_progress = state[19]
+        self.cost_params = state[20]
+        self.hmax = state[21]
+        if self.exp_data is not None:
+            self.prepare_inference()
+            self.setup_cost_function()
+            
 
     def set_model(self, M):
         '''
