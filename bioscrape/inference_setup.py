@@ -517,11 +517,10 @@ class InferenceSetup(object):
         p0 = self.seed_parameter_values(**kwargs)
 
         assert p0.shape == (self.nwalkers, ndim)
-        # if printout: print("creating an ensemble sampler with threads=", threads)
         
-
         pool = kwargs.get('pool', None)
-        print("Running emcee with pool", pool)
+        if printout: print("creating an ensemble sampler with multiprocessing pool=", pool)
+
         sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function, pool = pool)
         sampler.run_mcmc(p0, self.nsteps, progress=progress,
                          skip_initial_state_check=skip_initial_state_check)
