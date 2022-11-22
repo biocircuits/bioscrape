@@ -1,5 +1,5 @@
 # Bioscrape &mdash; Biological Stochastic Simulation of Single Cell Reactions and Parameter Estimation
-## Python toolbox to create CRN models in SBML for biomolecular mechanisms
+## Python toolbox to simulate, analyze, and learn biological system models
 
 [![Build Status](https://github.com/biocircuits/bioscrape/actions/workflows/bioscrape.yml/badge.svg)](https://github.com/biocircuits/bioscrape/actions/workflows/bioscrape.yml)
 [![PyPI version](https://badge.fury.io/py/bioscrape.svg)](https://badge.fury.io/py/bioscrape)
