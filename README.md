@@ -10,7 +10,7 @@
 
 * Parameter inference with Bioscrape: [![Bioscrape Inference](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/biocircuits/bioscrape/blob/colab-ipynb/inference%20examples/Bioscrape%20Inference%20-%20Getting%20Started.ipynb#scrollTo=yvYVliBgjyzF)
 
-Bioscrape is a Chemical Reaction Network Simulator written in cython for speed and python compatability. It can be used for deterministic, stochastic, or single cell simulation and also has parameter inference capabilities.
+Bioscrape is a Systems Biology Markup Language (SBML) simulator written in Cython for speed and python compatability. It can be used for deterministic, stochastic, or single cell simulation and also has parameter inference capabilities.
 
 - **Mailing list:** [SBTools Google Group](https://groups.google.com/g/sbtools/) Email: sbtools@googlegroups.com
 - **Source:** https://github.com/biocircuits/bioscrape
