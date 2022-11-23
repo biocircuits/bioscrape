@@ -57,7 +57,7 @@ def test_basic_inference(model_setup):
     prior = {'m' : ['gaussian', m_true, 500],'b' : ['gaussian', b_true, 1000]}
     sampler, pid = py_inference(Model = M, exp_data = exp_data, measurements = ['y'],
                         time_column = ['x'], params_to_estimate = ['m','b'],
-                        nwalkers = 32, nsteps = 2000, init_seed = 1e-4, prior = prior,
+                        nwalkers = 32, nsteps = 2000, discard = 100, init_seed = 1e-4, prior = prior,
                         sim_type = 'deterministic', plot_show = False)
     assert(isinstance(sampler, EnsembleSampler) == True)
     assert(isinstance(pid, InferenceSetup) == True)
@@ -175,13 +175,17 @@ def test_log_gaussian_priors(model_setup):
 @pytest.fixture
 def birth_death_process():
     """Set up the Model and data to be used for inference tests
+    with state initial conditions varying for each trajectory.
     """
     # Create a bioscrape model
-    species = ['I','X']
-    reactions = [(['X'], [], 'massaction', {'k':'d1'}), ([], ['X'], 'hillpositive', {'s1':'I', 'k':'k1', 'K':'KR', 'n':2})]
+    species = ['I','X', 'Y']
+    reactions = [(['X'], [], 'massaction', {'k':'d1'}), 
+                ([], ['X'], 'hillpositive', {'s1':'I', 'k':'k1', 'K':'KR', 'n':2}),
+                (['X'],['Y'],'massaction', {'k':'k2'})]
     k1 = 50.0
     d1 = 0.5
-    params = [('k1', k1), ('d1', d1), ('KR', 20)]
+    k2 = 10
+    params = [('k1', k1), ('d1', d1), ('KR', 20), ('k2',k2)]
     initial_condition = {'X':0, 'I':0}
     M = Model(species = species, reactions = reactions, parameters = params, 
             initial_condition_dict = initial_condition)
@@ -191,14 +195,66 @@ def birth_death_process():
     result_list = []
     for init_cond in initial_condition_list:
         M.set_species(init_cond)
+        result = py_simulate_model(timepoints, Model = M)
+        result_list.append(result)
+    exp_data = pd.DataFrame()
+    exp_data['timepoints'] = timepoints
+    for i in range(num_trajectories):
+        exp_data['X' + str(i)] = result_list[i]['X'] + np.random.normal(5, 1, size = np.shape(result_list[i]['X']))
+        exp_data['Y' + str(i)] = result_list[i]['Y'] + np.random.normal(5, 1, size = np.shape(result_list[i]['Y']))
+    exp_data.to_csv('tests/temp/birth_death_data_multiple_conditions.csv')
+    return M, num_trajectories, initial_condition_list
+
+@pytest.fixture
+def birth_death_process_params():
+    """Set up the Model and data to be used for inference tests
+    with parameter conditions varying for each trajectory.
+    """
+    # Create a bioscrape model
+    species = ['I','X']
+    reactions = [(['X'], [], 'massaction', {'k':'d1'}), 
+                ([], ['X'], 'hillpositive', {'s1':'I', 'k':'k1', 'K':'KR', 'n':2})]
+    k1 = 50.0
+    d1 = 0.5
+    params = [('k1', k1), ('d1', d1), ('KR', 20)]
+    initial_condition = {'X':0, 'I':0}
+    M = Model(species = species, reactions = reactions, parameters = params, 
+            initial_condition_dict = initial_condition)
+    num_trajectories = 4 # each with different initial condition
+    parameter_condition_list = [{'d1':0.01},{'d1':0.1},{'d1':1},{'d1':10}] 
+    timepoints = np.linspace(0,5,100)
+    result_list = []
+    M.set_species({"I":20})
+    for param_cond in parameter_condition_list:
+        M.set_params(param_cond)
         result = py_simulate_model(timepoints, Model = M)['X']
         result_list.append(result)
     exp_data = pd.DataFrame()
     exp_data['timepoints'] = timepoints
     for i in range(num_trajectories):
         exp_data['X' + str(i)] = result_list[i] + np.random.normal(5, 1, size = np.shape(result))
-    exp_data.to_csv('tests/temp/birth_death_data_multiple_conditions.csv')
-    return M, num_trajectories, initial_condition_list
+    exp_data.to_csv('tests/temp/birth_death_data_multiple_param_conditions.csv')
+    return M, num_trajectories, parameter_condition_list
+
+def test_multiple_parameter_conditions_inference(birth_death_process_params):
+    M, num_trajectories, parameter_condition_list = birth_death_process_params
+    # Import data from CSV
+    exp_data = []
+    for i in range(num_trajectories):
+        df = pd.read_csv('tests/temp/birth_death_data_multiple_param_conditions.csv', usecols = ['timepoints', 'X'+str(i)])
+        df.columns = ['timepoints', 'X']
+        exp_data.append(df)
+        
+    prior = {'k1' : ['uniform', 0, 100]}
+    sampler, pid = py_inference(Model = M, exp_data = exp_data, measurements = ['X'], time_column = ['timepoints'],
+                                parameter_conditions = parameter_condition_list,
+                                nwalkers = 5, init_seed = 0.15, nsteps = 2000, sim_type = 'deterministic',
+                                convergence_check = True,
+                                params_to_estimate = ['k1'], prior = prior)
+    assert(isinstance(sampler, EnsembleSampler) == True)
+    assert(isinstance(pid, InferenceSetup) == True)
+    assert np.array(sampler.get_autocorr_time())[0] < 50 
+    assert np.array(sampler.acceptance_fraction).all() < 2
 
 def test_multiple_conditions_inference(birth_death_process):
     """ Run MCMC inference on birth death model with data for multiple conditions
@@ -210,16 +266,26 @@ def test_multiple_conditions_inference(birth_death_process):
     # Import data from CSV
     exp_data = []
     for i in range(num_trajectories):
-        df = pd.read_csv('tests/temp/birth_death_data_multiple_conditions.csv', usecols = ['timepoints', 'X'+str(i)])
-        df.columns = ['timepoints', 'X']
+        df = pd.read_csv('tests/temp/birth_death_data_multiple_conditions.csv', usecols = ['timepoints', 'X'+str(i), 'Y'+str(i)])
+        df.columns = ['timepoints', 'X','Y']
         exp_data.append(df)
-    prior = {'k1' : ['uniform', 0, 100]}
-    sampler, pid = py_inference(Model = M, exp_data = exp_data, measurements = ['X'], time_column = ['timepoints'],
-                                initial_conditions = initial_condition_list, nwalkers = 5, 
-                                init_seed = 0.15, nsteps = 40, sim_type = 'deterministic',
-                                params_to_estimate = ['k1'], prior = prior, convergence_check = False, plot_show = False)
+    prior = {'d1' : ['uniform', 0.1, 10], 'k1' : ['uniform',0,100], 'KR' : ['uniform',0,100], 'k2':['uniform', 0, 100]}
+    sampler, pid = py_inference(Model = M, exp_data = exp_data, measurements = ['X','Y'], time_column = ['timepoints'],
+                                initial_conditions = initial_condition_list,
+                                nwalkers = 8, init_seed = 0.15, nsteps = 100, sim_type = 'deterministic', discard = 10,
+                                params_to_estimate = ['d1','k1','KR', 'k2'], prior = prior, convergence_check = False)
     assert(isinstance(sampler, EnsembleSampler) == True)
     assert(isinstance(pid, InferenceSetup) == True)
+    # Takes a long time to run the test if convergence is also checked
+    #### Recommend to uncomment when inference ####
+    #### changes are made to inference module directly. ####
+    #### Change nsteps = 9k, when uncommented. ####
+    # assert np.array(sampler.get_autocorr_time())[0] < 200 
+    # assert np.array(sampler.get_autocorr_time())[1] < 200
+    # assert np.array(sampler.get_autocorr_time())[2] < 200
+    # assert np.array(sampler.get_autocorr_time())[3] < 200
+    # assert np.array(sampler.acceptance_fraction).all() < 2
+
     
 def test_stochastic_inference(birth_death_process):
     """ Run stochastic inference using emcee for the birth death process
@@ -231,14 +297,14 @@ def test_stochastic_inference(birth_death_process):
     # Import data from CSV
     exp_data = []
     for i in range(num_trajectories):
-        df = pd.read_csv('tests/temp/birth_death_data_multiple_conditions.csv', usecols = ['timepoints', 'X'+str(i)])
-        df.columns = ['timepoints', 'X']
+        df = pd.read_csv('tests/temp/birth_death_data_multiple_conditions.csv', usecols = ['timepoints', 'X'+str(i), 'Y'+str(i)])
+        df.columns = ['timepoints', 'X', 'Y']
         exp_data.append(df)
-    prior = {'k1' : ['uniform', 0, 100]}
-    sampler, pid = py_inference(Model = M, exp_data = exp_data, measurements = ['X'], time_column = ['timepoints'],
-                                initial_conditions = initial_condition_list, nwalkers = 5, 
-                                init_seed = 0.15, nsteps = 40, sim_type = 'stochastic',
-                                params_to_estimate = ['k1'], prior = prior, convergence_check = False, plot_show = False)
+    prior = {'d1' : ['uniform', 0.1, 10], 'k1' : ['uniform',0,100], 'KR' : ['uniform',0,100], 'k2':['uniform', 0, 100]}
+    sampler, pid = py_inference(Model = M, exp_data = exp_data, measurements = ['X','Y'], time_column = ['timepoints'],
+                                initial_conditions = initial_condition_list,
+                                nwalkers = 10, init_seed = np.array([0.1,50,20,0.5]), nsteps = 100, sim_type = 'stochastic', discard = 10,
+                                params_to_estimate = ['d1','k1','KR', 'k2'], prior = prior, debug=False)
     assert(isinstance(sampler, EnsembleSampler) == True)
     assert(isinstance(pid, InferenceSetup) == True)
 

@@ -21,7 +21,17 @@
     <listOfReactions>
       <reaction id="r0" name="r0" reversible="false">
         <annotation>
+<<<<<<< HEAD
+<<<<<<< HEAD:tests/temp/toy_sbml_model.xml
           <PropensityType> type=massaction k=d1</PropensityType>
+=======
+          <BioscrapeAnnotation>
+            <PropensityType> type=massaction k=DummyVar_BimolecularPropensity_k_0</PropensityType>
+          </BioscrapeAnnotation>
+>>>>>>> 2f6490212feca32cbbbf5acc4050f10005805bd5:tests/frozen_sbml_outputs/random_propensities/massaction.xml
+=======
+          <PropensityType> type=massaction k=d1</PropensityType>
+>>>>>>> 2f6490212feca32cbbbf5acc4050f10005805bd5
         </annotation>
         <listOfReactants>
           <speciesReference species="X" stoichiometry="1" constant="false"/>
@@ -30,8 +40,19 @@
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
               <times/>
+<<<<<<< HEAD
+<<<<<<< HEAD:tests/temp/toy_sbml_model.xml
               <ci> X </ci>
               <ci> d1 </ci>
+=======
+              <ci> DummyVar_BimolecularPropensity_k_0 </ci>
+              <ci> A </ci>
+              <ci> B </ci>
+>>>>>>> 2f6490212feca32cbbbf5acc4050f10005805bd5:tests/frozen_sbml_outputs/random_propensities/massaction.xml
+=======
+              <ci> X </ci>
+              <ci> d1 </ci>
+>>>>>>> 2f6490212feca32cbbbf5acc4050f10005805bd5
             </apply>
           </math>
         </kineticLaw>

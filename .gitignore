@@ -106,7 +106,6 @@ ENV/
 interactive_testing.ipynb
 
 *.svg
-examples/mcmc_results.csv
 # *.py
 examples/models/generic_expressions.xml
 examples/models/integrase_control.xml
@@ -132,3 +131,17 @@ examples/models/sbml_test_bioscrape.xml
 examples/models/represillator_bioscrape.xml
 examples/models/represillator_sbml_back.xml
 examples/models/txtl_model_sbml.xml
+<<<<<<< HEAD
+=======
+inference examples/lmfit_results.csv
+inference examples/mcmc_results.csv
+inference examples/mcmc_results.txt
+inference examples/individual examples/lmfit_results.csv
+inference examples/individual examples/mcmc_results.csv
+inference examples/individual examples/mcmc_results.txt
+MANIFEST
+mcmc_results.csv
+mcmc_results.txt
+lmfit_results.csv
+mcmc_results.txt
+>>>>>>> 2f6490212feca32cbbbf5acc4050f10005805bd5

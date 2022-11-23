@@ -128,6 +128,9 @@ cdef class ConstitutivePropensity(Propensity):
     def get_species_and_parameters(self, dict fields, **keywords):
         return ([],[fields['k']])
 
+    def __str__(self):
+        return " {p" + str(self.rate_index) + "} "
+
 
 cdef class UnimolecularPropensity(Propensity):
     # constructor
@@ -155,6 +158,9 @@ cdef class UnimolecularPropensity(Propensity):
 
     def get_species_and_parameters(self, dict fields, **keywords):
         return ([ fields['species'] ],[ fields['k'] ])
+
+    def __str__(self):
+        return " {p" + str(self.rate_index) + "} * {" + str(self.species_index) + "} "
 
 
 
@@ -201,6 +207,9 @@ cdef class BimolecularPropensity(Propensity):
     def get_species_and_parameters(self, dict fields, **keywords):
         return ([ x.strip() for x in fields['species'].split('*') ],[ fields['k'] ])
 
+    def __str__(self):
+        return " {p" + str(self.rate_index) + "} * {s" + str(self.s1_index) + "} * {" + str(self.s2_index) + "} "
+
 
 cdef class PositiveHillPropensity(Propensity):
 
@@ -238,6 +247,11 @@ cdef class PositiveHillPropensity(Propensity):
 
     def get_species_and_parameters(self, dict fields, **keywords):
         return ([ fields['s1'] ],[ fields['K'],fields['n'],fields['k'] ])
+
+    def __str__(self):
+        return " {p" + str(self.rate_index) + "} * ({s" + str(self.s1_index) + "} / {p" + str(self.K_index) + \
+                "}) ^ {p" + str(self.n_index) + "} / (1 + ({s" + str(self.s1_index) + "}/{p" + str(self.K_index) + \
+                "})^{p" + str(self.n_index) + "})"
 
 
 cdef class PositiveProportionalHillPropensity(Propensity):
@@ -284,6 +298,10 @@ cdef class PositiveProportionalHillPropensity(Propensity):
         return ([ fields['s1'], fields['d'] ],[ fields['K'],fields['n'],fields['k'] ])
 
 
+    def __str__(self):
+        return " {s" + str(self.d_index) + "} * {p" + str(self.rate_index) + "} * ({s" + str(self.s1_index) + "} / {p" + str(self.K_index) + \
+                "}) ^ {p" + str(self.n_index) + "} / (1 + ({s" + str(self.s1_index) + "}/{p" + str(self.K_index) + \
+                "})^{p" + str(self.n_index) + "})"
 
 cdef class NegativeHillPropensity(Propensity):
 
@@ -322,6 +340,9 @@ cdef class NegativeHillPropensity(Propensity):
     def get_species_and_parameters(self, dict fields, **keywords):
         return ([ fields['s1'] ],[ fields['K'],fields['n'],fields['k'] ])
 
+    def __str__(self):
+        return " {p" + str(self.rate_index) + "} / (1 + ({s" + str(self.s1_index) + "}/{p" + str(self.K_index) + \
+                "})^{p" + str(self.n_index) + "})"
 
 
 cdef class NegativeProportionalHillPropensity(Propensity):
@@ -385,6 +406,9 @@ cdef class NegativeProportionalHillPropensity(Propensity):
             else:
                 logging.info('Warning! Useless field for NegativeProportionalHillPropensity '+str(key))
 
+    def __str__(self):
+        return " {s" + str(self.d_index) + "} * {p" + str(self.rate_index) + "} / (1 + ({s" + str(self.s1_index) + "}/{p" + str(self.K_index) + \
+                "})^{p" + str(self.n_index) + "})"
 
 
 cdef class MassActionPropensity(Propensity):
@@ -449,6 +473,12 @@ cdef class MassActionPropensity(Propensity):
 
         return (species_list, [ fields['k'] ])
 
+    def __str__(self):
+        string_rep = " {p" + str(self.k_index) + "} "
+        for i in range(len(self.sp_inds)):
+            string_rep += "* ({s" + str(self.sp_inds[i]) + "}^" + str(self.sp_counts) + ") "
+        return string_rep
+
 
 ##################################################                ####################################################
 ######################################              PARSING                             ##############################
@@ -483,6 +513,9 @@ cdef class ConstantTerm(Term):
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return self.value
 
+    def __str__(self):
+        return f" {self.value} "
+
 @cython.auto_pickle(True)
 cdef class SpeciesTerm(Term):
     def __init__(self, unsigned ind):
@@ -492,6 +525,9 @@ cdef class SpeciesTerm(Term):
         return species[self.index]
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return species[self.index]
+
+    def __str__(self):
+        return " {s" + str(self.index) + "} "
 
 @cython.auto_pickle(True)
 cdef class ParameterTerm(Term):
@@ -503,11 +539,17 @@ cdef class ParameterTerm(Term):
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return params[self.index]
 
+    def __str__(self):
+        return " {p" + str(self.index) + "} "
+
 cdef class VolumeTerm(Term):
     cdef double evaluate(self, double *species, double *params, double time):
         return 1.0
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return vol
+
+    def __str__(self):
+        return " {volume} "
 
 # Putting stuff together
 
@@ -556,6 +598,13 @@ cdef class SumTerm(BinaryTerm):
             ans += (<Term>(self.terms[i])).volume_evaluate(species,params,vol, time)
         return ans
 
+    def __str__(self):
+        string_rep = " (" + str(self.terms_list[0])
+        for i in range(1, len(self.terms_list)):
+            string_rep += " + " + str(self.terms_list[i])
+        string_rep += ") "
+        return string_rep
+
 cdef class ProductTerm(BinaryTerm):
     cdef double evaluate(self, double *species, double *params, double time):
         cdef double ans = 1.0
@@ -571,6 +620,12 @@ cdef class ProductTerm(BinaryTerm):
             ans *= (<Term>(self.terms[i])).volume_evaluate(species,params,vol,time)
         return ans
 
+    def __str__(self):
+        string_rep = " (" + str(self.terms_list[0])
+        for i in range(1, len(self.terms_list)):
+            string_rep += " * " + str(self.terms_list[i])
+        string_rep += ") "
+        return string_rep
 
 cdef class MaxTerm(BinaryTerm):
     cdef double evaluate(self, double *species, double *params, double time):
@@ -594,6 +649,13 @@ cdef class MaxTerm(BinaryTerm):
                 ans = temp
         return ans
 
+    def __str__(self):
+        string_rep = " max(" + str(self.terms_list[0])
+        for i in range(1, len(self.terms_list)):
+            string_rep += ", " + str(self.terms_list[i])
+        string_rep += ") "
+        return string_rep
+
 cdef class MinTerm(BinaryTerm):
     cdef double evaluate(self, double *species, double *params, double time):
         cdef double ans = (<Term>(self.terms[0])).evaluate(species, params,time)
@@ -616,6 +678,14 @@ cdef class MinTerm(BinaryTerm):
                 ans = temp
         return ans
 
+
+    def __str__(self):
+        string_rep = " min(" + str(self.terms_list[0])
+        for i in range(1, len(self.terms_list)):
+            string_rep += ", " + str(self.terms_list[i])
+        string_rep += ") "
+        return string_rep
+
 @cython.auto_pickle(True)
 cdef class PowerTerm(Term):
     cdef void set_base(self, Term base):
@@ -631,6 +701,9 @@ cdef class PowerTerm(Term):
         return self.base.volume_evaluate(species,params,vol,time) ** \
                self.exponent.volume_evaluate(species,params,vol,time)
 
+    def __str__(self):
+        return " (" + str(self.base) + " ^ " + str(self.exponent) + ") "
+
 @cython.auto_pickle(True)
 cdef class ExpTerm(Term):
     cdef void set_arg(self, Term arg):
@@ -642,6 +715,9 @@ cdef class ExpTerm(Term):
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return exp(self.arg.volume_evaluate(species,params,vol,time))
 
+    def __str__(self):
+        return " (e ^ " + str(self.exponent) + ") "
+
 @cython.auto_pickle(True)
 cdef class LogTerm(Term):
     cdef void set_arg(self, Term arg):
@@ -652,6 +728,9 @@ cdef class LogTerm(Term):
 
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return log(self.arg.volume_evaluate(species,params,vol,time))
+
+    def __str__(self):
+        return " log(" + str(self.arg) + ") "
 
 @cython.auto_pickle(True)
 cdef class StepTerm(Term):
@@ -668,6 +747,9 @@ cdef class StepTerm(Term):
             return 1.0
         return 0
 
+    def __str__(self):
+        return " Heaviside(" + str(self.arg) + ") "
+
 @cython.auto_pickle(True)
 cdef class AbsTerm(Term):
     cdef void set_arg(self, Term arg):
@@ -679,6 +761,9 @@ cdef class AbsTerm(Term):
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return fabs( self.arg.volume_evaluate(species,params,vol,time) )
 
+    def __str__(self):
+        return " abs(" + str(self.arg) + ") "
+
 @cython.auto_pickle(True)
 cdef class TimeTerm(Term):
     cdef double evaluate(self, double *species, double *params, double time):
@@ -687,6 +772,8 @@ cdef class TimeTerm(Term):
     cdef double volume_evaluate(self, double *species, double *params, double vol, double time):
         return time
 
+    def __str__(self):
+        return " {time} "
 
 def sympy_species_and_parameters(instring, species2index = None, params2index = None):
     instring = instring.replace('^','**')
@@ -698,8 +785,10 @@ def sympy_species_and_parameters(instring, species2index = None, params2index = 
         node = nodes[index]
         index += 1
         nodes.extend(node.args)
+
     names = [str(n) for n in nodes if type(n) == sympy.Symbol]\
             +[str(n)[1:] for n in nodes if type(n) == sympy.Symbol if str(n)[0] == "_"]
+
     species_names = [s for s in names if s in species2index]
     param_names = [s for s in names if (s not in species2index and s != 'volume' and s != 't')]
 
@@ -842,6 +931,8 @@ cdef class GeneralPropensity(Propensity):
     def py_get_term(self):
         return self.term
 
+    def __str__(self):
+        return str(self.term)
 
 
 ##################################################                ####################################################
@@ -2370,6 +2461,80 @@ cdef class Model:
         with open(file_name, 'w') as f:
             f.write(sbml_string)
         return True
+
+    def get_reaction_strings(self):
+        '''
+        Returns a list of strings describing the reactions of this Model.
+
+        NOT delay-compatible. 
+        '''
+        reaction_strings = []
+
+        # Propensity objects can only report their string descriptions in terms of 
+        # species and parameter indices in this model. We'll need to fill those in with
+        # concrete species and parameter names using this dictionary.
+        decoding_args = {}
+        for sp, idx in self.species2index.items():
+            decoding_args[f's{idx}'] = sp
+        for param, idx in self.params2index.items():
+            decoding_args[f'p{idx}'] = param
+
+        for reaction_index in range(len(self.reaction_list)):
+            prop_object, delay_object, reaction_update_dict, delay_reaction_update_dict \
+                = self.reaction_list[reaction_index]
+            reactant_string = ""
+            product_string = ""
+            for sp, stoich in reaction_update_dict.items():
+                if stoich > 0:
+                    if len(reactant_string) > 0:
+                        reactant_string += " + "
+                    if stoich > 1:
+                        reactant_string += f" {stoich} *"
+                    reactant_string += f" {sp}"
+                elif stoich < 0:
+                    if len(product_string) > 0:
+                        product_string += " + "
+                    if stoich < -1:
+                        product_string += f" {stoich} *"
+                    product_string += f" {sp}"
+            propensity_string = str(prop_object).format(**decoding_args)
+            reaction_strings.append(f"{reactant_string} ->[{propensity_string}] {product_string}")
+        return reaction_strings
+
+    def get_derivative_strings(self):
+        '''
+        Returns a dictionary mapping species names to string descriptions of their ODE dynamics.
+
+        NOT delay-compatible.
+        '''
+        # Propensity objects can only report their string descriptions in terms of 
+        # species and parameter indices in this model. We'll need to fill those in with
+        # concrete species and parameter names using this dictionary.
+        decoding_args = {}
+        for sp, idx in self.species2index.items():
+            decoding_args[f's{idx}'] = sp
+        for param, idx in self.params2index.items():
+            decoding_args[f'p{idx}'] = param
+
+        deriv_strings = {sp: "" for sp in self.species2index.keys()}
+        for reaction_index in range(len(self.reaction_list)):
+            prop_object, delay_object, reaction_update_dict, delay_reaction_update_dict \
+                = self.reaction_list[reaction_index]
+            term_string = str(prop_object).format(**decoding_args)
+            for sp, stoich in reaction_update_dict.items():
+                if stoich > 0:
+                    if len(deriv_strings[sp]) > 0:
+                        deriv_strings[sp] += " + " 
+                    if stoich > 1:
+                        deriv_strings[sp] += f"{stoich} * "
+                    deriv_strings[sp] += term_string
+                elif stoich < 0:
+                    deriv_strings[sp] += " - "
+                if stoich < -1:
+                    deriv_strings[sp] += f" {stoich} * "
+                deriv_strings[sp] += term_string
+
+        return deriv_strings
 
     # Update this if you change any of Model's member variables!
     def __getstate__(self):
