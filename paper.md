@@ -29,7 +29,7 @@ authors:
 affiliations:
  - name: Ghost Locomotion, Mountain View, CA, USA
    index: 1
- - name: Computation and Neural Systems, California Institute of Technology, Pasadena, CA, USA
+ - name: Altos Labs, San Francisco, CA, USA
    index: 2
  - name: Control and Dynamical Systems, California Institute of Technology, Pasadena, CA, USA
    index: 3
@@ -37,7 +37,7 @@ affiliations:
    index: 4
  - name: Control and Dynamical Systems and Biology and Biological Engineering, California Institute of Technology, Pasadena, CA, USA
    index: 5
-date: 23 May 2022
+date: 22 Nov 2022
 bibliography: paper.bib
 
 # Optional fields if submitting to a AAS journal too, see this blog post:
@@ -60,9 +60,9 @@ Cell growth and division are critical aspects of biological circuits which are t
 
 Regardless of simulation framework, it is necessary to first specify the values of the parameters of each propensity function in the model along with the initial levels of the model species. In some cases, these parameters and initial conditions are experimentally known. Often, however, they have to be inferred from from biological data via a process known as parameter inference, parameter estimation, or parameter identification [@sun2012parameter]. Bayesian inference [@golightly2011bayesian;@komorowski_bayesian_2009] is one of the most rigorous methods of parameter identification. It provides a posterior distribution over the parameter space so that the stochastic effects from the experimental data are modeled by the parameter distributions instead of a fixed optimal point. This gives insight into the accuracy and identifiability of the model. Also, such an approach allows for an easy comparison between different model classes using the model evidence. The drawback of these approaches is that their implementation is computationally expensive and is based on repeated forward simulations of the model within the framework of Markov chain Monte Carlo (MCMC) [@golightly2011bayesian]. Therefore, it is important to have the underlying simulations running as fast as possible in order to speed up computation time.
 
-Once a given model is fully specified, it is then important to validate the model against additional biological data. In this workflow, it is often necessary to add or remove reactions from the model or to perform a different type of simulation. For example, one might decide that a circuit behaves too noisily for deterministic simulations and want to switch to a stochastic simulation framework. If delays are playing a significant role in the dynamics, one might want to incorporate previously unmodeled delays into the model.
+Once a given model is fully specified, it is then important to validate the model against additional biological data. In this workflow, it is often necessary to add or remove reactions from the model or to perform a different type of simulation. For example, one might decide that a circuit behaves too noisily for deterministic simulations and want to switch to a stochastic simulation framework. If delays are playing a significant role in the dynamics, one might want to incorporate previously unmodeled delays into the model. 
 
-The result is that a very large amount of data is needed to first parameterize and then validate models. The use of technologies for lab automation makes this data collection increasingly accessible and economical. For deterministic models, this may include data collected at many different operating conditions which can be achieved with high throughput measurement techniques involving liquid handling automation [@freemont_echo]. For stochastic models this may include large sample sizes of single cell cell measurements such as flow cytometry [@sachs_causal_2005;@zechner2012moment] and tracking single cell lineages with fluorescent microscopy [@kretzschmar2012lineage]. 
+The result is that a very large amount of data is needed to first parameterize and then validate models. The use of technologies for lab automation makes this data collection increasingly accessible and economical. For deterministic models, this may include data collected at many different operating conditions which can be achieved with high throughput measurement techniques involving liquid handling automation [@freemont_echo]. For stochastic models this may include large sample sizes of single cell measurements such as flow cytometry [@sachs_causal_2005;@zechner2012moment] and tracking single cell lineages with fluorescent microscopy [@kretzschmar2012lineage]. The Python API, simulation tools, and lineage module in bioscrape provide an ideal platform for such applications.
 
 Some popular software packages that do somewhat similar tasks as the bioscrape package are MATLAB's SimBiology toolbox [@MATLAB_2016], Stochpy [@stochpy], COPASI [@copasi], and Tellurium [@tellurium]. However, the bioscrape package is faster, supports fully general propensity functions, provides easy-to-use parameter identification interfaces, and allows more kinds of simulation than these alternatives making it more flexible and more efficient than alternative packages.
 
