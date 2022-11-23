@@ -36,6 +36,7 @@ class PIDInterface():
         self.params_to_estimate = params_to_estimate
         self.M = M
         self.prior = prior
+        self.default_parameters = dict(M.get_parameter_dictionary())
         self.log_space_parameters = kwargs.get('log_space_parameters', False)
         return
     
@@ -213,23 +214,39 @@ class StochasticInference(PIDInterface):
     def __init__(self, params_to_estimate, M, prior, **kwargs):
         self.LL_stoch = None
         self.dataStoch = None
+        if 'debug' in kwargs:
+            self.debug = kwargs.get('debug')
         super().__init__(params_to_estimate, M, prior, **kwargs)
         return
 
-    def setup_likelihood_function(self, data, timepoints, measurements, initial_conditions, norm_order = 2, N_simulations = 3, debug = False, **kwargs):
+    def setup_likelihood_function(self, data, timepoints, measurements,
+                                  initial_conditions, parameter_conditions,
+                                  norm_order=2, N_simulations=3,
+                                  **kwargs):
         N = np.shape(data)[0]
-        if debug:
+        self.dataStoch = StochasticTrajectories(np.array(timepoints), data, measurements, N)
+        if self.debug:
             print('Stochastic inference attributes:')
             print('The timepoints shape is {0}'.format(np.shape(timepoints)))
             print('The data shape is {0}'.format(np.shape(data)))
             print('The measurmenets is {0}'.format(measurements))
             print('The N is {0}'.format(N))
             print('Using the initial conditions: {0}'.format(initial_conditions))
-        self.dataStoch = StochasticTrajectories(np.array(timepoints), data, measurements, N)
-        #If there are multiple initial conditions in a data-set, should correspond to multiple initial conditions for inference.
-        #Note len(initial_conditions) must be equal to the number of trajectories N
-        self.LL_stoch = STLL(model = self.M, init_state = initial_conditions,
-        data = self.dataStoch, N_simulations = N_simulations, norm_order = norm_order, **kwargs)
+            print('Using the parameter conditions: {0}'.format(parameter_conditions))
+        #If there are multiple initial conditions in a data-set,
+        # should correspond to multiple initial conditions for inference.
+        # Note len(initial_conditions) must be equal to the number of trajectories N
+        # Same holds for parameter_conditions
+        if parameter_conditions is not None:
+            self.LL_stoch = STLL(model = self.M, init_state = initial_conditions,
+                                init_params = parameter_conditions,
+                                data = self.dataStoch, N_simulations = N_simulations,
+                                norm_order = norm_order, **kwargs)
+        else:
+            self.LL_stoch = STLL(model = self.M, init_state = initial_conditions,
+                                data = self.dataStoch, N_simulations = N_simulations,
+                                norm_order = norm_order, **kwargs)
+
 
     def get_likelihood_function(self, params):
         # Set params here and return the likelihood object.
@@ -245,14 +262,20 @@ class StochasticInference(PIDInterface):
                 params_dict[key] = p
 
         #Prior
+        lp = 0
         lp = self.check_prior(params_dict)
         if not np.isfinite(lp):
             return -np.inf
         else:
+            # Reset to default
+            self.LL_stoch.set_init_params(self.default_parameters)
             self.LL_stoch.set_init_params(params_dict)
-
+            if self.debug:
+                print('current sample:', params_dict)
             LL_stoch_cost = self.LL_stoch.py_log_likelihood()
             ln_prob = lp + LL_stoch_cost
+            if self.debug:
+                print('current cost total:', ln_prob)
             return ln_prob
        
 # Add a new class similar to this to create new interfaces.
@@ -260,25 +283,40 @@ class DeterministicInference(PIDInterface):
     def __init__(self, params_to_estimate, M, prior, **kwargs):
         self.LL_det = None
         self.dataDet = None
+        self.debug = None
+        if 'debug' in kwargs:
+            self.debug = kwargs.get('debug')
         super().__init__(params_to_estimate, M, prior, **kwargs)
         return
 
-    def setup_likelihood_function(self, data, timepoints, measurements, initial_conditions, norm_order = 2, debug = False, **kwargs):
+    def setup_likelihood_function(self, data, timepoints, measurements,
+                                  initial_conditions, parameter_conditions, 
+                                  norm_order = 2, **kwargs):
         N = np.shape(data)[0]
         #Create a data Objects
         # In this case the timepoints should be a list of timepoints vectors for each iteration
         self.dataDet = BulkData(np.array(timepoints), data, measurements, N)
-        #If there are multiple initial conditions in a data-set, should correspond to multiple initial conditions for inference.
+        #If there are multiple initial conditions in a data-set, 
+        # should correspond to multiple initial conditions for inference.
         #Note len(initial_conditions) must be equal to the number of trajectories N
-        if debug:
+        # Similarly, if parameter_conditions are provided then the length must equal
+        # number of trajectories N
+        if self.debug:
             print('The deterministic inference attributes:')
             print('The timepoints shape is {0}'.format(np.shape(timepoints)))
             print('The data shape is {0}'.format(np.shape(data)))
             print('The measurmenets is {0}'.format(measurements))
             print('The N is {0}'.format(N))
             print('Using the initial conditions: {0}'.format(initial_conditions))
+            print('Using the parameter conditions: {0}'.format(parameter_conditions))
         #Create Likelihood object
-        self.LL_det = DLL(model = self.M, init_state = initial_conditions, data = self.dataDet, norm_order = norm_order, **kwargs)
+        if parameter_conditions is not None:
+            self.LL_det = DLL(model = self.M, init_state = initial_conditions, 
+                              init_params = parameter_conditions, 
+                              data = self.dataDet, norm_order = norm_order, **kwargs)
+        else:
+            self.LL_det = DLL(model = self.M, init_state = initial_conditions, 
+                              data = self.dataDet, norm_order = norm_order, **kwargs)
 
     def get_likelihood_function(self, params):
         if self.LL_det is None:
@@ -297,10 +335,19 @@ class DeterministicInference(PIDInterface):
         if not np.isfinite(lp):
             return -np.inf
         else:
+            # Reset to default
+            self.LL_det.set_init_params(self.default_parameters)
+            # Set new sampler parameter
             self.LL_det.set_init_params(params_dict)
+            if self.debug:
+                print('current sample:', params_dict)
             #apply cost function
             LL_det_cost = self.LL_det.py_log_likelihood()
+            # if self.debug:
+            #     print('current cost:', LL_det_cost)
             ln_prob = lp + LL_det_cost
+            if self.debug:
+                print('current cost total:', ln_prob)
             #print("params", params, "ln_prob", ln_prob)
             return ln_prob
         
@@ -312,12 +359,15 @@ class LMFitInference(PIDInterface):
         super().__init__(params_to_estimate, M, prior, **kwargs)
         return
 
-    def get_minimizer_results(self, data, timepoints, measurements, initial_conditions, 
-                                method = 'leastsq', stochastic = False, debug = False, 
-                                plot_show = True, **kwargs):
+    def get_minimizer_results(self, data, timepoints, measurements, initial_conditions,
+                              parameter_conditions, method = 'leastsq',
+                              stochastic = False, debug = False,
+                              plot_show = True, **kwargs):
         # In this case the timepoints should be a list of timepoints vectors for each iteration
-        #If there are multiple initial conditions in a data-set, should correspond to multiple initial conditions for inference.
+        #If there are multiple initial conditions in a data-set, 
+        # should correspond to multiple initial conditions for inference.
         #Note len(initial_conditions) must be equal to the number of trajectories N
+        # Same holds for parameter_conditions
         try:
             import lmfit
         except:
@@ -329,6 +379,8 @@ class LMFitInference(PIDInterface):
             print('The measurmenets is {0}'.format(measurements))
             print('The N is {0}'.format(N))
             print('Using the initial conditions: {0}'.format(initial_conditions))
+            print('Using the parameter conditions: {0}'.format(parameter_conditions))
+
         def residual_function(params, data = data):
             # Integrate ODEs
             params_values_dict = {}
@@ -342,6 +394,8 @@ class LMFitInference(PIDInterface):
                 nans_array = np.array([np.nan]*len(timepoints))
                 return nans_array
             self.M.set_species(initial_conditions)
+            if parameter_conditions is not None:
+                self.M.set_params(parameter_conditions)
             model_sim = py_simulate_model(timepoints, self.M, stochastic = stochastic)
             residual_value = np.zeros(len(timepoints))
             measurements_counter = 0
@@ -362,17 +416,24 @@ class LMFitInference(PIDInterface):
             else:
                 param_min = -np.inf
                 param_max = np.inf
-            params[param_name] = lmfit.Parameter(name=param_name, value=model_param_dict[param_name], min = param_min, max = param_max)
+            params[param_name] = lmfit.Parameter(name=param_name,
+                                                 value=model_param_dict[param_name],
+                                                 min = param_min, max = param_max)
         # Use the residual function above (that needs to be minimized)
-        result = lmfit.minimize(residual_function, params, kws = {'data': data}, method = method, nan_policy = 'propagate', **kwargs)
+        result = lmfit.minimize(residual_function, params, kws = {'data': data},
+                                method = method, nan_policy = 'propagate', **kwargs)
         if plot_show:
             self.M.set_species(initial_conditions)
+            if parameter_conditions is not None:
+                self.M.set_params(parameter_conditions)
             self.M.set_params(dict(result.params.valuesdict()))
-            model_sim_fit = py_simulate_model(timepoints, Model = self.M, stochastic = stochastic, delay = self.M.has_delays())
+            model_sim_fit = py_simulate_model(timepoints, Model = self.M,
+                                              stochastic = stochastic,
+                                              delay = self.M.has_delays())
             measurements_counter = 0
             for species in measurements:
-                plt.plot(timepoints, model_sim_fit[species], color = 'orange', lw = 2, alpha = 0.5)
-                plt.plot(timepoints, data[:,measurements_counter], lw = 2)
+                plt.plot(timepoints, model_sim_fit[species], color = 'orange', alpha = 0.5)
+                plt.plot(timepoints, data[:,measurements_counter], color = 'black', ls = 'dotted')
                 measurements_counter += 1 
             plt.xlabel('Time', fontsize = 14)
             plt.ylabel('Species', fontsize = 14)

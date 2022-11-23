@@ -215,7 +215,9 @@ cdef class Likelihood:
         return self.get_log_likelihood()
 
 cdef class ModelLikelihood(Likelihood):
-    def __init__(self, model = None, init_state = {}, init_params = {},  interface = None, simulator = None, data = None, **keywords):
+    def __init__(self, model = None, init_state = {}, init_params = {},
+                 interface = None, simulator = None, data = None,
+                 **keywords):
         self.set_model(model, simulator, interface)
         self.set_likelihood_options(**keywords)
         if isinstance(init_state, dict):
@@ -228,6 +230,16 @@ cdef class ModelLikelihood(Likelihood):
 
         else:
             raise ValueError("Init_state must either be a dictionary or a list of dictionaries.")
+
+        if isinstance(init_params, dict):
+            self.Nx0 = 1
+            if init_params:
+                self.initial_parameters = [init_params]
+        elif isinstance(init_params, list):
+            self.Nx0 = len(init_params)
+            self.initial_parameters = init_params
+        else:
+            self.initial_parameters = None
         
         if data is not None:
             self.set_data(data)
@@ -285,51 +297,13 @@ cdef class ModelLikelihood(Likelihood):
                 else:
                     self.initial_states[i, j] = self.default_species[j]
 
-
-    def set_init_species_old(self, list sds):
-        pass
-        """
-        if len(sd.keys()) == 0 and len(sds) == 0:
-            sd = {self.m.get_species_dictionary()}
-        elif len(sd.keys()) > 0 and len(sds) == 0:
-            sds = [sd]
-        elif len(sd.keys()) > 0 and len(sds) > 0:
-            raise ValueError("set_init_species requires either a list of initial condition dictionaries sds or a single initial condition dictionary sd as parameters, not both.")
-        self.Nx0 = len(sds)
-
-        if len(sds)>1:
-            pairs = sds[0].items()
-            len_pairs = len(pairs)
-            self.init_state_indices = np.zeros((len_pairs, self.Nx0), dtype=int)
-            self.init_state_vals = np.zeros((len_pairs, self.Nx0))
-            for n in range(self.Nx0 ):
-                index = 0
-                pairs = sds[n].items()
-
-                if  len(pairs) != len_pairs:
-                    raise ValueError("All initial condition dictionaries must have the same keys")
-
-                for (key,val) in  pairs:
-                    self.init_state_indices[index, n] = self.m.get_species_index( key  )
-                    self.init_state_vals[index, n] = val
-                    index +=  1
-        else:
-            index = 0
-            pairs = sds[0].items()
-            self.init_state_indices = np.zeros(len(pairs), dtype=int)
-            self.init_state_vals = np.zeros(len(pairs),)
-            for (key,val) in  pairs:
-                self.init_state_indices[index] = self.m.get_species_index( key  )
-                self.init_state_vals[index] = val
-                index +=  1"""
-
     def set_init_params(self, dict pd):
 
-        #print("before set", self.m.get_parameter_dictionary())
-        self.m.set_params(dict(self.default_params))
+        # print("before set", self.m.get_parameter_dictionary())
+        # print("asking to be set to", pd)
         self.m.set_params(pd)
         self.csim.py_set_param_values(self.m.get_params_values())
-        #print("After set", self.m.get_parameter_dictionary())
+        # print("After set", self.m.get_parameter_dictionary())
         #pairs = pd.items()
         #self.init_param_indices = np.zeros(len(pairs), dtype=int)
         #self.init_param_vals = np.zeros(len(pairs),)
@@ -341,8 +315,16 @@ cdef class ModelLikelihood(Likelihood):
         #    index +=  1
 
     cdef np.ndarray get_initial_state(self, int n):
-        #Return the initial state for the nth trajectory (this may correspond to multiple measurements m)
+        # Return the initial state for the nth trajectory 
+        # (this may correspond to multiple measurements m)
         return self.initial_states[n, :]
+
+    cdef dict get_initial_params(self, int n):
+        # Return the initial params dict for the nth trajectory 
+        # (this may correspond to multiple measurements m)
+        if self.initial_parameters is None:
+            return None
+        return self.initial_parameters[n]
 
     def set_likelihood_options(self, **keywords):
         raise NotImplementedError("set_likelihood_options must be implemented in subclasses of ModelLikelihood")
@@ -382,7 +364,8 @@ cdef class DeterministicLikelihood(ModelLikelihood):
 
         if not ((self.N == 1 or self.Nx0 == 1) or (self.Nx0 == self.N)):
             print("self.N", self.N, "self.Nx0", self.Nx0)
-            raise ValueError("Either the number of samples and the number of initial conditions match or one of them must be 1")
+            raise ValueError("Either the number of samples and the number of"
+                             "initial conditions match or one of them must be 1")
 
     def py_get_data(self):
         return self.bd
@@ -411,7 +394,6 @@ cdef class DeterministicLikelihood(ModelLikelihood):
         cdef np.ndarray[np.double_t, ndim = 3] measurements = self.bd.get_measurements()
         #cdef SSAResult res
 
-
         #Go through trajectories (which may have unique initial states)
         for n in range(self.N):
             #Set Timepoints
@@ -425,28 +407,10 @@ cdef class DeterministicLikelihood(ModelLikelihood):
             #self.csim.py_prep_deterministic_simulation()
 
             self.csim.set_initial_state(self.get_initial_state(n))
-
-
-            #self.csim.set_initial_time(timepoints[0])
-            #self.csim.apply_repeated_rules(<double*> species_vals.data, timepoints[0], True)
-
-            #Set initial parameters
-            if self.init_param_indices is not None:
-                for i in range(self.init_param_indices.shape[0]):
-                    param_vals[ self.init_param_indices[i] ] = self.init_param_vals[i]
-
-            #if self.Nx0 == 1:#Run all the simulations from the same initial state
-            #    for i in range(self.M):
-            #        species_vals[ self.init_state_indices[i] ] = self.init_state_vals[i]
-            #elif self.Nx0 == self.N: #Different initial conditions for different simulations
-            #    for i in range(self.M):
-            #        species_vals[ self.init_state_indices[i, n] ] = self.init_state_vals[i, n]
-            
-            #print("n-loop setup", t11-t10)
-            # Do a simulation of the model with time points specified by the data.
-
-            #res = py_simulate_model(timepoints, Model = self.m, return_dataframe = False)
-            #ans = res.get_result()
+            # print('current params conditions', self.csim.py_get_param_values())
+            # print('lets set for new traj to', self.get_initial_params(n))
+            if self.get_initial_params(n) is not None:
+                self.set_init_params(self.get_initial_params(n))
             ans = self.propagator.simulate(self.csim, timepoints).get_result()
 
             #print("simulation", t12-t11)
@@ -505,7 +469,8 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
         # 1: Same initial condition used for all samples
         # N: Unique initial condition used for each sample
         if not ((self.N == 1 or self.Nx0 == 1) or (self.Nx0 == self.N)):
-            raise ValueError("Either the number of samples and the number of initial conditions match or one of them must be 1")
+            raise ValueError("Either the number of samples and the number of"
+                             "initial conditions match or one of them must be 1")
     def py_get_data(self):
         return self.sd
 
@@ -539,32 +504,31 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
         cdef np.ndarray[np.double_t, ndim = 2] ans
         cdef np.ndarray[np.double_t, ndim = 3] measurements = self.sd.get_measurements()
 
-        # Do N*N_simulations simulations of the model with time points specified by the data.
+        #Go through trajectories (which may have unique initial states)
         for n in range(self.N):
             #Set Timepoints
             if self.sd.has_multiple_timepoints():
                 timepoints = self.sd.get_timepoints()[n, :]
             else:
                 timepoints = self.sd.get_timepoints()
+            # Set initial state conditions
+            self.csim.set_initial_state(self.get_initial_state(n))
+            # Set init params
+            if self.get_initial_params(n) is not None:
+                self.set_init_params(self.get_initial_params(n))
+            # Do N*N_simulations simulations of the model with time points specified by the data.
             for s in range(self.N_simulations):
-                #Set initial parameters (inside loop in case they change in the simulation):
-                if self.init_param_indices is not None:
-                    for i in range(self.init_param_indices.shape[0]):
-                        param_vals[ self.init_param_indices[i] ] = self.init_param_vals[i]                
-
-                #Set Initial Conditions (Inside loop in case things change in the simulation)
-                if self.Nx0 == 1:#Run all the simulations from the same initial state
-                    for i in range(self.M):
-                        species_vals[self.init_state_indices[i]] = self.init_state_vals[i]
-                elif self.Nx0 == self.N: #Different initial conditions for different simulations
-                    for i in range(self.M):
-                        species_vals[ self.init_state_indices[i, n] ] = self.init_state_vals[i, n]
+                # Initial parameters are set for each trajectory passed in.
+                # Initial conditions are set for each trajectory passsed in.
                 if self.has_delay:
                     q = ArrayDelayQueue.setup_queue(self.csim.py_get_num_reactions(), len(timepoints),timepoints[1]-timepoints[0])
                     ans = self.propagator_delay.delay_simulate(self.csim, q, timepoints).get_result()
                 elif not self.has_delay:
                     ans = self.propagator.simulate(self.csim, timepoints).get_result()
+<<<<<<< HEAD
 
+=======
+>>>>>>> 2f6490212feca32cbbbf5acc4050f10005805bd5
                 for i in range(self.M):
                     # Compare the data using norm and return the likelihood.
                     for t in range(len(timepoints)):
@@ -572,7 +536,6 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
                         if dif < 0:
                             dif = -dif
                         error += dif**self.norm_order
-
         error = error**(1./self.norm_order)
         error = -1.0*error/(1.0*self.N_simulations)
 
@@ -617,9 +580,9 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
 
 
 def py_inference(Model = None, params_to_estimate = None, exp_data = None, initial_conditions = None,
-                measurements = None, time_column = None, nwalkers = None, nsteps = None,
-                init_seed = None, prior = None, sim_type = None, inference_type = 'emcee',
-                method = 'mcmc', plot_show = True, **kwargs):
+                 parameter_conditions = None, measurements = None, time_column = None, nwalkers = None, 
+                 nsteps = None, init_seed = None, prior = None, sim_type = None, inference_type = 'emcee',
+                 method = 'mcmc', plot_show = True, **kwargs):
     
     if Model is None:
         raise ValueError('Model object cannot be None.')
@@ -632,6 +595,7 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
     if initial_conditions is None:
         initial_conditions = dict(Model.get_species_dictionary())
     pid.set_initial_conditions(initial_conditions)
+    pid.set_parameter_conditions(parameter_conditions)
     if time_column is not None:
         pid.set_time_column(time_column)
     if nwalkers is not None:
@@ -652,8 +616,11 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
             pid.plot_mcmc_results(sampler, **kwargs)
         return sampler, pid
     elif inference_type == 'lmfit':
-        minimizer_result = pid.run_lmfit(method = method, plot_show = plot_show, **kwargs)
+        minimizer_result = pid.run_lmfit(method = method,
+                                         plot_show = plot_show, **kwargs)
         pid.write_lmfit_results(minimizer_result, **kwargs)
         return minimizer_result
     else:
-        raise ValueError("Set inference_type keyword argument to your preferred inference package name. Currently emcee and lmfit are supported.")
+        raise ValueError("Set inference_type keyword argument to your"
+                         "preferred inference package name. Currently"
+                         "emcee and lmfit are supported.")
