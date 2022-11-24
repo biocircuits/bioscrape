@@ -21,7 +21,7 @@ jobs:
         run: python setup.py install lineage
   deploy:
     needs: test
-    branches: master
+    if: github.head_ref == 'refs/heads/master'
     runs-on: ${{ matrix.os }}
     strategy:
       max-parallel: 4
