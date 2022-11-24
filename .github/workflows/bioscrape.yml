@@ -3,7 +3,8 @@ on: [push]
 jobs:
   test:
     runs-on: ubuntu-latest
-    python-version: "3.10"
+    strategy:
+      python-version: "3.10"
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python v3.10
@@ -23,13 +24,12 @@ jobs:
   deploy:
     needs: test
     if: github.ref == 'refs/heads/master'
-    build:
-        runs-on: ${{ matrix.os }}
-        strategy:
-          max-parallel: 4
-          matrix:
-            os: [windows-latest, ubuntu-latest, macos-latest]
-            python-version: ["3.7", "3.8", "3.9", "3.10"]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      max-parallel: 4
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        python-version: ["3.7", "3.8", "3.9", "3.10"]
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python ${{ matrix.python-version }}
