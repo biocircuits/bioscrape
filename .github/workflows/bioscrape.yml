@@ -1,5 +1,5 @@
 name: install_and_test_package
-on: [push]
+on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -21,7 +21,7 @@ jobs:
         run: python setup.py install lineage
   deploy:
     needs: test
-    if: github.head_ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master'
     runs-on: ${{ matrix.os }}
     strategy:
       max-parallel: 4
