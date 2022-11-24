@@ -21,7 +21,7 @@ jobs:
         run: python setup.py install lineage
   deploy:
     needs: test
-    branch: master
+    branches: master
     runs-on: ${{ matrix.os }}
     strategy:
       max-parallel: 4
