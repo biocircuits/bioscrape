@@ -22,7 +22,6 @@ on:
         #   run: pytest
         # - name: install lineage
         #   run: python setup.py install lineage
-name: deploy_package
 on:
   push:
     branches:
