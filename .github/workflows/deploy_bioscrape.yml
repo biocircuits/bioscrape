@@ -2,6 +2,8 @@ name: deploy_package
 on:
   push:
     branches: ["master"]
+  pull-request:
+    branches: ["master"]  
 jobs:
   build:
     runs-on: ${{ matrix.os }}
