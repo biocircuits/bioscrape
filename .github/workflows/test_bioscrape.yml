@@ -1,5 +1,4 @@
 name: test_package
-name: test_package
 on:
   push:
     branches: ["*","!master"]
