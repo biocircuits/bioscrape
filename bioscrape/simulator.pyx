@@ -1502,7 +1502,7 @@ cdef class DeterministicSimulator(RegularSimulator):
         self.atol = 1.49012e-8
         self.rtol = 1.49012e-8
         self.mxstep = 500000
-        self.hmax = 0.01 #Maximum step to use during simulation
+        self.hmax = 0 #Maximum step to use during simulation
 
     def py_set_tolerance(self, double atol, double rtol):
         self.set_tolerance(atol, rtol)
