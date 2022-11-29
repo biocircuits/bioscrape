@@ -525,10 +525,6 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
                     ans = self.propagator_delay.delay_simulate(self.csim, q, timepoints).get_result()
                 elif not self.has_delay:
                     ans = self.propagator.simulate(self.csim, timepoints).get_result()
-<<<<<<< HEAD
-
-=======
->>>>>>> 2f6490212feca32cbbbf5acc4050f10005805bd5
                 for i in range(self.M):
                     # Compare the data using norm and return the likelihood.
                     for t in range(len(timepoints)):
