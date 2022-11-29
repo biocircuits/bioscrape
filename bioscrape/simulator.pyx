@@ -1522,10 +1522,6 @@ cdef class DeterministicSimulator(RegularSimulator):
         cdef np.ndarray S = sim.get_update_array() + sim.get_delay_update_array()
         cdef np.ndarray x0 = sim.get_initial_state().copy()
         cdef np.ndarray p0 = sim.py_get_param_values().copy()
-<<<<<<< HEAD
-
-=======
->>>>>>> 2f6490212feca32cbbbf5acc4050f10005805bd5
         cdef unsigned num_species = S.shape[0]
         cdef unsigned num_reactions = S.shape[1]
 
