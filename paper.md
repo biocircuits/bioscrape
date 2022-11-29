@@ -80,6 +80,8 @@ We conclude with a list of Bioscrape features:
 3. Markov Chain Monte Carlo (MCMC) sampler based inference tools to identify parameter distributions of biological circuit models using experimental data. Bioscrape provides interfaces to easily use common biological data types such as time-series fluorescence data and flow cytometry data. The MCMC sampler is a wrapper around Python emcee [@emcee].
 4. Bioscrape can be used to perform local sensitivity analysis of a model to study the sensitivities of each parameter with time.
 
+[@pandey2022characterization] demonstrates Bioscrape's features for quantification and predictive modeling of an engineered biological system.
+
 # Acknowledgements
 
 AS, AP, and VH were supported by the Defense Advanced Research Projects Agency (Agreement HR0011-17-2-0008). The content of the information does not necessarily reflect the position or the policy of the Government, and no official endorsement should be inferred. AS was also supported by AFOSR grant FA9550-14-1-0060. AP was also supported by the NSF grant CBET-1903477.
