@@ -1,8 +1,9 @@
 # Bioscrape &mdash; Biological Stochastic Simulation of Single Cell Reactions and Parameter Estimation
 ## Python toolbox to simulate, analyze, and learn biological system models
 
-[![Build Status](https://github.com/biocircuits/bioscrape/actions/workflows/bioscrape.yml/badge.svg)](https://github.com/biocircuits/bioscrape/actions/workflows/bioscrape.yml)
+[![Build Status](https://github.com/biocircuits/bioscrape/actions/workflows/deploy_bioscrape.yml/badge.svg)](https://github.com/biocircuits/bioscrape/actions/workflows/deploy_bioscrape.yml)
 [![PyPI version](https://badge.fury.io/py/bioscrape.svg)](https://badge.fury.io/py/bioscrape)
+[![status](https://joss.theoj.org/papers/5935db21ffab5b33069d05b7adbdf094/status.svg)](https://joss.theoj.org/papers/5935db21ffab5b33069d05b7adbdf094)
 
 * Getting started with Bioscrape: [![Bioscrape Core](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/biocircuits/bioscrape/blob/colab-ipynb/examples/Basic%20Examples%20-%20START%20HERE.ipynb#scrollTo=Jmm8mTPfhMMS)
 
