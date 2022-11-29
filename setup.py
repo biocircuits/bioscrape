@@ -25,7 +25,7 @@ except ModuleNotFoundError:
 
 
 #Load the readme as a long description
-with open('README.rst') as fp:
+with open('README.md') as fp:
     long_description = fp.read()
 
 # Compile Cython
@@ -113,7 +113,7 @@ except Exception as e:
 
 setup(
     name = 'bioscrape',
-    version = '1.1.1',
+    version = '1.2.0',
     author='Anandh Swaminathan, William Poole, Ayush Pandey',
     url='https://github.com/biocircuits/bioscrape/',
     description='Biological Stochastic Simulation of Single Cell Reactions and Parameter Estimation.',
@@ -152,7 +152,7 @@ setup(
     keywords="SBML synthetic biology modeling Chemical Reaction Network CRN simulator stochastic parameter inference",
     tests_require=["pytest"],
     project_urls={
-    'Documentation': 'https://readthedocs.org/projects/biocrnpyler/',
+    'Documentation': 'https://github.com/biocircuits/bioscrape/wiki',
     'Funding': 'http://www.cds.caltech.edu/~murray/wiki/DARPA_BioCon',
     'Source': 'https://github.com/biocircuits/bioscrape/',
     'Tracker': 'https://github.com/biocircuits/bioscrape/issues',
