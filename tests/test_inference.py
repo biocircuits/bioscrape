@@ -33,6 +33,81 @@ def model_setup():
     params_to_estimate = ['m','b']
     return M, params_to_estimate
 
+def test_getstate(model_setup):
+    M, params_to_estimate = model_setup
+
+    IS = InferenceSetup(Model = M, params_to_estimate = params_to_estimate)
+
+    state = IS.__getstate__()
+
+    assert type(state[0]) == type(M)
+    assert state[1] == params_to_estimate
+    assert state[2] == IS.init_seed
+    assert state[3] == IS.prior
+    assert state[4] == IS.nwalkers
+    assert state[5] == IS.nsteps
+    assert state[6] == IS.dimension
+    assert state[7] == IS.exp_data
+    assert state[8] == IS.sim_type
+    assert state[9] == IS.method
+    assert state[10] == IS.timepoints
+    assert state[11] == IS.time_column
+    assert state[12] == IS.measurements
+    assert state[13] == IS.initial_conditions
+    assert state[14] == IS.parameter_conditions
+    assert state[15] == IS.norm_order
+    assert state[16] == IS.N_simulations
+    assert state[17] == IS.LL_data
+    assert state[18] == IS.debug
+    assert state[19] == IS.cost_progress
+    assert state[20] == IS.cost_params
+    assert state[21] == IS.hmax
+
+def test_setstate(model_setup):
+    M, params_to_estimate = model_setup
+    
+    IS = InferenceSetup(Model = M, params_to_estimate = params_to_estimate)
+
+    init_conds = {'y':1.0}
+    param_conds = {'b':1.0}
+    params_to_estimate = ['m']
+    exp_data = pd.DataFrame()
+    exp_data['y'] = np.linspace(0, 10, 50)
+    exp_data['T'] = np.linspace(0, 10, 50)
+    timepoints = None
+
+    state = (
+        M, params_to_estimate, .11, None, 11, 111, 2, exp_data, 'stochastic', 'lmfit', 
+        timepoints, 'T', ['y'], init_conds, None, 1, 11, None, True, None, None, 1.0
+        )
+
+    IS.__setstate__(state)
+
+    assert type(state[0]) == type(M)
+    assert state[1] == IS.params_to_estimate
+    assert state[2] == IS.init_seed
+    assert state[3] == IS.prior
+    assert state[4] == IS.nwalkers
+    assert state[5] == IS.nsteps
+    assert state[6] == IS.dimension
+    assert 'y' in IS.exp_data and 'T' in IS.exp_data
+    assert state[8] == IS.sim_type
+    assert state[9] == IS.method
+    #print("state[10]", state[10])
+    #print("IS.timepoints", IS.timepoints)
+    assert (np.linspace(0, 10, 50) == IS.timepoints).all() #this is extracted from the data
+    assert state[11] == IS.time_column
+    assert state[12] == IS.measurements
+    assert state[13] in IS.initial_conditions #this gets multiplied out
+    assert state[14] == IS.parameter_conditions
+    assert state[15] == IS.norm_order
+    assert state[16] == IS.N_simulations
+    #assert state[17] == IS.LL_data #SKIP this one as LL.data is extracted
+    assert state[18] == IS.debug
+    assert state[19] == IS.cost_progress
+    assert state[20] == IS.cost_params
+    assert state[21] == IS.hmax
+
 def test_basic_inference(model_setup):
     M, _ = model_setup
     m_true = -0.9594
