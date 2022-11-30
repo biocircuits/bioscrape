@@ -104,7 +104,7 @@ ENV/
 # Rope project settings
 .ropeproject
 interactive_testing.ipynb
-
+.pck
 *.svg
 # *.py
 examples/models/generic_expressions.xml
@@ -142,3 +142,4 @@ mcmc_results.csv
 mcmc_results.txt
 lmfit_results.csv
 mcmc_results.txt
+unzip_dist.py

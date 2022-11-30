@@ -9,3 +9,4 @@ sympy
 emcee>=3.0.2
 lmfit
 pandas
+corner
