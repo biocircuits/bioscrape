@@ -12,11 +12,12 @@
       <compartment id="default" name="default" spatialDimensions="3" size="1e-06" constant="true"/>
     </listOfCompartments>
     <listOfSpecies>
-      <species id="X" name="X" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="A" name="A" compartment="default" initialConcentration="25" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="B" name="B" compartment="default" initialConcentration="25" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="C" name="C" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
     </listOfSpecies>
     <listOfParameters>
-      <parameter id="d1" name="d1" value="0.2" constant="true"/>
-      <parameter id="k1" name="k1" value="10" constant="true"/>
+      <parameter id="DummyVar_BimolecularPropensity_k_0" name="DummyVar_BimolecularPropensity_k_0" value="0.038" constant="true"/>
     </listOfParameters>
     <listOfReactions>
       <reaction id="r0" name="r0" reversible="false">
@@ -26,8 +27,12 @@
           </BioscrapeAnnotation>
         </annotation>
         <listOfReactants>
-          <speciesReference species="X" stoichiometry="1" constant="false"/>
+          <speciesReference species="A" stoichiometry="1" constant="false"/>
+          <speciesReference species="B" stoichiometry="1" constant="false"/>
         </listOfReactants>
+        <listOfProducts>
+          <speciesReference species="C" stoichiometry="1" constant="false"/>
+        </listOfProducts>
         <kineticLaw>
           <math xmlns="http://www.w3.org/1998/Math/MathML">
             <apply>
@@ -36,19 +41,6 @@
               <ci> A </ci>
               <ci> B </ci>
             </apply>
-          </math>
-        </kineticLaw>
-      </reaction>
-      <reaction id="r1" name="r1" reversible="false">
-        <annotation>
-          <PropensityType> type=massaction k=k1</PropensityType>
-        </annotation>
-        <listOfProducts>
-          <speciesReference species="X" stoichiometry="1" constant="false"/>
-        </listOfProducts>
-        <kineticLaw>
-          <math xmlns="http://www.w3.org/1998/Math/MathML">
-            <ci> k1 </ci>
           </math>
         </kineticLaw>
       </reaction>
