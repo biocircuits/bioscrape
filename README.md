@@ -93,7 +93,7 @@ Further details about the installation process can be found in the [Bioscrape wi
 Please report any bugs that you find [here](https://github.com/biocircuits/bioscrape/issues).
 Or, even better, fork the repository on [GitHub](https://github.com/biocircuits/bioscrape),
 and create a pull request (PR). We welcome all changes, big or small, and we
-will help you make the PR if you are new to `git` (just ask on the issue).
+will help you make the PR if you are new to `git` (just ask on the issue). The [CONTRIBUTING.md](https://github.com/biocircuits/bioscrape/blob/master/CONTRIBUTING.md) file has more detailed set of instructions on contributing to the software.
 
 # Versions
 
