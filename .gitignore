@@ -142,3 +142,4 @@ mcmc_results.csv
 mcmc_results.txt
 lmfit_results.csv
 mcmc_results.txt
+unzip_dist.py
