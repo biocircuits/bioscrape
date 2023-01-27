@@ -7,14 +7,14 @@ tags:
   - deterministic and stochastic simulations
   - parameter inference
 authors:
-  - name: Anandh Swaminathan^[Co-first author] # note this makes a footnote saying 'Co-first author'
-    orcid: 0000-0001-9935-6530
+  - name: Ayush Pandey^[Co-first author] # note this makes a footnote saying 'Co-first author'
+    orcid: 0000-0003-3590-4459
     affiliation: "1" # (Multiple affiliations must be quoted)
   - name: William Poole^[Co-first author] # note this makes a footnote saying 'Co-first author'
     orcid: 0000-0002-2958-6776
     affiliation: "2" # (Multiple affiliations must be quoted)
-  - name: Ayush Pandey^[Co-first author] # note this makes a footnote saying 'Co-first author'
-    orcid: 0000-0003-3590-4459
+  - name: Anandh Swaminathan^[Co-first author] # note this makes a footnote saying 'Co-first author'
+    orcid: 0000-0001-9935-6530
     affiliation: "3" # (Multiple affiliations must be quoted)
   - name: Victoria Hsiao # note this makes a footnote saying 'Co-first author'
     orcid: 0000-0001-9297-1522
@@ -27,17 +27,17 @@ authors:
   # - name: Author with no affiliation^[Corresponding author]
   #   affiliation: 3
 affiliations:
- - name: Ghost Locomotion, Mountain View, CA, USA
+ - name: Control and Dynamical Systems, California Institute of Technology, Pasadena, CA, USA
    index: 1
  - name: Altos Labs, San Francisco, CA, USA
    index: 2
- - name: Control and Dynamical Systems, California Institute of Technology, Pasadena, CA, USA
-   index: 3
+ - name: Ghost Locomotion, Mountain View, CA, USA
+   index: 1
  - name: Amyris, Emeryville, CA, USA
    index: 4
  - name: Control and Dynamical Systems and Biology and Biological Engineering, California Institute of Technology, Pasadena, CA, USA
    index: 5
-date: 22 Nov 2022
+date: 26 Jan 2023
 bibliography: paper.bib
 
 # Optional fields if submitting to a AAS journal too, see this blog post:
