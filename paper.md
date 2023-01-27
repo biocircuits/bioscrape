@@ -84,10 +84,9 @@ We conclude with a list of Bioscrape features:
 
 # Acknowledgements
 
-AS, AP, and VH were supported by the Defense Advanced Research Projects Agency (Agreement HR0011-17-2-0008). The content of the information does not necessarily reflect the position or the policy of the Government, and no official endorsement should be inferred. AS was also supported by AFOSR grant FA9550-14-1-0060. AP was also supported by the NSF grant CBET-1903477.
-WP was supported by an NSF Graduate Research Fellowship (No.2017246618).
+AP, AS, and VH were supported by the Defense Advanced Research Projects Agency (Agreement HR0011-17-2-0008). The content of the information does not necessarily reflect the position or the policy of the Government, and no official endorsement should be inferred. AP was also supported by the NSF Grant CBET-1903477 and AFOSR MURI Grant FA9550-22-1-0316. WP was supported by an NSF Graduate Research Fellowship (No.2017246618). AS was also supported by AFOSR Grant FA9550-14-1-0060. 
 
-The authors acknowledge members of the Murray lab at Caltech for assistance with experiments and helpful feedback and also acknowledge all the members of the scientific community at large who have used and provided feedback on bioscrape.
+The authors acknowledge members of the Murray Biocircuits lab at Caltech for assistance with experiments and helpful feedback and also acknowledge all the members of the scientific community at large who have used and provided feedback on bioscrape.
 
 
 # References
