@@ -32,7 +32,7 @@ affiliations:
  - name: Altos Labs, San Francisco, CA, USA
    index: 2
  - name: Ghost Locomotion, Mountain View, CA, USA
-   index: 1
+   index: 3
  - name: Amyris, Emeryville, CA, USA
    index: 4
  - name: Control and Dynamical Systems and Biology and Biological Engineering, California Institute of Technology, Pasadena, CA, USA
