@@ -93,14 +93,14 @@ Further details about the installation process can be found in the [Bioscrape wi
 Please report any bugs that you find [here](https://github.com/biocircuits/bioscrape/issues).
 Or, even better, fork the repository on [GitHub](https://github.com/biocircuits/bioscrape),
 and create a pull request (PR). We welcome all changes, big or small, and we
-will help you make the PR if you are new to `git` (just ask on the issue).
+will help you make the PR if you are new to `git` (just ask on the issue). More details on contributing to bioscrape are available on the [`Contributing`](https://github.com/biocircuits/bioscrape/blob/master/contributing.md) page.
 
 # Versions
 
 Bioscrape versions:
 
-* 1.2.0 (latest release): To install run `pip install bioscrape==1.2.0` 
-* 1.1.0 (latest stable release): To install run `pip install bioscrape`
+* 1.2.1 (latest stable release): To install run `pip install bioscrape` 
+* 1.2.0 (tagged stable release): To install run `pip install bioscrape==1.2.0`
 * 1.0.4 (beta release): To install run `pip install bioscrape==1.0.4`
 
 # License
