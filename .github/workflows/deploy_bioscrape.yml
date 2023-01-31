@@ -26,5 +26,5 @@ jobs:
       run: pip install .
     - name: Test bioscrape with pytest
       run: pytest
-    # - name: install lineage
-    #   run: python setup.py install lineage
+    - name: install lineage
+      run: python setup.py install lineage
