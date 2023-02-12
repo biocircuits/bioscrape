@@ -89,6 +89,7 @@ cdef class ModelLikelihood(Likelihood):
     cdef unsigned M #number of measurements
     cdef dict default_params
     cdef np.ndarray default_species
+    cdef double T #temperature
 
     cdef double get_log_likelihood(self)
     cdef np.ndarray get_initial_state(self, int n)

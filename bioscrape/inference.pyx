@@ -333,11 +333,12 @@ cdef class ModelLikelihood(Likelihood):
         raise NotImplementedError("set_data must be implemented in subclasses of ModelLikelihood")
 
 cdef class DeterministicLikelihood(ModelLikelihood):
-    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None):
+    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None, double T = 1.0):
         if prop is None:
             prop = DeterministicSimulator()
         ModelLikelihood.set_model(self, m, prop, csim)
         self.csim.py_prep_deterministic_simulation()
+        self.T = T
 
         #self.m = m
         #if csim is None:
@@ -428,10 +429,10 @@ cdef class DeterministicLikelihood(ModelLikelihood):
         if np.isnan(error):
             return -np.inf
         else:
-            return -error
+            return -error/self.T
 
 cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
-    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None, DelaySimulator prop_delay = None):
+    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None, DelaySimulator prop_delay = None, double T = 1.0):
         if prop is None:
             if m.has_delay:
                 prop = DelaySSASimulator()
@@ -441,6 +442,8 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
             else:
                 prop = SSASimulator()
         ModelLikelihood.set_model(self, m, prop, csim)
+
+        self.T = T
 
         #self.m = m
         #self.has_delay = False
@@ -538,18 +541,19 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
         if np.isnan(error):
             return -np.inf
         else:
-            return error
+            return error/self.T
 
 cdef class StochasticTrajectoryMomentLikelihood(StochasticTrajectoriesLikelihood):
-    def set_likelihood_options(self, N_simulations = 1, initial_state_matching = False, Moments = 2, **keywords):
+    def set_likelihood_options(self, N_simulations = 1, initial_state_matching = False, Moments = 2, double T = 1.0, **keywords):
         self.N_simulations = 1
         self.initial_state_matching = initial_state_matching
         if Moments > 2:
             raise ValueError("Moments must be 1 (Averages) or 2 (Averages and 2nd Moments)")
         self.Moments = Moments
+        self.T = T
 
 cdef class StochasticStatesLikelihood(ModelLikelihood):
-    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None, DelaySimulator prop_delay = None):
+    def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None, DelaySimulator prop_delay = None, double T = 1.0):
         self.m = m
 
         if csim is None:
@@ -566,6 +570,7 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
             self.propagator = prop
 
         self.csim = csim
+        self.T = T
 
     def set_data(self, FlowData fd):
         self.fd = fd
@@ -578,7 +583,7 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
 def py_inference(Model = None, params_to_estimate = None, exp_data = None, initial_conditions = None,
                  parameter_conditions = None, measurements = None, time_column = None, nwalkers = None, 
                  nsteps = None, init_seed = None, prior = None, sim_type = None, inference_type = 'emcee',
-                 method = 'mcmc', plot_show = True, **kwargs):
+                 method = 'mcmc', plot_show = True, temperature = 1.0, **kwargs):
     
     if Model is None:
         raise ValueError('Model object cannot be None.')

@@ -39,9 +39,15 @@ class InferenceSetup(object):
         self.cost_progress = []
         self.cost_params = []
         self.hmax = kwargs.get('hmax', None)
+        
         if self.exp_data is not None:
             self.prepare_inference()
             self.setup_cost_function()
+
+        if "temperature" in kwargs:
+            self.T = kwargs.get("temperature")
+        else:
+            self.T = 1.0
         return 
 
     #Whenever new settings are updated in the constructor, please add them to getstate and setstate
