@@ -579,7 +579,54 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
                  parameter_conditions = None, measurements = None, time_column = None, nwalkers = None, 
                  nsteps = None, init_seed = None, prior = None, sim_type = None, inference_type = 'emcee',
                  method = 'mcmc', plot_show = True, **kwargs):
-    
+    """
+    User level interface for running bioscrape inference module.
+    Args:
+        Model (bioscrape.types.Model): Bioscrape Model object 
+        params_to_estimate (List[str]): A list of parameter names in the Model to estimate
+        exp_data (List[pd.DataFrame], pd.Dataframe): A pandas.DataFrame or a list of pandas.Dataframe 
+                                                     that consists of the required experimental data\
+        initial_conditions (List[dict], dict): A list of dictionaries of initial conditions corresponding to each
+                                               data trajectory in exp_data or a single dictionary if one trajectory
+        parameter_conditions (List[dict], dict): A list of dictionaries of parameter conditions corresponding to each
+                                                 data trajectory in exp_data or a single dictionary if one trajectory
+        measurements (List[str], str): Names of species in the Model that are measured, either as a list if multiple outputs
+                                       or a single measurement.
+        time_column (str): The column name of the exp_data that contains the time points in the data, for time-series inference
+        nwalkers (int): The number of walkers for the Markov Chain Monte Carlo sampling. See emcee.EnsembleSampler for more info.
+        nsteps (int): The number of steps for the Markov Chain Monte Carlo sampling. See emcee.EnsembleSampler for more info.
+        init_seed (Union[float, np.ndarray, list. "prior"]): The parameter that controls the initial parameter 
+                                                             values for the sampling.
+                                                             If a float "r" is passed, then the initial values 
+                                                             are sampled from a Gaussian ball of radius "r" around mean values
+                                                             set as Model parameter values
+                                                             If a np.ndarray or a list is passed, then the length must be same 
+                                                             as the number of `params_to_estimate`. These values are then 
+                                                             used as initial values for the sampler.
+                                                             If the keyword "prior" is passed, then the initial values are sampled
+                                                             from the prior distributions specified for each parameter value.
+        prior (dict): The prior dict specifies the prior for each parameter in params_to_estimate. The syntax is
+                      {"parameter1": ["uniform", min_value, max_value],
+                       "parameter2": ["gaussian", mean, std, "positive"]}
+                       The "positive" keyword ensures that the prior rejects all negative values for the parameter.
+                       Refer to the full documentation on priors on our Wiki: https://github.com/biocircuits/bioscrape/wiki
+        sim_type (Union["deterministic", "stochastic"]): A str that is either "deterministic" or "stochastic" to set the
+                                                         type of simulation for the inference run.
+        inference_type (Union["emcee", "lmfit"]): A str that specifies the kind of inference to run. Currently, only two packages 
+                                                  are supported: emcee and lmfit.
+        method (str): For inference_type = emcee, this argument should not be used. For lmfit, method is passed into the method
+                      keyword of the lmfit call. More details here: 
+                      https://lmfit.github.io/lmfit-py/fitting.html#choosing-different-fitting-methods
+        plot_show (bool): If set to `True`, bioscrape will try to display the generated plots from the inference run. 
+                          If set to `False`, not plots will be shown.
+    Returns:
+        for inference_type = "emcee":
+            sampler, pid: A tuple consisting of the emcee.EnsembleSampler and the bioscrape pid object
+        for inference_type = "lmfit":
+            minimizer_result: A lmfit.MinimizerResult object that consists of the minimizer information.
+    Raises:
+        ValueError: When `inference_type` argument is set to something other than the currently supported modules.
+    """
     if Model is None:
         raise ValueError('Model object cannot be None.')
         
