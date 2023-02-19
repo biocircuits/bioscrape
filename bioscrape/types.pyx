@@ -1502,15 +1502,37 @@ cdef class StateDependentVolume(Volume):
 ##############################                     #############################
 
 cdef class Model:
-    def __init__(self, filename = None, species = [], reactions = [], 
+    def __init__(self, sbml_filename = None, filename = None, species = [], reactions = [], 
                  parameters = [], rules = [], initial_condition_dict = None, 
-                 sbml_filename = None, input_printout = False, 
-                 initialize_model = True, **kwargs):
+                 input_printout = False, initialize_model = True, **kwargs):
         """
         Read in a model from a file using old bioscrape XML format (now deprecated), SBML format, or by 
         specifying the model programmatically using the API.
+        Model API documentation is available on bioscrape Wiki:
+        https://github.com/biocircuits/bioscrape/wiki
 
-        :param filename: (str) the file to read the model
+        Args:
+            sbml_filename (str): The SBML filename to import the model. 
+                                Note that you cannot any other arguments when importing from SBML.
+                                You can import the SBML model, then edit the model with the API.
+            filename (str):     The (old bioscrape XML) file to read the model. Recommended way to import 
+                                a model is by importing an SBML using `sbml_filename` argument
+            species (List[str]): A list of species names, when constructing the model. 
+            reaction (List[tuple]): A list of reaction tuples. Each reaction tuple includes a list
+                                    of reactants, a list of products, a propensity string,
+                                    and the propensity dict.
+                                    Refer to the documentation on bioscrape Wiki for more information.
+            parameters (List[tuples]): A list of tuples where each tuple specifies the parameter name
+                                       and a value for the parameter.
+            rules (List[(tuples)]): A list of tuples where each tuple describe a model rule.
+            initial_condition_dict (dict): A dictionary of initial conditions where each key is a species name
+                                           and the value is the initial condition value.
+            input_printout (bool, default: False): If True, verbose print statements are printed out.
+                                                   If False, the print statements are silenced.
+            initial_model (bool, default: True): If True, the model is initialized => 
+                                                 Model arrays are created and basic validity checks are run.
+                                                 If False, the model is not initialized. 
+
         """
 
         ########################################################################
