@@ -38,7 +38,7 @@ dependencies = [
     "emcee",
     "pandas"
 ]
-requires-python = ">=3.6 <=3.11"
+requires-python = ">=3.7"
 
 [project.optional-dependencies]
 test = [
@@ -51,3 +51,4 @@ test = [
 
 [tool.setuptools]
 packages = ["bioscrape"]
+package-dir = {"bioscrape"="src/bioscrape"}
