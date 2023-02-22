@@ -9,7 +9,7 @@ universal = true
 name = "Bioscrape"
 version = "1.2.2"
 description = "Biological Stochastic Simulation of Single Cell Reactions and Parameter Estimation"
-authors = [{name='Ayush Pandey', email='apandey@caltech.edu'},
+authors = [{name='Ayush Pandey'},
            {name='William Poole'},
            {name='Anandh Swaminathan'}]
 classifiers=[
@@ -51,4 +51,5 @@ test = [
 
 [tool.setuptools]
 packages = ["bioscrape"]
+# include-package-data = true
 package-dir = {"bioscrape"="src/bioscrape"}
