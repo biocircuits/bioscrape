@@ -5,6 +5,9 @@ import os
 import sys
 import subprocess
 
+from numpy import get_include
+from Cython.Build import cythonize
+
 # Set to true to enable line profiling
 line_debug = False
 
@@ -87,7 +90,10 @@ try:
     cython_extensions = []
     if install_bioscrape:
         print("Installing Bioscrape...")
-        bioscrape_source_files = ['random.pyx', 'types.pyx', 'simulator.pyx', 'inference.pyx']
+        bioscrape_source_files = ['random.pyx',
+                                  'types.pyx',
+                                  'simulator.pyx',
+                                  'inference.pyx']
         bioscrape_extensions = [
                 Extension(
                     name = 'bioscrape.'+s.split('.')[0],
