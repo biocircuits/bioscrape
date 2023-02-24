@@ -3,8 +3,10 @@ from bioscrape.types import Model
 from bioscrape.simulator import ModelCSimInterface, DeterministicSimulator
 from scipy.integrate import odeint
 import numpy as np
+from typing import List, Union
 
-def py_sensitivity_analysis(model, timepoints, normalize, **kwargs):
+def py_sensitivity_analysis(model: Model, timepoints: np.ndarray, 
+                            normalize: bool, **kwargs) -> np.ndarray:
     """User interface function to perform sensitivity analysis 
     on a bioscrape model. The sensitivity coefficients are computed 
     where each coefficient s_ij = rate of change of x_i with parameter p_j
@@ -22,15 +24,41 @@ def py_sensitivity_analysis(model, timepoints, normalize, **kwargs):
         numpy.ndarray: A numpy array of size:
                        len(timepoints) x len(parameters) x len(states)
     """
-    sens_obj = SensitivityAnalysis(model)
-    ans_df = sens_obj.propagator.py_simulate(sens_obj.sim_interface, timepoints).py_get_dataframe(sens_obj.M)
+    dx = kwargs.get("dx", 0.01)
+    precision = kwargs.get("precision", 10) 
+    sens_obj = SensitivityAnalysis(model, dx=dx, precision=precision)
+    ans_df = sens_obj.propagator.py_simulate(sens_obj.sim_interface, 
+                                             timepoints).py_get_dataframe(sens_obj.M)
     solutions_array = np.array(ans_df.iloc[:,range(0,len(ans_df.T) - 1)])
     return sens_obj.compute_SSM(solutions_array, timepoints, normalize, **kwargs)
 
-def py_get_jacobian(model, state, **kwargs):
+def py_get_jacobian(model: Model, state: Union[list, np.ndarray], **kwargs) -> np.ndarray:
+    """User interfacce function to compute Jacobian (df/dx) of the model.
+
+    Args:
+        model (Model): Bioscrape Model
+        state (Union[list, np.ndarray]): The state values (vector of length n) 
+                                         at which to compute the Jacobian
+
+    Returns:
+        np.ndarray: A (n x n) Jacobian matrix, where n = len(state)
+    """
     return SensitivityAnalysis(model).compute_J(state, **kwargs)
 
-def py_get_sensitivity_to_parameter(model, state, param_name, **kwargs):
+def py_get_sensitivity_to_parameter(model: Model, state: Union[list, np.ndarray], 
+                                    param_name: str, **kwargs) -> np.ndarray:
+    """User interface function to compute the sensitivity to parameter (df/dp)
+    where p is the parameter and f is the model
+
+    Args:
+        model (Model): Bioscrape Model
+        state (Union[list, np.ndarray]): The state values (vector of length n) 
+                                         at which to compute df/dp
+        param_name (str): The parameter name for which df/dp is computed
+
+    Returns:
+        np.ndarray: A np.ndarray of size (n x 1), where n is the length of state 
+    """
     return SensitivityAnalysis(model).compute_Zj(state, param_name, **kwargs)
 
 class SensitivityAnalysis(Model):

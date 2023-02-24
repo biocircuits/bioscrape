@@ -2103,6 +2103,31 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
 #A wrapper function to allow easy simulation of Models
 def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = False, 
                     delay = None, safe = False, volume = False, return_dataframe = True, **keywords):
+    """
+    User interface function to simulate a Bioscrape Model. 
+    Args:
+        timepoints (np.ndarray): An array that contains the times for the simulation run.
+        Model (bioscrape.types.Model): The bioscrape Model object to run.
+        Interface (bioscrape.simulator.CSimInterface): Specifies particular model simulation interface to use.
+                                                       Default: None, to create the interface automatically.
+                                                       Developers may use this to pass existing interfaces to speed up simulations.
+        stochastic (bool): If `True`, a stochastic simulation using the Gillespie stochastic simulation algorithm is run.
+                           If `False` (default), a deterministic simulation using python scipy.integrate.odeint is run.
+        delay (bool): If `True`, a delay simulator is initialized. 
+                      If `False` or None (default), delay simulator is not initialized.
+        safe (bool): If `True`, a safe model model simulation interface is initialized.
+                     A safe model simulator issues warnings when ill-conditioned situations occur in simulation 
+                     (for example, a negative propensity of a reaction)
+                     If `False` (default), normal model simulation interface is used.
+        volume (bool): If `True`, a volume is initialized for the simulation (relevant for lineage simulations)
+                       If `False` (default), volume is not used in simulations.
+                       Refer to the lineage module for more information.
+        return_dataframe (bool): If `True` (default), a Pandas dataframe with the simulation results is returned.
+                                 If `False`, a bioscrape simulation result object is returned.
+    Returns:
+        pandas.DataFrame with the simulation results if return_dataframe is set to `True`
+        or a bioscrape simulation result object is returned if it is set to `False`.
+    """
     
 
     #Check model and interface
