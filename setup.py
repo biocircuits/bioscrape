@@ -11,22 +11,6 @@ from Cython.Build import cythonize
 # Set to true to enable line profiling
 line_debug = False
 
-#The following try-catch statements ensure numpy and cython are installed prior to running setup.py
-#in some virtual environments, pip dependencies have issues with cython packages.
-#NUMPY CHECK
-try:
-    from numpy import get_include
-except ModuleNotFoundError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "numpy"])
-    from numpy import get_include
-#CYTHON CHECK
-try:
-    from Cython.Build import cythonize
-except ModuleNotFoundError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "cython"])
-    from Cython.Build import cythonize
-
-
 #Load the readme as a long description
 with open('README.md') as fp:
     long_description = fp.read()
@@ -121,49 +105,9 @@ except Exception as e:
     raise
 
 setup(
-    name = 'bioscrape',
-    version = '1.2.2',
-    author='Ayush Pandey, William Poole, Anandh Swaminathan',
-    url='https://github.com/biocircuits/bioscrape/',
-    description='Biological Stochastic Simulation of Single Cell Reactions and Parameter Estimation.',
     long_description=long_description,
-    packages = ['bioscrape'],
-    package_dir = {'bioscrape' : bioscrape_src_dir},
+    # package_dir = {'bioscrape' : bioscrape_src_dir},
     package_data = package_data,
     ext_modules = cython_extensions,
     zip_safe=False,
-    classifiers=[
-        'Development Status :: 5 - Production/Stable',
-        'Intended Audience :: Science/Research',
-        'License :: OSI Approved :: BSD License',
-        'Programming Language :: Python :: 3.6',
-        'Topic :: Software Development',
-        'Topic :: Scientific/Engineering',
-        'Operating System :: OS Independent',
-    ],
-    setup_requires = [
-        "numpy",
-        "cython",
-        ],
-    install_requires=[
-        "numpy",
-        "matplotlib",
-        "pytest",
-        "scipy",
-        "cython",
-        "python-libsbml",
-        "beautifulsoup4",
-        "sympy",
-        "emcee",
-        "pandas"
-    ],
-    python_requires='>=3.6',
-    keywords="SBML synthetic biology modeling Chemical Reaction Network CRN simulator stochastic parameter inference",
-    tests_require=["pytest"],
-    project_urls={
-    'Documentation': 'https://github.com/biocircuits/bioscrape/wiki',
-    'Funding': 'http://www.cds.caltech.edu/~murray/wiki/DARPA_BioCon',
-    'Source': 'https://github.com/biocircuits/bioscrape/',
-    'Tracker': 'https://github.com/biocircuits/bioscrape/issues',
-    }
 )
