@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=64", "Cython", "numpy", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.distutils.bdist_wheel]
+universal = true
+
+[project]
+name = "Bioscrape"
+version = "1.2.2"
+description = "Biological Stochastic Simulation of Single Cell Reactions and Parameter Estimation"
+authors = [{name='Ayush Pandey'},
+           {name='William Poole'},
+           {name='Anandh Swaminathan'}]
+classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'Intended Audience :: Science/Research',
+        'License :: OSI Approved :: BSD License',
+        'Programming Language :: Cython',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Topic :: Software Development',
+        'Topic :: Scientific/Engineering',
+        'Operating System :: OS Independent',
+    ]
+license = {file = "LICENSE"}
+readme = "README.md"
+keywords=["SBML", "synthetic biology", "modeling",
+          "Chemical Reaction Network", "CRN simulator", "stochastic",
+          "parameter inference"]
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "pytest",
+    "scipy",
+    "cython",
+    "python-libsbml",
+    "beautifulsoup4",
+    "sympy",
+    "emcee",
+    "pandas",
+    "corner",
+    "lmfit"
+]
+requires-python = ">=3.7"
+
+[project.optional-dependencies]
+test = [
+  "pytest",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/biocircuits/bioscrape/"
+"Bug Tracker" = "https://github.com/biocircuits/bioscrape/issues"
+
+[tool.setuptools]
+packages = ["bioscrape"]
+include-package-data = true
+package-dir = {"bioscrape"="bioscrape"}
+
+[tool.setuptools.exclude-package-data]
+"*" = ["*.c", "*.h"]
