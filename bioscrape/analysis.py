@@ -141,11 +141,11 @@ class SensitivityAnalysis(Model):
                 if method == 'forward_difference':
                     J[i,j]= (f_h - f_0)/h
                 # Error check
-                if J[i, j] == np.Inf:
-                    warnings.warn('Inf found while computing the Jacobian. Replacing by 1. Check model.')
+                if J[i, j] == np.inf:
+                    warnings.warn('inf found while computing the Jacobian. Replacing by 1. Check model.')
                     J[i, j] = 1
-                elif J[i, j] == np.NaN:
-                    warnings.warn('NaN found while conputing the Jacobian. Replacing 0. Check model.')
+                elif J[i, j] == np.nan:
+                    warnings.warn('nan found while conputing the Jacobian. Replacing 0. Check model.')
                     J[i, j] = 0
         return np.round(J, decimals = self.precision)
         
@@ -197,11 +197,11 @@ class SensitivityAnalysis(Model):
             if method == 'forward_difference':
                 Z[i]= (f_h - f_0)/h
             # Error check
-            if Z[i] == np.Inf:
-                warnings.warn('Inf found while compute Zj, replacing by 1. Check model.')
+            if Z[i] == np.inf:
+                warnings.warn('inf found while compute Zj, replacing by 1. Check model.')
                 Z[i] = 1
-            elif Z[i] == np.NaN:
-                warnings.warn('NaN found while compute Zj, replacing by 0. Check model.')
+            elif Z[i] == np.nan:
+                warnings.warn('nan found while compute Zj, replacing by 0. Check model.')
                 Z[i] = 0
         return np.round(Z, decimals = self.precision)
 
