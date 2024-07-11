@@ -173,10 +173,14 @@ class SensitivityAnalysis(Model):
             f_h = self._evaluate_model(x, params_dict, time = time)[i]
             # Reset
             params_dict = dict(self.original_parameters)
+            self.M.set_params(params_dict)
+            # Update
             params_dict[param_name] = params_dict[param_name] - h
             self.M.set_params(params_dict)
             f_mh = self._evaluate_model(x, params_dict, time = time)[i]
+            # Reset
             params_dict = dict(self.original_parameters)
+            self.M.set_params(params_dict)
             if method == 'fourth_order_central_difference':
                 # Gets O(4) central difference on dfi/dpj
                 params_dict[param_name] = params_dict[param_name] + 2*h

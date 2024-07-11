@@ -54,7 +54,7 @@ def test_jacobian(model_setup):
 def test_sensitivity_to_parameter(model_setup):
     """Sensitivity to parameter test
     """
-    M, timepoints = model_setup 
+    M, _ = model_setup 
     states = np.array([20, 4, 5, 10])
     sensitivity_to_parameter_true = np.array([0,  0,  states[0], 0])
     sensitivity_to_parameter_4thorder = py_get_sensitivity_to_parameter(M, states, 'beta_t', method = 'fourth_order_central_difference')
@@ -71,7 +71,7 @@ def test_SSM(model_setup):
     """
     M, timepoints = model_setup
     params_values = M.get_parameter_values()
-    n = 4
+    n_species = 4
     SSM = py_sensitivity_analysis(M, timepoints, normalize = True)
-    assert np.shape(SSM) == (len(timepoints), len(params_values), n)
+    assert np.shape(SSM) == (len(timepoints), len(params_values), n_species)
     # Check out the Sensitivity Analysis ipython notebook in bioscrape/examples for more.
