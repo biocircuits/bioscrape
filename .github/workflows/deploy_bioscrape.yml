@@ -1,4 +1,4 @@
-  name: deploy_bioscrape
+name: deploy_bioscrape
 on:
   push:
     branches: ["master"]
