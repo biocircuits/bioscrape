@@ -729,9 +729,9 @@ cdef class SSAResult:
         cdef unsigned tend = len(self.timepoints[self.timepoints <= final_time])
         cdef unsigned N_species = len(species_inds)
         cdef double dP = 1./(tend - tstart)
-        cdef np.ndarray[np.int_t, ndim=1] index_ar = np.zeros(N_species, dtype = np.int_) #index array
+        cdef np.ndarray[np.int32_t, ndim=1] index_ar = np.zeros(N_species, dtype = np.int_) #index array
         cdef np.ndarray[np.double_t, ndim = 1] dist
-        cdef np.ndarray[np.int_t, ndim = 1] max_counts = np.zeros(N_species, dtype = np.int_) #max species counts
+        cdef np.ndarray[np.int32_t, ndim = 1] max_counts = np.zeros(N_species, dtype = np.int_) #max species counts
 
         #Calculate max species counts
         for i in range(N_species):
@@ -752,7 +752,7 @@ cdef class SSAResult:
                 s = species_inds[i-1] 
                 if self.simulation_result[t, s] > max_counts[i-1]:
                     raise RuntimeError("Encountered a species count greater than max_counts!")
-                ind = ind + prod*<np.int_t>self.simulation_result[t, s]
+                ind = ind + prod*<np.int32_t>self.simulation_result[t, s]
                 prod = prod * max_counts[i-1] #update the product for the next index
             dist[ind] = dist[ind] + dP
 
