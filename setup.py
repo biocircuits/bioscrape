@@ -1,5 +1,5 @@
-from distutils.core import setup
-from distutils.extension import Extension
+import setuptools
+
 import platform
 import os
 import sys
@@ -79,7 +79,7 @@ try:
                                   'simulator.pyx',
                                   'inference.pyx']
         bioscrape_extensions = [
-                Extension(
+                setuptools.Extension(
                     name = 'bioscrape.'+s.split('.')[0],
                     sources = [bioscrape_src_dir+'/'+s],
                     **ext_options) for s in bioscrape_source_files
@@ -93,7 +93,7 @@ try:
         lineage_src_dir = 'lineage'
         lineage_source_files = ['lineage.pyx']
         lineage_extensions = [
-            Extension(name = 'bioscrape.'+s.split('.')[0],
+            setuptools.Extension(name = 'bioscrape.'+s.split('.')[0],
                 sources = [lineage_src_dir+'/'+s],
                 **ext_options) for s in lineage_source_files
         ]
@@ -104,7 +104,7 @@ except Exception as e:
     print("Error occured during Cython Compilation. Check C++ Compiler and Cython Installation.")
     raise
 
-setup(
+setuptools.setup(
     long_description=long_description,
     # package_dir = {'bioscrape' : bioscrape_src_dir},
     package_data = package_data,
