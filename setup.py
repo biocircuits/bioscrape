@@ -19,7 +19,7 @@ try:
     numpyInclude = [get_include(), '.']
 
     #Install Bioscrape Core Package
-    package_data = {'bioscrape': ['*.pxd']}
+    package_data = {'bioscrape': ['*.pxd', '*.pyx']}
     bioscrape_src_dir = 'bioscrape'
 
     ext_options = {}
@@ -59,7 +59,7 @@ try:
     install_lineage = False
     if "bioscrape" not in sys.argv and "lineage" not in sys.argv:
         install_bioscrape = True
-        install_lineage = True
+        install_lineage = False 
     if "bioscrape" in sys.argv:
         install_bioscrape = True
         sys.argv.remove("bioscrape")
@@ -67,8 +67,8 @@ try:
         install_lineage = True
         sys.argv.remove("lineage")
 
-    elif "bioscrape" not in sys.argv:
-        install_lineage = True
+    # elif "bioscrape" not in sys.argv:
+    #     install_lineage = False
 
     cython_extensions = []
     if install_bioscrape:
@@ -87,7 +87,7 @@ try:
         print("Bioscrape Cythonized.")
 
     if install_lineage:
-        package_data['lineage'] = ['*.pxd']
+        package_data['lineage'] = ['*.pxd', '*.pyx']
         print("Installing Lineage...")
         lineage_src_dir = 'lineage'
         lineage_source_files = ['lineage.pyx']
