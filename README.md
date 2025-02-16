@@ -82,7 +82,7 @@ Install the latest version of Bioscrape::
     $ pip install bioscrape
     
 
-Please note that Bioscrape is a Cython extension module and requires a C++ compiler to be set up on your computer for installation.
+Please note that Bioscrape is a Cython extension module and requires a C++ compiler to be set up on your computer for installation. With the PyPi distribution, you can only install the core Bioscrape without the additional lineages package. To install lineages, clone the GitHub repository and run `python setup.py install lineage` from the bioscrape directory.
 
 Try online without installing, open self-explanatory jupyter notebooks with Google Colab (linked at the top of this README).
 
@@ -99,8 +99,8 @@ will help you make the PR if you are new to `git` (just ask on the issue). The [
 
 Bioscrape versions:
 
-* 1.2.2 (latest release): To install run `pip install bioscrape` 
-* 1.2.0 (tagged stable release): To install run `pip install bioscrape==1.2.0`
+* 1.3.0 (latest release): To install run `pip install bioscrape` 
+* 1.2.2 (tagged stable release): To install run `pip install bioscrape==1.2.2`
 * 1.0.4 (beta release): To install run `pip install bioscrape==1.0.4`
 
 # License
