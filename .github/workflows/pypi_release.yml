@@ -15,9 +15,9 @@ jobs:
       - name: Build inside manylinux_2_28 container
         run: |
           docker run --rm -v $(pwd):/io quay.io/pypa/manylinux_2_28_x86_64 /bin/bash -c "\
-            /opt/python/cp312-cp312m/bin/python -m pip install --upgrade pip build && \
-            /opt/python/cp312-cp312m/bin/python -m pip install -r /io/requirements.txt && \
-            /opt/python/cp312-cp312m/bin/python -m build --wheel --outdir /io/dist"
+            /opt/python/cp312-cp312/bin/python -m pip install --upgrade pip build && \
+            /opt/python/cp312-cp312/bin/python -m pip install -r /io/requirements.txt && \
+            /opt/python/cp312-cp312/bin/python -m build --wheel --outdir /io/dist"
 
       - name: List built wheels (debugging step)
         run: ls -lh dist/
