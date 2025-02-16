@@ -18,8 +18,9 @@ jobs:
             /opt/python/cp312-cp312/bin/python -m pip install --upgrade pip build auditwheel && \
             /opt/python/cp312-cp312/bin/python -m pip install -r requirements.txt && \
             /opt/python/cp312-cp312/bin/python -m build --wheel --outdir /io/dist && \
-            rm -f /io/dist/*linux_x86_64.whl && \
             auditwheel repair /io/dist/*.whl --plat manylinux_2_28_x86_64 --wheel-dir /io/dist"
+            rm -f /io/dist/*linux_x86_64.whl && \
+
 
       - name: List built wheels (debugging step)
         run: ls -lh dist/
