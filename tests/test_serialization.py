@@ -12,7 +12,12 @@ import test_utils
 import pandas as pd
 from bioscrape.simulator import *
 from bioscrape.types import *
-from bioscrape.lineage import *
+
+try:
+	from bioscrape.lineage import *
+	skip_lineage = False
+except ModuleNotFoundError:
+	skip_lineage = True
 
 # Seed RNG value. All tests use this value.
 seed = 54173
@@ -117,7 +122,7 @@ def test_random_complex_model():
 			   	f"{'stochastic' if is_stochastic else 'deterministic'} " + \
 			   	"simulation when pickled and unpickled."
 
-
+@pytest.mark.skipif(skip_lineage, reason="Lineage Not Installed")
 def test_random_complex_lineagemodel():
 	'''
 	Creates a two-reaction LineageModel with more or less the same settings as

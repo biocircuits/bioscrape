@@ -1515,6 +1515,7 @@ cdef class Model:
             sbml_filename (str): The SBML filename to import the model. 
                                 Note that you cannot any other arguments when importing from SBML.
                                 You can import the SBML model, then edit the model with the API.
+                                If no keyword argument is passed, then an SBML file is assumed as the input.
             filename (str):     The (old bioscrape XML) file to read the model. Recommended way to import 
                                 a model is by importing an SBML using `sbml_filename` argument
             species (List[str]): A list of species names, when constructing the model. 
