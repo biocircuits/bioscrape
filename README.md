@@ -79,7 +79,7 @@ All examples can be found in the [examples](https://github.com/biocircuits/biosc
 
 Install the latest version of Bioscrape::
 
-    $ pip install bioscrape
+    $ pip install git+https://github.com/biocircuits/bioscrape.git
     
 
 Please note that Bioscrape is a Cython extension module and requires a C++ compiler to be set up on your computer for installation.
@@ -99,8 +99,8 @@ will help you make the PR if you are new to `git` (just ask on the issue). The [
 
 Bioscrape versions:
 
-* 1.2.2 (latest release): To install run `pip install bioscrape` 
-* 1.2.0 (tagged stable release): To install run `pip install bioscrape==1.2.0`
+* 1.2.2 (latest recommended release): To install run `pip install git+https://github.com/biocircuits/bioscrape.git` 
+* 1.2.0 (tagged release): To install run `pip install bioscrape==1.2.0`
 * 1.0.4 (beta release): To install run `pip install bioscrape==1.0.4`
 
 # License
