@@ -19,12 +19,27 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build  
+          pip install build auditwheel 
 
       - name: Build the package
         run: |
           python -m build
-
+          
+      - name: Check if auditwheel is needed
+        run: |
+          for whl in dist/*.whl; do
+            auditwheel show "$whl" || echo "Auditwheel check failed!"
+          done
+          
+      - name: Repair wheel with auditwheel
+        run: |
+          for whl in dist/*.whl; do
+            auditwheel repair "$whl" --wheel-dir dist/ || echo "Auditwheel repair skipped!"
+          done
+          
+      - name: List built wheels (debugging step)
+        run: ls -lh dist/
+        
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
