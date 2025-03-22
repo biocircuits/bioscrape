@@ -99,11 +99,11 @@ will help you make the PR if you are new to `git` (just ask on the issue). The [
 
 Bioscrape versions:
 
-* 1.3.0 (latest release): To install run `pip install bioscrape` 
-* 1.2.2 (tagged stable release): To install run `pip install bioscrape==1.2.2`
+* 1.4.0 (latest release): To install run `pip install bioscrape` 
+* 1.2.1 (tagged stable release): To install run `pip install bioscrape==1.2.1`
 * 1.0.4 (beta release): To install run `pip install bioscrape==1.0.4`
 
 # License
 Released under the MIT License (see `LICENSE`)
 
-Copyright (c) 2022, Biocircuits, California Institute of Technology. All rights reserved.
+Copyright (c) 2018-2025, California Institute of Technology. All rights reserved.
