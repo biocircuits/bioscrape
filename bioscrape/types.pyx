@@ -18,6 +18,10 @@ from bioscrape.sbmlutil import add_species, add_parameter, add_reaction, add_rul
 
 from libc.math cimport log, sqrt, cos, round, exp, fabs
 
+# Define static epsilon for handling rounding errors
+from libcpp.limits cimport numeric_limits
+cdef float float_epsilon = numeric_limits[float].epsilon()
+
 ##################################################                ####################################################
 ######################################              PROPENSITY TYPES                    ##############################
 #################################################                     ################################################
@@ -222,6 +226,8 @@ cdef class PositiveHillPropensity(Propensity):
         cdef double K = params[self.K_index]
         cdef double n = params[self.n_index]
         cdef double rate = params[self.rate_index]
+        if X < 0 and abs(X) < float_epsilon:
+            X = 0.        # Fix rounding errors
         return rate * (X / K) ** n / (1 + (X/K)**n)
 
     cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
@@ -229,6 +235,8 @@ cdef class PositiveHillPropensity(Propensity):
         cdef double K = params[self.K_index]
         cdef double n = params[self.n_index]
         cdef double rate = params[self.rate_index]
+        if X < 0 and abs(X) < float_epsilon:
+            X = 0.        # Fix rounding errors
         return rate * (X / K) ** n / (1 + (X/K)**n)
 
     def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices):
@@ -266,6 +274,8 @@ cdef class PositiveProportionalHillPropensity(Propensity):
         cdef double n = params[self.n_index]
         cdef double rate = params[self.rate_index]
         cdef double d = state[self.d_index]
+        if X < 0 and abs(X) < float_epsilon:
+            X = 0.        # Fix rounding errors
         return rate * d *  (X / K) ** n / (1 + (X/K)**n)
 
     cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
@@ -274,6 +284,8 @@ cdef class PositiveProportionalHillPropensity(Propensity):
         cdef double n = params[self.n_index]
         cdef double d = state[self.d_index]
         cdef double rate = params[self.rate_index]
+        if X < 0 and abs(X) < float_epsilon:
+            X = 0.        # Fix rounding errors
         return d * rate * (X / K) ** n / (1 + (X/K)**n)
 
 
@@ -357,6 +369,8 @@ cdef class NegativeProportionalHillPropensity(Propensity):
         cdef double n = params[self.n_index]
         cdef double rate = params[self.rate_index]
         cdef double d = state[self.d_index]
+        if X < 0 and abs(X) < float_epsilon:
+            X = 0.        # Fix rounding errors
         return rate * d *  1/ (1 + (X/K)**n)
 
     cdef double get_volume_propensity(self, double *state, double *params, double volume, double time):
@@ -365,6 +379,8 @@ cdef class NegativeProportionalHillPropensity(Propensity):
         cdef double n = params[self.n_index]
         cdef double d = state[self.d_index]
         cdef double rate = params[self.rate_index]
+        if X < 0 and abs(X) < float_epsilon:
+            X = 0.        # Fix rounding errors
         return d * rate * 1 / (1 + (X/K)**n)
 
 
