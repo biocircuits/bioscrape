@@ -7,7 +7,10 @@ lineage = pytest.importorskip("bioscrape.lineage")
 
 import numpy as np
 from bioscrape.lineage import (LineageModel, LineageVolumeSplitter,
-    LineageCSimInterface, LineageSSASimulator)
+    LineageCSimInterface, LineageSSASimulator,
+    InteractingLineageSSASimulator)
+from bioscrape.simulator import ModelCSimInterface, VolumeSSASimulator
+from bioscrape.types import Model
 
 
 def _make_minimal_lineage_model():
@@ -36,3 +39,20 @@ def test_py_initialize_single_cell_interface():
     interface.py_set_initial_time(0.0)
     simulator = LineageSSASimulator()
     simulator.py_initialize_single_cell_interface(interface)
+
+
+#This test confirms that InteractingLineageSSASimulator.setup_global_
+#  volume_simulation doesn't raise AttributeError. It previously did
+#  global_species_global_crn_inds.astype(np.int, copy=False) --
+#  np.int was removed in NumPy >= 1.24 -- and also discarded the
+#  astype() return value instead of assigning it back.
+def test_setup_global_volume_simulation():
+    global_model = Model(species = ["G"], reactions = [],
+                          initial_condition_dict = {"G": 5})
+    global_interface = ModelCSimInterface(global_model)
+    global_volume_simulator = VolumeSSASimulator()
+    inds = np.array([0], dtype = np.int32)
+
+    simulator = InteractingLineageSSASimulator()
+    simulator.setup_global_volume_simulation(global_volume_simulator,
+                                              global_interface, inds)

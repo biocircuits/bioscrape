@@ -3978,7 +3978,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 		else:
 			raise ValueError("set_global_interface requires as ModelCSimInterface")
 
-		global_species_global_crn_inds.astype(np.int, copy = False)
+		global_species_global_crn_inds = global_species_global_crn_inds.astype(np.int32, copy = False)
 		self.global_species_global_crn_inds = global_species_global_crn_inds
 
 		#instantiate VSR to store results
