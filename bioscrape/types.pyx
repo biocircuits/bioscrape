@@ -3750,7 +3750,7 @@ cdef class Schnitz:
 
         except ModuleNotFoundError:
             warnings.warn("py_get_dataframe requires the pandas Module to return a Pandas Dataframe object. Numpy array being returned instead.")
-            return self.py_get_result()
+            return self.py_get_data()
 
     def py_get_parent(self):
         """Return the parent cell's Schnitz, or None."""

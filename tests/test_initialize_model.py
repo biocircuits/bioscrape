@@ -2,6 +2,7 @@ from bioscrape.simulator import *
 from bioscrape.types import *
 import numpy as np
 import pytest
+import sys
 
 timepoints = np.arange(0, 100, .1)
 
@@ -26,4 +27,29 @@ def test_initialize():
     assert np.allclose(R1["A"], R2["A"])
     assert np.allclose(R1["B"], R2["B"])
     assert np.allclose(R1["C"], R2["C"])
+
+#This test confirms that Schnitz.py_get_dataframe falls back to a numpy
+#  array (instead of raising AttributeError) when pandas is unavailable.
+def test_schnitz_dataframe_pandas_fallback():
+    time = np.array([0.0, 1.0, 2.0])
+    data = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+    volume = np.array([1.0, 1.0, 1.0])
+    sch = Schnitz(time, data, volume)
+
+    #Setting sys.modules["pandas"] = None makes the import system raise
+    #  ModuleNotFoundError, regardless of whether the importing code is
+    #  Python or Cython (Cython's `import` bypasses builtins.__import__,
+    #  so mocking that hook doesn't work here).
+    real_pandas = sys.modules.get("pandas", None)
+    sys.modules["pandas"] = None
+    try:
+        with pytest.warns(UserWarning):
+            result = sch.py_get_dataframe()
+    finally:
+        if real_pandas is not None:
+            sys.modules["pandas"] = real_pandas
+        else:
+            del sys.modules["pandas"]
+
+    assert np.array_equal(result, data)
 
