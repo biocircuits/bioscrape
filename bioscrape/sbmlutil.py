@@ -1,3 +1,10 @@
+"""
+SBML import/export helpers used internally by `bioscrape.types.Model`.
+
+Most users interact with these indirectly through
+`Model(sbml_filename=...)` and `~bioscrape.types.Model.write_sbml_model`
+rather than calling them directly.
+"""
 import numpy as np
 import sympy
 from sympy.abc import _clash1
@@ -7,18 +14,70 @@ import libsbml
 from collections import OrderedDict # Need this to remove duplicates from lists
 
 def read_model_from_sbml(sbml_file):
+    """Read an SBML file into a new bioscrape `Model`.
+
+    Convenience wrapper around `import_sbml` that always creates a
+    new `Model` rather than modifying an existing one.
+
+    Parameters
+    ----------
+    sbml_file : str
+        Path to the SBML file to read.
+
+    Returns
+    -------
+    Model
+        The imported model.
+    """
     return import_sbml(sbml_file)
 
 def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwargs):
-    """
-    Convert SBML model (in the sbml_file) to bioscrape Model object. Note that events, compartments, non-standard function definitions,
-    and some kinds of rules will be ignored.
-    Adds mass action kinetics based reactions with the appropriate mass action propensity in bioscrape.
-    Propensities with the correct annotation are added as compiled propensity types.
-    All other propensities are added as general propensity.
-    Bioscrape delays are imported if SBML reaction has appropriate annotation.
-    All SBML rules (except Algebraic) are imported. Bioscrape rule settings are imported as annotation.
-    Local parameters are renamed if there is a conflict since bioscrape does not have a local environment.
+    """Import an SBML model into a bioscrape `Model`.
+
+    Events, compartments, non-standard function definitions, and some kinds of
+    rules are not recognized by bioscrape and are ignored
+    (compartments/units/events and Algebraic rules trigger a warning; function
+    definitions are dropped silently). Mass-action reactions are added with
+    the appropriate mass-action propensity; propensities with the correct
+    bioscrape annotation are added as their compiled propensity type, and all
+    other propensities as a general propensity. Delays are imported if a
+    reaction has the appropriate annotation. All SBML rules except Algebraic
+    rules are imported, with bioscrape-specific rule settings imported from
+    annotations. Local (reaction-scoped) parameters are renamed on conflict,
+    since bioscrape has no local parameter scope.
+
+    Parameters
+    ----------
+    sbml_file : str
+        Path to the SBML file to read.
+    bioscrape_model : Model, optional
+        If given, species/parameters/reactions/rules are added to
+        this model instead of a newly created one.
+    input_printout : bool, default False
+        If True, print each species/parameter as it's added.
+    sbml_warnings : bool, optional
+        If True, warn about unrecognized SBML components
+        (compartments, unit definitions, events). Defaults to False
+        if the SBML model's ID contains ``'bioscrape'`` or
+        ``'biocrnpyler'``, True otherwise.
+    **kwargs
+        Additional keyword arguments (currently only
+        `sbml_warnings` is recognized).
+
+    Returns
+    -------
+    Model
+        The imported model (`bioscrape_model`, if given).
+
+    Raises
+    ------
+    ImportError
+        If the `libsbml` package is not installed.
+    SyntaxError
+        If the SBML file has read errors.
+    ValueError
+        If the SBML file can't be found, or if `bioscrape_model` is
+        given and is not a `Model`.
     """
     # Attempt to import libsbml and read the SBML model.
     try:
@@ -405,8 +464,38 @@ def _get_species_list_in_formula(formula, species):
 
 def create_sbml_model(compartment_id="default", time_units='second', extent_units='mole', substance_units='mole',
                       length_units='metre', area_units='square_metre', volume_units='litre', volume = 1e-6):
+    """Create an empty SBML document and model with one compartment.
+
+    Parameters
+    ----------
+    compartment_id : str, default "default"
+        ID (and name) of the single default compartment.
+    time_units : str, default "second"
+        Model-wide time units.
+    extent_units : str, default "mole"
+        Model-wide units of reaction extent.
+    substance_units : str, default "mole"
+        Model-wide substance units.
+    length_units : str, default "metre"
+        Model-wide length units.
+    area_units : str, default "square_metre"
+        Model-wide area units.
+    volume_units : str, default "litre"
+        Model-wide volume units.
+    volume : float, default 1e-6
+        The default compartment's volume.
+
+    Returns
+    -------
+    document : libsbml.SBMLDocument
+        The created SBML document.
+    model : libsbml.Model
+        The created SBML model (also reachable via
+        ``document.getModel()``, with the compartment via
+        ``model.getCompartment(0)``).
+    """
     # Create an empty SBML Document of Level 3 Version 2 of SBML
-    document = libsbml.SBMLDocument(3, 2) 
+    document = libsbml.SBMLDocument(3, 2)
     model = document.createModel()
     model.setId('bioscrape_generated_model_' + str(np.random.randint(1e6)))
     # Define units for area (not used, but keeps COPASI from complaining)
@@ -454,6 +543,33 @@ def species_sbml_id(species_name, document=None):
 # Helper function to add a species to the model
 # species must be chemical_reaction_network.species objects
 def add_species(model, compartment, species, debug=False, initial_concentration=None):
+    """Add a species to an SBML model.
+
+    Parameters
+    ----------
+    model : libsbml.Model
+        The SBML model to add the species to.
+    compartment : libsbml.Compartment
+        The compartment the species belongs to.
+    species : str
+        The species name. Must be a valid SBML identifier (no
+        colons, semicolons, or other special characters; can't start
+        with a number; must be unique).
+    debug : bool, default False
+        If True, print the species name and ID as it's added.
+    initial_concentration : float, optional
+        The species' initial concentration. Defaults to 0.
+
+    Returns
+    -------
+    libsbml.Species
+        The created SBML species.
+
+    Raises
+    ------
+    ValueError
+        If `species` is not a valid SBML identifier.
+    """
     model = model  # Get the model where we will store results
 
     # Construct the species name
@@ -484,6 +600,29 @@ def add_species(model, compartment, species, debug=False, initial_concentration=
 
 # Helper function to add a parameter to the model
 def add_parameter(model, param_name, param_value, debug=False):
+    """Add a parameter to an SBML model.
+
+    A single leading underscore in `param_name` is stripped (used
+    elsewhere to disambiguate parameter names from species names).
+    The parameter is created with ``constant=True``; this is set to
+    False later if a rule assigns to it.
+
+    Parameters
+    ----------
+    model : libsbml.Model
+        The SBML model to add the parameter to.
+    param_name : str
+        The parameter name.
+    param_value : float
+        The parameter's value.
+    debug : bool, default False
+        If True, print the parameter name as it's added.
+
+    Returns
+    -------
+    libsbml.Parameter
+        The created SBML parameter.
+    """
     # Check to see if this parameter is already present
     parameter = model.createParameter()
     # all_ids = getAllIds(model.getSBMLDocument().getListOfAllElements())
@@ -504,6 +643,40 @@ def add_parameter(model, param_name, param_value, debug=False):
 
 # Helper function to add a rule to an sbml model
 def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, rule_frequency, **kwargs):
+    """Add a rule to an SBML model.
+
+    Bioscrape's ``'assignment'``/``'additive'`` rule types map to an
+    SBML assignment rule; ``'ode'``/``'ODE'``/``'GeneralODERule'``
+    maps to an SBML rate rule. The bioscrape `rule_frequency` is
+    stored in a ``<BioscrapeAnnotation>`` since SBML has no
+    equivalent concept.
+
+    Parameters
+    ----------
+    model : libsbml.Model
+        The SBML model to add the rule to.
+    rule_id : str
+        ID (and name) for the created rule.
+    rule_type : str
+        One of ``'assignment'``, ``'additive'``, ``'ode'``,
+        ``'ODE'``, or ``'GeneralODERule'``.
+    rule_variable : str
+        ID of the species or parameter the rule assigns to.
+    rule_formula : str
+        The rule's right-hand-side formula.
+    rule_frequency : str
+        The bioscrape rule frequency, stored as an annotation.
+
+    Returns
+    -------
+    libsbml.Rule
+        The created SBML rule.
+
+    Raises
+    ------
+    ValueError
+        If `rule_type` is not a recognized type.
+    """
     # Create SBML equivalent of bioscrape rule:
     # Set constant attribute for parameter to False if rule is on a parameter.
     for param in model.getListOfParameters():
@@ -535,7 +708,56 @@ def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, rule_freque
 def add_reaction(model, inputs_list, outputs_list,
                  reaction_id, propensity_type, propensity_params,
                  stochastic = False, delay_annotation_dict = None):
+    """Add a reaction to an SBML model.
 
+    Builds the reaction's rate law from `propensity_type` and
+    `propensity_params`, and stores the propensity type (and delay,
+    if given) as a ``<BioscrapeAnnotation>`` so the reaction can be
+    round-tripped back through `import_sbml`.
+
+    Parameters
+    ----------
+    model : libsbml.Model
+        The SBML model to add the reaction to.
+    inputs_list : list of str
+        Reactant species names; a name repeated N times gives it
+        stoichiometry N.
+    outputs_list : list of str
+        Product species names; a name repeated N times gives it
+        stoichiometry N.
+    reaction_id : str
+        Requested ID for the reaction (made unique if it collides
+        with an existing SBML identifier).
+    propensity_type : str
+        One of ``'massaction'``, ``'hillpositive'``,
+        ``'hillnegative'``, ``'proportionalhillpositive'``,
+        ``'proportionalhillnegative'``, or ``'general'``.
+    propensity_params : dict
+        Parameters for the given propensity type: ``'k'`` for
+        ``'massaction'``/Hill types (plus ``'K'``, ``'n'``, and
+        ``'s1'`` for Hill types, and ``'d'`` for the proportional
+        Hill types), or ``'rate'`` for ``'general'``.
+    stochastic : bool, default False
+        If True, write a stochastic mass-action rate law (using
+        falling-factorial terms for self-reacting species). If
+        False, write a deterministic mass-action rate law.
+    delay_annotation_dict : dict, optional
+        If given, a delay description to store alongside the
+        propensity annotation, with keys ``'type'``, ``'reactants'``,
+        ``'products'``, and ``'parameters'``.
+
+    Returns
+    -------
+    libsbml.Reaction
+        The created SBML reaction.
+
+    Raises
+    ------
+    ValueError
+        If `propensity_type` is not recognized, if a Hill-type
+        propensity is missing a required key in `propensity_params`,
+        or if the rate law formula could not be written to SBML.
+    """
     # Create the reaction
     # We cast to an OrderedDict and back to remove duplicates.
     # We could cast to a regular dict instead, but only in Python 3.7 or higher.
@@ -906,7 +1128,20 @@ import time
 # This class implements an identifier transformer, that means it can be used
 # to rename all sbase elements.
 class SetIdFromNames(libsbml.IdentifierTransformer):
+    """Assigns SBML-valid, unique IDs to elements based on their names.
+
+    An `libsbml.IdentifierTransformer` that can be passed to
+    ``document.getModel().renameIDs()`` (see `renameSIds`) or used
+    directly to generate SBML identifiers from arbitrary names (e.g.
+    bioscrape species/parameter names) via `getValidIdForName`.
+
+    Parameters
+    ----------
+    ids : list of str
+        IDs already in use; new IDs are generated to avoid these.
+    """
     def __init__(self, ids):
+        """See class docstring."""
         # call the constructor of the base class
         libsbml.IdentifierTransformer.__init__(self)
         # remember existing ids ...
@@ -916,6 +1151,22 @@ class SetIdFromNames(libsbml.IdentifierTransformer):
 
     # once for each SBase element in the model.
     def transform(self, element):
+        """Set `element`'s ID from its name, if it doesn't have one.
+
+        Called once per SBase element by libsbml's ID-transformation
+        machinery; not normally called directly.
+
+        Parameters
+        ----------
+        element : libsbml.SBase
+            The element to (possibly) assign an ID to.
+
+        Returns
+        -------
+        int
+            An libsbml operation-result code (always
+            ``LIBSBML_OPERATION_SUCCESS``).
+        """
         # return in case we don't have a valid element
         if (element == None \
            or element.getTypeCode() == libsbml.SBML_LOCAL_PARAMETER):
@@ -938,6 +1189,23 @@ class SetIdFromNames(libsbml.IdentifierTransformer):
         return libsbml.LIBSBML_OPERATION_SUCCESS
 
     def nameToSbmlId(self, name):
+        """Convert a name to a valid (but not necessarily unique) SBML ID.
+
+        Non-alphanumeric characters become underscores; a leading
+        digit is prefixed with ``x_``; an ``'xx'`` marker is
+        inserted if `name` contains ``'*'``; a trailing underscore
+        is stripped.
+
+        Parameters
+        ----------
+        name : str
+            The name to convert.
+
+        Returns
+        -------
+        str
+            A valid SBML identifier derived from `name`.
+        """
         IdStream = []
         count = 0
         end = len(name)
@@ -964,6 +1232,21 @@ class SetIdFromNames(libsbml.IdentifierTransformer):
     # It does so by appending numbers to the original name.
     #
     def getValidIdForName(self, name):
+        """Convert a name to a valid, unique SBML ID.
+
+        Like `nameToSbmlId`, but appends ``_1``, ``_2``, etc. as
+        needed to avoid colliding with `existingIds`.
+
+        Parameters
+        ----------
+        name : str
+            The name to convert.
+
+        Returns
+        -------
+        str
+            A valid, unique SBML identifier derived from `name`.
+        """
         baseString = self.nameToSbmlId(name)
         id = baseString
         count = 1
