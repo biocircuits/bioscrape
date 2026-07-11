@@ -223,7 +223,7 @@ cdef class Data():
         list of str
             The measured species names.
         """
-        return self.get_measured_species
+        return self.get_measured_species()
 
 #Data consists of a single timecourse at T points gathered across M measurements at timempoints timepoints.
 #Measurements are assumed to correspond to species names in measured_species.

@@ -8,7 +8,7 @@ import pandas as pd
 
 from bioscrape.types import Model
 from bioscrape.simulator import py_simulate_model
-from bioscrape.inference import py_inference
+from bioscrape.inference import py_inference, Data
 from bioscrape.inference_setup import InferenceSetup
 from bioscrape.pid_interfaces import PIDInterface
 from emcee import EnsembleSampler
@@ -32,6 +32,17 @@ def model_setup():
     M = Model(species = species, parameters = parameters, rules = [rule], initial_condition_dict = x0)
     params_to_estimate = ['m','b']
     return M, params_to_estimate
+
+def test_data_py_get_methods():
+    timepoints = np.linspace(0, 10, 5)
+    measurements = np.random.rand(5, 2)
+    measured_species = ['A', 'B']
+    data = Data(timepoints = timepoints, measurements = measurements,
+                measured_species = measured_species, N = 1)
+
+    assert np.array_equal(data.py_get_timepoints(), timepoints)
+    assert np.array_equal(data.py_get_measurements(), measurements)
+    assert data.py_get_measured_species() == measured_species
 
 def test_getstate(model_setup):
     M, params_to_estimate = model_setup
