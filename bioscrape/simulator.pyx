@@ -1,7 +1,11 @@
 # cython: boundscheck=False
 # cython: cdivision=True
 # cython: wraparound=True
+"""
+Deterministic and stochastic simulators for bioscrape models.
 
+See `py_simulate_model` for the main user-facing entry point.
+"""
 import numpy as np
 cimport numpy as np
 cimport random as cyrandom
@@ -19,6 +23,11 @@ import logging
 #################################################                     ################################################
 
 cdef class DelayQueue:
+    """Interface for keeping track of queued delayed reactions.
+
+    Tracks reactions that have fired but won't resolve until some
+    future time. Must be subclassed by delay queue implementations.
+    """
     cdef void add_reaction(self, double time, unsigned rxn_id, double amount):
         """
         Add a reaction to the queue.
@@ -31,6 +40,18 @@ cdef class DelayQueue:
         pass
 
     def py_add_reaction(self,double time, unsigned rxn_id, double amount):
+        """Add a reaction to the queue.
+
+        Parameters
+        ----------
+        time : float
+            The time at which the reaction will occur.
+        rxn_id : unsigned
+            The reaction's ID, i.e. its column index in the
+            stoichiometry matrix.
+        amount : float
+            How many of the reaction occurs.
+        """
         self.add_reaction(time, rxn_id, amount)
 
 
@@ -45,6 +66,17 @@ cdef class DelayQueue:
         return 0.0
 
     def py_get_next_queue_time(self):
+        """Return the nearest queued time.
+
+        Note that it's possible no reaction occurs at this time: the
+        queue may internally update at some fixed time resolution
+        even when no reactions are due.
+
+        Returns
+        -------
+        float
+            The next queue time.
+        """
         return self.get_next_queue_time()
 
     cdef void get_next_reactions(self, double *rxn_array):
@@ -57,6 +89,15 @@ cdef class DelayQueue:
         pass
 
     def py_get_next_reactions(self, np.ndarray[np.double_t, ndim=1] rxn_array):
+        """Fill in how many of each reaction occurs at the next queued time.
+
+        Parameters
+        ----------
+        rxn_array : numpy.ndarray
+            Modified in place to hold the count of each reaction
+            occurring at the next queued time. Must have at least
+            one entry per reaction.
+        """
         self.get_next_reactions(<double*> rxn_array.data)
 
 
@@ -69,6 +110,11 @@ cdef class DelayQueue:
         pass
 
     def py_advance_time(self):
+        """Advance the queue to its next relevant time.
+
+        Call `py_get_next_reactions` before this, or the reactions
+        that occurred at the current queue time will be lost.
+        """
         self.advance_time()
 
 
@@ -80,6 +126,7 @@ cdef class DelayQueue:
         return None
 
     def py_copy(self):
+        """Return a new, totally independent copy of this DelayQueue."""
         return self.copy()
 
 
@@ -92,6 +139,13 @@ cdef class DelayQueue:
         pass
 
     def py_set_current_time(self, double t):
+        """Set the queue's current time.
+
+        Parameters
+        ----------
+        t : float
+            The time to set.
+        """
         self.set_current_time(t)
 
     cdef DelayQueue clear_copy(self):
@@ -102,6 +156,7 @@ cdef class DelayQueue:
         return None
 
     def py_clear_copy(self):
+        """Return a new DelayQueue with the same config but no reactions."""
         return self.clear_copy()
 
     cdef np.ndarray binomial_partition(self, double p):
@@ -112,18 +167,61 @@ cdef class DelayQueue:
         """
         return None
     def py_binomial_partition(self, double p):
+        """Randomly split this queue's reactions into two queues.
+
+        Parameters
+        ----------
+        p : float
+            Binomial probability, ``0 < p < 1``, that a given queued
+            reaction goes to the first of the two output queues.
+
+        Returns
+        -------
+        numpy.ndarray
+            Length-2 array of `DelayQueue` objects.
+        """
         return self.binomial_partition(p)
 
 cdef class ArrayDelayQueue(DelayQueue):
-    def __init__(self, np.ndarray queue, double dt, double current_time):
-        """
-        Initialize with a queue, dt resolution, and current time. The queue should have one row for each reaction and
-        the max future time that can be handled is dt*(number of queue columns).
+    """A `DelayQueue` backed by an array of future reaction counts.
 
-        :param queue: (np.ndarray) 2-D array containing the current time.
-        :param dt: (double) The time resolution dt
-        :param current_time: (double) The current time.
-        """
+    The max future time that can be handled is
+    ``dt * (number of queue columns)``.
+
+    Parameters
+    ----------
+    queue : numpy.ndarray
+        2-D array of future reaction counts (see the `queue`
+        attribute).
+    dt : float
+        The time resolution.
+    current_time : float
+        The current time.
+
+    Attributes
+    ----------
+    dt : float
+        The time resolution.
+    next_queue_time : float
+        The next gridded time point; these are spaced by `dt`.
+    num_cols : unsigned
+        The number of columns in `queue`, i.e. the number of `dt`
+        grid points ahead that are tracked.
+    num_reactions : unsigned
+        The number of reactions in the system, and the number of
+        rows in `queue`.
+    start_index : unsigned
+        The column of `queue` corresponding to `next_queue_time`;
+        cycles around as time advances.
+    queue : numpy.ndarray
+        2-D array whose columns are future time points spaced by
+        `dt` and whose rows are future reaction occurrences for each
+        reaction. `start_index` is the very next time, and each
+        successive column corresponds to `dt` more than the last,
+        wrapping around the end of the array.
+    """
+    def __init__(self, np.ndarray queue, double dt, double current_time):
+        """See class docstring."""
         self.num_reactions = queue.shape[0]
         self.num_cols = queue.shape[1]
         self.queue = queue
@@ -133,13 +231,21 @@ cdef class ArrayDelayQueue(DelayQueue):
 
     @staticmethod
     def setup_queue(unsigned num_reactions, unsigned queue_length, double dt):
-        """
-        Static method to create an empty ArrayDelayQueue given a desired length, number of reactions, and dt.
+        """Create an empty `ArrayDelayQueue`.
 
-        :param num_reactions: (unsigned) number of reactions in the system
-        :param queue_length: (unsigned) length of the queue
-        :param dt: (double) time step
-        :return: The created array delay queue object
+        Parameters
+        ----------
+        num_reactions : unsigned
+            Number of reactions in the system.
+        queue_length : unsigned
+            Number of `dt`-spaced future time points to track.
+        dt : float
+            The time resolution.
+
+        Returns
+        -------
+        ArrayDelayQueue
+            The created queue.
         """
         return ArrayDelayQueue(np.zeros((num_reactions,queue_length)), dt, 0.0)
 
@@ -252,16 +358,24 @@ cdef class ArrayDelayQueue(DelayQueue):
 #################################################                     ################################################
 
 cdef class CSimInterface:
+    """Interface for the stoichiometric matrices and delays of a model.
+
+    Base class for adapting a model (e.g. a `Model`) into the form
+    simulators need. Subclasses must override the propensity/delay
+    computation methods; see `ModelCSimInterface`.
+    """
     cdef np.ndarray get_update_array(self):
         return self.update_array
 
     def py_get_update_array(self):
+        """Return the stoichiometric matrix for immediate changes."""
         return self.get_update_array()
 
 
     cdef np.ndarray get_delay_update_array(self):
         return self.delay_update_array
     def py_get_delay_update_array(self):
+        """Return the stoichiometric matrix for delayed changes."""
         return self.get_delay_update_array()
 
     #Checks model or interface is valid. Meant to be overriden by the subclass
@@ -292,66 +406,77 @@ cdef class CSimInterface:
         return self.initial_state
 
     def py_get_initial_state(self):
+        """Return the initial state vector."""
         return self.get_initial_state()
 
     cdef void set_initial_state(self, np.ndarray a):
         self.initial_state = a
 
     def py_set_initial_state(self, np.ndarray a):
+        """Set the initial state vector."""
         self.set_initial_state(a)
 
     cdef unsigned get_num_reactions(self):
         return self.num_reactions
 
     def py_get_num_reactions(self):
+        """Return the number of reactions."""
         return self.get_num_reactions()
 
     cdef unsigned get_num_species(self):
         return self.num_species
 
     def py_get_num_species(self):
+        """Return the number of species."""
         return self.get_num_species()
 
     cdef double get_initial_time(self):
         return self.initial_time
 
     def py_get_initial_time(self):
+        """Return the initial simulation time."""
         return self.get_initial_time()
 
     cdef void set_initial_time(self, double t):
         self.initial_time = t
 
     def py_set_initial_time(self, double t):
+        """Set the initial simulation time."""
         self.set_initial_time(t)
 
     cdef void set_dt(self, double dt):
         self.dt = dt
 
     def py_set_dt(self, double dt):
+        """Set the simulation time step."""
         self.set_dt(dt)
 
     cdef double get_dt(self):
         return self.dt
 
     def py_get_dt(self):
+        """Return the simulation time step."""
         return self.get_dt()
 
     cdef double* get_param_values(self):
         return <double*> 0
 
     def py_get_param_values(self):
+        """Return the parameter values (None; override in subclasses)."""
         return None
 
     cdef unsigned get_num_parameters(self):
         return 0
 
     def py_get_num_parameters(self):
+        """Return the number of parameters (0; override in subclasses)."""
         return self.get_num_parameters()
 
     cdef unsigned get_number_of_rules(self):
         return 0
 
     def py_get_number_of_rules(self):
+        """Return the number of rules (0; override in subclasses)."""
         return self.get_number_of_rules()
 
     cdef void apply_repeated_rules(self, double *state, double time, unsigned rule_step):
@@ -361,9 +486,37 @@ cdef class CSimInterface:
         pass
 
     def py_apply_repeated_rules(self, np.ndarray[np.double_t, ndim=1] state, double time=0.0, rule_step = True):
+        """Apply the model's rules to a state vector, in place.
+
+        A no-op in the base class; overridden in subclasses.
+
+        Parameters
+        ----------
+        state : numpy.ndarray
+            The state vector, modified in place.
+        time : float, default 0.0
+            The current simulation time.
+        rule_step : bool, default True
+            Whether this call lands on a rule-application step.
+        """
         self.apply_repeated_rules(<double*> state.data,time, rule_step)
 
     def py_apply_repeated_volume_rules(self, np.ndarray[np.double_t, ndim=1] state, double volume = 1.0, double time=0.0, rule_step = True):
+        """Apply the model's volume-dependent rules, in place.
+
+        A no-op in the base class; overridden in subclasses.
+
+        Parameters
+        ----------
+        state : numpy.ndarray
+            The state vector, modified in place.
+        volume : float, default 1.0
+            The current cell volume.
+        time : float, default 0.0
+            The current simulation time.
+        rule_step : bool, default True
+            Whether this call lands on a rule-application step.
+        """
         self.apply_repeated_volume_rules(<double*> state.data, volume, time, rule_step)
 
 
@@ -391,6 +544,12 @@ cdef class CSimInterface:
         global_sim = self
 
     def py_prep_deterministic_simulation(self):
+        """Prepare this interface for deterministic simulation.
+
+        Builds the compressed stoichiometry matrix and propensity
+        buffer used by `py_calculate_deterministic_derivative`. Must
+        be called once before running a deterministic simulation.
+        """
         self.prep_deterministic_simulation()
 
     # Compute deterministic derivative
@@ -409,12 +568,37 @@ cdef class CSimInterface:
 
     def py_calculate_deterministic_derivative(self, np.ndarray[np.double_t,ndim=1] x, np.ndarray[np.double_t,ndim=1] dx,
                                               double t):
+        """Compute the deterministic ODE derivative dx/dt at state x.
+
+        `py_prep_deterministic_simulation` must be called first.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            The state vector.
+        dx : numpy.ndarray
+            Modified in place to hold the computed derivative.
+        t : float
+            The current simulation time.
+        """
         self.calculate_deterministic_derivative(<double*> x.data, <double*> dx.data, t)
 
 
 
 cdef class ModelCSimInterface(CSimInterface):
+    """A `CSimInterface` backed by a bioscrape `Model`.
+
+    Extracts the propensities, delays, rules, and stoichiometric
+    matrices from `external_model` for use by the simulators.
+
+    Parameters
+    ----------
+    external_model : Model
+        The model to wrap. Initialized automatically (see
+        `Model.py_initialize`) if it isn't already.
+    """
     def __init__(self, external_model):
+        """See class docstring."""
         self.model = external_model
         #Check Model and initialization
         if not self.model.initialized:
@@ -493,9 +677,23 @@ cdef class ModelCSimInterface(CSimInterface):
         self.c_param_values = <double*>(self.np_param_values.data)
 
     def py_get_param_values(self):
+        """Return the parameter values."""
         return self.np_param_values
 
     def py_set_param_values(self, params):
+        """Set the parameter values.
+
+        Parameters
+        ----------
+        params : numpy.ndarray
+            The new parameter values; must be the same length as the
+            current parameter values.
+
+        Raises
+        ------
+        ValueError
+            If `params` is not the expected length.
+        """
         if len(params) != len(self.np_param_values):
             raise ValueError(f"params must be a numpy array of length {len(self.np_param_values)}. Recieved {params}.")
         self.np_param_values = params
@@ -506,7 +704,28 @@ cdef class ModelCSimInterface(CSimInterface):
         return self.np_param_values.shape[0]
 
 cdef class SafeModelCSimInterface(ModelCSimInterface):
+    """A `ModelCSimInterface` with extra validity checks.
+
+    Before computing a reaction's propensity, checks that its
+    reactant species have enough copies available; if not, the
+    propensity is set to 0 without evaluating it. Also warns (and
+    zeroes out) any propensity that computes as negative, and warns
+    if any species count or volume falls outside
+    ``[0, max_species_count]``/``(0, max_volume]`` before computing
+    stochastic propensities, instead of silently propagating an
+    ill-conditioned value.
+
+    Parameters
+    ----------
+    external_model : Model
+        The model to wrap.
+    max_volume : float, default 10000
+        Upper bound on volume before a warning is issued.
+    max_species_count : float, default 10000
+        Upper bound on a species count before a warning is issued.
+    """
     def __init__(self, external_model, max_volume = 10000, max_species_count = 10000):
+        """See class docstring."""
         self.max_volume = max_volume
         self.max_species_count = max_species_count
         super().__init__(external_model)
@@ -646,18 +865,45 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
 
 
 cdef class SSAResult:
+    """The result of a simulation: timepoints and species over time.
+
+    Parameters
+    ----------
+    timepoints : numpy.ndarray
+        1-D array of the simulation's time points.
+    result : numpy.ndarray
+        2-D array of species values, one row per timepoint, one
+        column per species.
+    """
     def __init__(self, np.ndarray timepoints, np.ndarray result):
+        """See class docstring."""
         self.timepoints = timepoints
         self.simulation_result = result
 
     def py_get_timepoints(self):
+        """Return the 1-D array of simulation time points."""
         return self.get_timepoints()
 
     def py_get_result(self):
+        """Return the 2-D array of species values over time."""
         return self.get_result()
 
     #Returns a Pandas Data Frame, if it is installed. If not, a Numpy array is returned.
     def py_get_dataframe(self, Model = None):
+        """Return this result's data as a pandas DataFrame.
+
+        Parameters
+        ----------
+        Model : Model, optional
+            If given, used to label the data columns with species
+            names. Otherwise the columns are left unnamed.
+
+        Returns
+        -------
+        pandas.DataFrame or numpy.ndarray
+            The species values and time as a DataFrame, or (if
+            pandas is not installed) the raw result array.
+        """
         try:
             import pandas
             if Model == None:
@@ -675,15 +921,34 @@ cdef class SSAResult:
 
 
     def py_empirical_distribution(self, start_time = None, species = None, Model = None, final_time = None, max_counts = None):
-        """
-            calculates the empirical distribution of a trajectory over counts
-            start_time: the time to begin the empirical calculation
-            final_time: time to end the empirical marginalization
-            species: the list of species inds or names to calculate over. Marginalizes over non-included species
-            max_counts: a list (size N-species) of the maximum count expected for each species. 
-                 If max_counts[i] == 0, defaults to the maximum count found in the simulation: max(results[:, i]).
-                 Useful for getting distributions of a specific size/shape.
-            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """Compute the empirical distribution of a trajectory over counts.
+
+        Parameters
+        ----------
+        start_time : float, optional
+            Time to begin the calculation. Defaults to the first
+            simulation timepoint.
+        species : list of int or str, optional
+            Species (by index or name) to calculate over. Species
+            not included are marginalized out. Defaults to all
+            species.
+        Model : Model, optional
+            The model used to produce these results. Required if
+            `species` are given by name instead of index.
+        final_time : float, optional
+            Time to end the calculation. Defaults to the last
+            simulation timepoint.
+        max_counts : list of int, optional
+            Maximum count expected for each species in `species`. If
+            an entry is 0, it defaults to the maximum count observed
+            in the simulation for that species. Useful for getting
+            distributions of a specific size/shape.
+
+        Returns
+        -------
+        numpy.ndarray
+            The empirical distribution, with one axis per requested
+            species, sized `max_counts`.
         """
         if species is None:
             species_inds = [i for i in range(self.simulation_result.shape[1])]
@@ -760,12 +1025,27 @@ cdef class SSAResult:
 
     #Python wrapper of a fast cython function to compute the first moment (mean) of a set of Species
     def py_first_moment(self, start_time = None, species = None, Model = None, final_time = None):
-        """
-            calculates the first moment (mean) of a trajectory over counts
-            start_time: the time to begin the empirical calculation
-            final_time: time to end the empirical marginalization
-            species: the list of species inds or names to calculate over. Marginalizes over non-included species
-            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """Compute the first moment (mean) of a trajectory over counts.
+
+        Parameters
+        ----------
+        start_time : float, optional
+            Time to begin the calculation. Defaults to the first
+            simulation timepoint.
+        species : list of int or str, optional
+            Species (by index or name) to calculate over. Defaults
+            to all species.
+        Model : Model, optional
+            The model used to produce these results. Required if
+            `species` are given by name instead of index.
+        final_time : float, optional
+            Time to end the calculation. Defaults to the last
+            simulation timepoint.
+
+        Returns
+        -------
+        numpy.ndarray
+            The mean of each requested species over the time window.
         """
 
         if species is None:
@@ -813,12 +1093,28 @@ cdef class SSAResult:
 
     #Python wrapper of a fast cython function to compute the standard deviation of a set of Species
     def py_standard_deviation(self, start_time = None, species = None, Model = None, final_time = None):
-        """
-            calculates the standard deviation of a trajectory over counts
-            start_time: the time to begin the empirical calculation
-            final_time: time to end the empirical marginalization
-            species: the list of species inds or names to calculate over. Marginalizes over non-included species
-            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """Compute the standard deviation of a trajectory over counts.
+
+        Parameters
+        ----------
+        start_time : float, optional
+            Time to begin the calculation. Defaults to the first
+            simulation timepoint.
+        species : list of int or str, optional
+            Species (by index or name) to calculate over. Defaults
+            to all species.
+        Model : Model, optional
+            The model used to produce these results. Required if
+            `species` are given by name instead of index.
+        final_time : float, optional
+            Time to end the calculation. Defaults to the last
+            simulation timepoint.
+
+        Returns
+        -------
+        numpy.ndarray
+            The standard deviation of each requested species over
+            the time window.
         """
         if species is None:
             species_inds = [i for i in range(self.simulation_result.shape[1])]
@@ -866,13 +1162,33 @@ cdef class SSAResult:
 
     #Computes the correlations between species1 and species2
     def py_correlations(self, start_time = None, species1 = None, species2 = None, final_time = None, Model = None):
-        """
-            calculates the pairwise correlations (species1 x species2) of a trajectory over counts
-            start_time: the time to begin the empirical calculation
-            final_time: time to end the empirical marginalization
-            species1: a list of species names or indices. If None, defaults to all species.
-            species2: a second list of species indices or names. All pairs between species1 and species2 are computed
-            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """Compute pairwise correlations between two lists of species.
+
+        Parameters
+        ----------
+        start_time : float, optional
+            Time to begin the calculation. Defaults to the first
+            simulation timepoint.
+        species1 : list of int or str, optional
+            First list of species (by index or name). Defaults to
+            all species.
+        species2 : list of int or str, optional
+            Second list of species (by index or name); all pairs
+            between `species1` and `species2` are computed. Defaults
+            to all species.
+        final_time : float, optional
+            Time to end the calculation. Defaults to the last
+            simulation timepoint.
+        Model : Model, optional
+            The model used to produce these results. Required if
+            `species1`/`species2` are given by name instead of
+            index.
+
+        Returns
+        -------
+        numpy.ndarray
+            2-D array of correlations, indexed by `species1` and
+            `species2`.
         """
 
         if species1 is None:
@@ -938,13 +1254,33 @@ cdef class SSAResult:
 
     #Python wrapper of a fast cython function to compute the second moment (E[S1*S2]) pairwise between two lists of species
     def py_second_moment(self, start_time = None, species1 = None, species2 = None, final_time = None, Model = None):
-        """
-            calculates the pairwise second moments of a trajectory over counts
-            start_time: the time to begin the empirical calculation
-            final_time: time to end the empirical marginalization
-            species1: a list of species names or indices. If None, defaults to all species.
-            species2: a second list of species indices or names. All pairs between species1 and species2 are computed
-            Model: the model used to produce the results. Required if species are referenced by name isntead of index
+        """Compute pairwise second moments (E[S1*S2]) of two species lists.
+
+        Parameters
+        ----------
+        start_time : float, optional
+            Time to begin the calculation. Defaults to the first
+            simulation timepoint.
+        species1 : list of int or str, optional
+            First list of species (by index or name). Defaults to
+            all species.
+        species2 : list of int or str, optional
+            Second list of species (by index or name); all pairs
+            between `species1` and `species2` are computed. Defaults
+            to all species.
+        final_time : float, optional
+            Time to end the calculation. Defaults to the last
+            simulation timepoint.
+        Model : Model, optional
+            The model used to produce these results. Required if
+            `species1`/`species2` are given by name instead of
+            index.
+
+        Returns
+        -------
+        numpy.ndarray
+            2-D array of second moments, indexed by `species1` and
+            `species2`.
         """
 
         if species1 is None:
@@ -1005,26 +1341,76 @@ cdef class SSAResult:
         return moments
 
 cdef class DelaySSAResult(SSAResult):
+    """The result of a delay simulation.
+
+    Timepoints and species over time, plus the final set of queued
+    (not-yet-resolved) delayed reactions.
+
+    Parameters
+    ----------
+    timepoints : numpy.ndarray
+        1-D array of the simulation's time points.
+    result : numpy.ndarray
+        2-D array of species values, one row per timepoint, one
+        column per species.
+    queue : DelayQueue
+        The queue's state at the end of the simulation.
+    """
     def __init__(self, np.ndarray timepoints, np.ndarray result, DelayQueue queue):
+        """See class docstring."""
         self.final_delay_queue = queue
         self.simulation_result = result
 
     def py_get_delay_queue(self):
+        """Return the DelayQueue's state at the end of the simulation."""
         return self.get_delay_queue()
 
 
 cdef class VolumeSSAResult(SSAResult):
+    """The result of a volume simulation.
+
+    Timepoints and species/volume over time.
+
+    Parameters
+    ----------
+    timepoints : numpy.ndarray
+        1-D array of the simulation's time points.
+    result : numpy.ndarray
+        2-D array of species values, one row per timepoint, one
+        column per species.
+    volume : numpy.ndarray
+        1-D array of the cell volume at each timepoint.
+    divided : unsigned
+        Whether the cell divided during the simulation.
+    """
     def __init__(self,np.ndarray timepoints,np.ndarray result,np.ndarray volume,unsigned divided):
+        """See class docstring."""
         super().__init__(timepoints, result)
         self.volume = volume
         self.cell_divided_flag = divided
 
     def py_cell_divided(self):
+        """Return whether the cell divided during the simulation."""
         return self.cell_divided()
     def py_get_volume(self):
+        """Return the 1-D array of cell volume at each timepoint."""
         return self.get_volume()
 
     def py_get_dataframe(self, Model = None):
+        """Return this result's data as a pandas DataFrame.
+
+        Parameters
+        ----------
+        Model : Model, optional
+            If given, used to label the data columns with species
+            names. Otherwise the columns are left unnamed.
+
+        Returns
+        -------
+        pandas.DataFrame or numpy.ndarray
+            The species values, volume, and time as a DataFrame, or
+            (if pandas is not installed) the raw result array.
+        """
         df = super().py_get_dataframe(Model = Model)
         try:
             import pandas
@@ -1048,21 +1434,44 @@ cdef class VolumeSSAResult(SSAResult):
         return cs
 
     def py_get_final_cell_state(self):
+        """Return the `VolumeCellState` at the end of the simulation."""
         return self.get_final_cell_state()
 
     cdef Schnitz get_schnitz(self):
         return Schnitz(self.timepoints,self.simulation_result,self.volume)
 
     def py_get_schnitz(self):
+        """Return this result as a `Schnitz`."""
         return self.get_schnitz()
 
 
 cdef class DelayVolumeSSAResult(VolumeSSAResult):
+    """The result of a simulation with delay and volume.
+
+    Timepoints and species/volume over time, plus the final set of
+    queued (not-yet-resolved) delayed reactions.
+
+    Parameters
+    ----------
+    timepoints : numpy.ndarray
+        1-D array of the simulation's time points.
+    result : numpy.ndarray
+        2-D array of species values, one row per timepoint, one
+        column per species.
+    volume : numpy.ndarray
+        1-D array of the cell volume at each timepoint.
+    queue : DelayQueue
+        The queue's state at the end of the simulation.
+    divided : unsigned
+        Whether the cell divided during the simulation.
+    """
     def __init__(self,np.ndarray timepoints, np.ndarray result, np.ndarray volume, DelayQueue queue, unsigned divided):
+        """See class docstring."""
         super().__init__(timepoints, result, volume, divided)
         self.final_delay_queue = queue
 
     def py_get_delay_queue(self):
+        """Return the DelayQueue's state at the end of the simulation."""
         return self.get_delay_queue()
 
     cdef VolumeCellState get_final_cell_state(self):
@@ -1078,29 +1487,68 @@ cdef class DelayVolumeSSAResult(VolumeSSAResult):
 # Cell state classes
 
 cdef class CellState:
+    """A simple cell state: species values and time.
+
+    Parameters
+    ----------
+    time : float, optional
+        The state's time.
+    state : numpy.ndarray, optional
+        The species values.
+    """
     def __init__(self, time = None, state = None):
+        """See class docstring."""
         if time is not None:
             self.py_set_time(time)
         if state is not None:
             self.py_set_state(state)
 
     def py_set_state(self, np.ndarray state):
+        """Set the species values."""
         self.state = state
 
     def py_get_state(self):
+        """Return the species values."""
         return self.state
 
     def py_set_time(self, double t):
+        """Set the state's time."""
         self.time = t
 
     def py_get_time(self):
+        """Return the state's time."""
         return self.time
 
     def py_set_species(self, model, specie, value):
+        """Set the value of one species.
+
+        Parameters
+        ----------
+        model : Model
+            The model used to look up `specie`'s index.
+        specie : str
+            The species name.
+        value : float
+            The value to set.
+        """
         ind = model.get_species_index(specie)
         self.state[ind] = value
 
     def py_get_dataframe(self, Model = None):
+        """Return this state's data as a pandas DataFrame.
+
+        Parameters
+        ----------
+        Model : Model, optional
+            If given, used to label the data columns with species
+            names. Otherwise the columns are left unnamed.
+
+        Returns
+        -------
+        pandas.DataFrame or numpy.ndarray
+            The species values and time as a one-row DataFrame, or
+            (if pandas is not installed) the raw state array.
+        """
         try:
             import pandas
             if Model == None:
@@ -1118,19 +1566,50 @@ cdef class CellState:
             return self.state
 
 cdef class DelayCellState(CellState):
+    """A cell state in a delay system: species, time, and queue.
+
+    Parameters
+    ----------
+    time : float, optional
+        The state's time.
+    state : numpy.ndarray, optional
+        The species values.
+    queue : DelayQueue, optional
+        The queue of not-yet-resolved delayed reactions.
+    """
     def __init__(self, time = None, state = None, queue = None):
+        """See class docstring."""
         super().__init__(time, state)
         if queue is not None:
             self.py_set_delay_queue(queue)
 
     def py_get_delay_queue(self):
+        """Return the queue of not-yet-resolved delayed reactions."""
         return self.delay_queue
 
     def py_set_delay_queue(self, DelayQueue q):
+        """Set the queue of not-yet-resolved delayed reactions."""
         self.delay_queue = q
 
 cdef class VolumeCellState(CellState):
+    """A cell state in a system with volume: species, time, volume.
+
+    Parameters
+    ----------
+    time : float, optional
+        The state's time.
+    state : numpy.ndarray, optional
+        The species values.
+    volume : float or Volume, optional
+        The cell volume, or a `Volume` object to derive it from.
+
+    Raises
+    ------
+    TypeError
+        If `volume` is given and is neither a `float` nor a `Volume`.
+    """
     def __init__(self, time = None, state = None, volume = None):
+        """See class docstring."""
         super().__init__(time, state)
         self.volume_object = None
         if volume is not None:
@@ -1142,15 +1621,19 @@ cdef class VolumeCellState(CellState):
                 raise TypeError(f"VolumeCellState volume argument must be a double or Volume (was {type(volume)}.")
 
     def py_set_volume(self, double volume):
+        """Set the cell volume."""
         self.volume = volume
 
     def py_get_volume(self):
+        """Return the cell volume."""
         return self.volume
 
     def py_set_volume_object(self, Volume v):
+        """Set the `Volume` object associated with this state."""
         self.volume_object = v
 
     def py_get_volume_object(self):
+        """Return the `Volume` object associated with this state."""
         return self.volume_object
 
     def __setstate__(self, state):
@@ -1162,6 +1645,21 @@ cdef class VolumeCellState(CellState):
         return (self.time, self.volume, self.state)
 
     def py_get_dataframe(self, Model = None):
+        """Return this state's data as a pandas DataFrame.
+
+        Parameters
+        ----------
+        Model : Model, optional
+            If given, used to label the data columns with species
+            names. Otherwise the columns are left unnamed.
+
+        Returns
+        -------
+        pandas.DataFrame or numpy.ndarray
+            The species values, volume, and time as a one-row
+            DataFrame, or (if pandas is not installed) the raw state
+            array from `CellState.py_get_dataframe`, unchanged.
+        """
         df = super().py_get_dataframe(Model = Model)
         try:
             import pandas
@@ -1174,15 +1672,34 @@ cdef class VolumeCellState(CellState):
 
 # DEV NOTE: Should be able to just inherit from DelayCellState as well as here, right?
 cdef class DelayVolumeCellState(VolumeCellState):
+    """A cell state with both delay and volume.
+
+    Species, time, volume, and the queue of not-yet-resolved delayed
+    reactions.
+
+    Parameters
+    ----------
+    time : float, optional
+        The state's time.
+    state : numpy.ndarray, optional
+        The species values.
+    volume : float or Volume, optional
+        The cell volume, or a `Volume` object to derive it from.
+    queue : DelayQueue, optional
+        The queue of not-yet-resolved delayed reactions.
+    """
     def __init__(self, time = None, state = None, volume = None, queue = None):
+        """See class docstring."""
         super().__init__(time, state, volume)
         if queue is not None:
             self.py_set_delay_queue(queue)
 
     def py_get_delay_queue(self):
+        """Return the queue of not-yet-resolved delayed reactions."""
         return self.delay_queue
 
     def py_set_delay_queue(self, DelayQueue q):
+        """Set the queue of not-yet-resolved delayed reactions."""
         self.delay_queue = q
 
 
@@ -1191,6 +1708,10 @@ cdef class DelayVolumeCellState(VolumeCellState):
 #################################################                     ################################################
 
 cdef class VolumeSplitter:
+    """Interface for partitioning a cell (no delay, volume only).
+
+    Must be subclassed.
+    """
     cdef np.ndarray partition(self, VolumeCellState parent):
         """
         Split the parent state into two VolumeCellState's.
@@ -1202,19 +1723,53 @@ cdef class VolumeSplitter:
         raise NotImplementedError('partition() not implemented for VolumeSplitter')
 
     def py_partition(self, VolumeCellState parent):
+        """Split a parent cell state into two daughter states.
+
+        Parameters
+        ----------
+        parent : VolumeCellState
+            The cell state to split.
+
+        Returns
+        -------
+        tuple of VolumeCellState
+            The two daughter cell states.
+        """
         cdef np.ndarray ans = self.partition(parent)
         return <VolumeCellState> (ans[0]), <VolumeCellState> (ans[1])
 
 cdef class DelayVolumeSplitter:
+    """Interface for partitioning a cell (with delay and volume).
+
+    Must be subclassed.
+    """
     cdef np.ndarray partition(self, DelayVolumeCellState parent):
         raise NotImplementedError('partition() not implemented for DelayVolumeSplitter')
 
     def py_partition(self, DelayVolumeCellState parent):
+        """Split a parent cell state into two daughter states.
+
+        Parameters
+        ----------
+        parent : DelayVolumeCellState
+            The cell state to split.
+
+        Returns
+        -------
+        tuple of DelayVolumeCellState
+            The two daughter cell states.
+        """
         cdef np.ndarray ans = self.partition(parent)
         return <DelayVolumeCellState> (ans[0]), <DelayVolumeCellState> (ans[1])
 
 
 cdef class PerfectBinomialVolumeSplitter(VolumeSplitter):
+    """Splits a cell into two equal halves, molecules binomially.
+
+    Volume is split exactly in half; each molecule of each species
+    independently goes to one daughter or the other with probability
+    0.5.
+    """
     cdef np.ndarray partition(self, VolumeCellState parent):
         # set up daughters d and e
         cdef VolumeCellState d = VolumeCellState()
@@ -1261,13 +1816,20 @@ cdef class GeneralVolumeSplitter(VolumeSplitter):
         self.partition_noise = 0
 
     def py_set_partitioning(self, dict options, Model m):
-        """
-        Set how each species is partitioned.
-        :param options(dict: str -> [str]): A dictionary where keys specify partioning mode and values are lists of
-         species partitioned using that mode. "perfect" means partitioned perfectly +/- 0.5 to maintain round numbers.
-         "binomial" means partitioned binomially. "duplicate" means the species is duplicated with the same number into
-         each daughter cell.
-        :return: None
+        """Set how each species is partitioned between daughter cells.
+
+        Parameters
+        ----------
+        options : dict of str to list of str
+            Maps a partitioning mode to the species names using it.
+            ``'perfect'`` splits a species as evenly as possible
+            (+/- 0.5, keeping round numbers); ``'binomial'`` splits
+            it binomially; ``'duplicate'`` gives each daughter the
+            same count as the parent. Species not listed under
+            ``'perfect'`` or ``'duplicate'`` default to
+            ``'binomial'``.
+        m : Model
+            The model used to look up species indices.
         """
 
         # clear vectors
@@ -1300,10 +1862,17 @@ cdef class GeneralVolumeSplitter(VolumeSplitter):
 
 
     def py_set_partition_noise(self, double noise):
-        """
-        Set the noise, pick a uniform volume that is anywhere from 0.5 - noise to 0.5 of the original volume.
-        :param noise: the noise param, should be < 0.5, ideally probably something like 0.05 to 0.1
-        :return: none
+        """Set the volume-split noise.
+
+        The split fraction is drawn uniformly from
+        ``[0.5 - noise, 0.5]`` of the parent's volume rather than
+        always splitting exactly in half.
+
+        Parameters
+        ----------
+        noise : float
+            The noise parameter; should be < 0.5, typically around
+            0.05 to 0.1.
         """
         self.partition_noise = noise
 
@@ -1374,6 +1943,17 @@ cdef class GeneralVolumeSplitter(VolumeSplitter):
 
 
 cdef class PerfectBinomialDelayVolumeSplitter(DelayVolumeSplitter):
+    """Splits a cell with delays into two equal halves, binomially.
+
+    Volume, molecules, and queued (not-yet-resolved) delayed
+    reactions are all split binomially with p=0.5.
+
+    Warnings
+    --------
+    If a queued reaction has a negative species update, splitting it
+    binomially can leave a daughter cell with a negative species
+    count.
+    """
     cdef np.ndarray partition(self, DelayVolumeCellState parent):
         # set up daughters d and e
         cdef DelayVolumeCellState d = DelayVolumeCellState()
@@ -1422,7 +2002,17 @@ cdef class PerfectBinomialDelayVolumeSplitter(DelayVolumeSplitter):
 
 
 cdef class CustomSplitter(VolumeSplitter):
+    """Splits a cell using a user-supplied function.
+
+    Parameters
+    ----------
+    split_function : callable
+        Called as ``split_function(parent)`` with the parent
+        `VolumeCellState`; must return a length-2 array of the two
+        daughter `VolumeCellState` objects.
+    """
     def __init__(self, split_function):
+        """See class docstring."""
         self.split_function = split_function
 
     cdef np.ndarray partition(self, VolumeCellState parent):
@@ -1476,6 +2066,10 @@ def rhs_ivp(double t, np.ndarray[np.double_t, ndim=1] state):
 
 # Regular simulations with no volume or delay involved.
 cdef class RegularSimulator:
+    """Interface for simulators with no delay or volume involved.
+
+    Must be subclassed.
+    """
     cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints):
         """
         Perform a simple regular stochastic simulation with no delay or volume involved.
@@ -1488,29 +2082,69 @@ cdef class RegularSimulator:
         raise NotImplementedError("simulate function not implemented for RegularSimulator")
 
     def py_simulate(self, CSimInterface sim, np.ndarray timepoints):
+        """Run a simulation with no delay or volume involved.
+
+        Parameters
+        ----------
+        sim : CSimInterface
+            The reaction system to simulate. Must have its initial
+            time set.
+        timepoints : numpy.ndarray
+            The time points to report results at (must be after the
+            initial time).
+
+        Returns
+        -------
+        SSAResult
+            The simulation result.
+        """
         #suggested that interfaces do some error checking on themselves to prevent kernel crashes.
         sim.check_interface()
         return self.simulate(sim,timepoints)
 
 
 cdef class DeterministicSimulator(RegularSimulator):
-    """
-    A class for implementing a deterministic simulator.
+    """A deterministic simulator using `scipy.integrate.odeint`.
+
+    Attributes
+    ----------
+    atol : float
+        Absolute error tolerance for the ODE integrator.
+    rtol : float
+        Relative error tolerance for the ODE integrator.
+    mxstep : unsigned
+        Maximum number of integrator steps to allow, growing from an
+        initial attempt of 500 by 10x each retry until this cap.
+    hmax : float
+        Maximum step size to use during simulation (0 means
+        unlimited).
     """
 
     def __init__(self):
+        """See class docstring."""
         self.atol = 1.49012e-8
         self.rtol = 1.49012e-8
         self.mxstep = 500000
         self.hmax = 0 #Maximum step to use during simulation
 
     def py_set_tolerance(self, double atol, double rtol):
+        """Set the ODE integrator's absolute and relative tolerance.
+
+        Parameters
+        ----------
+        atol : float
+            Absolute error tolerance.
+        rtol : float
+            Relative error tolerance.
+        """
         self.set_tolerance(atol, rtol)
 
     def py_set_mxstep(self, unsigned mxstep):
+        """Set the maximum number of ODE integrator steps to allow."""
         self.mxstep = mxstep
 
     def py_set_hmax(self, double hmax):
+        """Set the maximum ODE integrator step size (0 = unlimited)."""
         self.hmax = hmax
 
     def _helper_simulate(self, CSimInterface sim, np.ndarray timepoints, **keywords):
@@ -1580,6 +2214,27 @@ cdef class DeterministicSimulator(RegularSimulator):
         return self._helper_simulate(sim,timepoints)
 
     def py_simulate(self, CSimInterface sim, np.ndarray timepoints, **keywords):
+        """Run a deterministic simulation.
+
+        Parameters
+        ----------
+        sim : CSimInterface
+            The reaction system to simulate. Must have its initial
+            time set.
+        timepoints : numpy.ndarray
+            The time points to report results at (must be after the
+            initial time).
+        **keywords
+            Additional keyword arguments forwarded to
+            `scipy.integrate.odeint` (e.g. `atol`, `rtol`, `hmax`,
+            overriding the instance's own settings for this call).
+
+        Returns
+        -------
+        SSAResult
+            The simulation result. If the integrator fails even at
+            `mxstep`, the result's values are all `numpy.nan`.
+        """
         #suggested that interfaces do some error checking on themselves to prevent kernel crashes.
         sim.check_interface()
         return self._helper_simulate(sim, timepoints, **keywords)
@@ -1675,6 +2330,24 @@ cdef class DelaySimulator:
         raise NotImplementedError("Did not implement simulate function for DelaySimulator")
 
     def py_delay_simulate(self, CSimInterface sim, DelayQueue dq, np.ndarray timepoints):
+        """Run a delay SSA simulation.
+
+        Parameters
+        ----------
+        sim : CSimInterface
+            The reaction system to simulate. Must have its initial
+            time set.
+        dq : DelayQueue
+            The initial queue of delayed reactions.
+        timepoints : numpy.ndarray
+            The time points to report results at (must be after the
+            initial time).
+
+        Returns
+        -------
+        DelaySSAResult
+            The simulation result.
+        """
         sim.check_interface()
         return self.delay_simulate(sim,dq,timepoints)
 
@@ -1812,6 +2485,24 @@ cdef class VolumeSimulator:
         raise NotImplementedError("Did not implement simulation function for Volume Simulator")
 
     def py_volume_simulate(self, CSimInterface sim, Volume v, np.ndarray timepoints):
+        """Run a simulation with a growing/dividing cell volume.
+
+        Parameters
+        ----------
+        sim : CSimInterface
+            The reaction system to simulate. Must be initialized to
+            the same time as `v`.
+        v : Volume
+            The volume model, initialized to the same time as `sim`.
+        timepoints : numpy.ndarray
+            The time points to report results at (the first must be
+            >= the initial time).
+
+        Returns
+        -------
+        VolumeSSAResult
+            The simulation result.
+        """
         sim.check_interface()
         return self.volume_simulate(sim,v,timepoints)
 
@@ -1952,6 +2643,26 @@ cdef class DelayVolumeSimulator:
         raise NotImplementedError("Did not implement simulation function for delay/volume simulator.")
 
     def py_delay_volume_simulate(self,CSimInterface sim, DelayQueue q, Volume v, np.ndarray timepoints):
+        """Run a simulation with both delay and a growing/dividing volume.
+
+        Parameters
+        ----------
+        sim : CSimInterface
+            The reaction system to simulate. Must be initialized to
+            the same time as `q` and `v`.
+        q : DelayQueue
+            The initial queue of delayed reactions.
+        v : Volume
+            The volume model, initialized to the same time as `sim`.
+        timepoints : numpy.ndarray
+            The time points to report results at (the first must be
+            >= the initial time).
+
+        Returns
+        -------
+        DelayVolumeSSAResult
+            The simulation result.
+        """
         sim.check_interface()
         return self.delay_volume_simulate(sim,q,v,timepoints)
 
@@ -2101,34 +2812,58 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
 
 
 #A wrapper function to allow easy simulation of Models
-def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = False, 
+def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = False,
                     delay = None, safe = False, volume = False, return_dataframe = True, **keywords):
+    """Simulate a bioscrape `Model`.
+
+    Parameters
+    ----------
+    timepoints : numpy.ndarray
+        The times to report simulation results at.
+    Model : Model, optional
+        The bioscrape model to simulate. Exactly one of `Model` or
+        `Interface` must be given.
+    Interface : CSimInterface, optional
+        A specific simulation interface to use instead of building
+        one from `Model`. Exactly one of `Model` or `Interface` must
+        be given. Developers may pass an existing interface to speed
+        up repeated simulations.
+    stochastic : bool, default False
+        If True, run a stochastic simulation with the Gillespie
+        algorithm. If False, run a deterministic simulation with
+        `scipy.integrate.odeint`.
+    delay : bool, optional
+        If True, use a delay simulator. If False or None (default),
+        delay is not simulated.
+    safe : bool, default False
+        If True, use a `SafeModelCSimInterface`, which issues
+        warnings on ill-conditioned situations (e.g. a negative
+        reaction propensity), instead of the normal
+        `ModelCSimInterface`. Ignored if `Interface` is given
+        directly.
+    volume : bool or float or Volume, default False
+        If True, a default `Volume` (initial volume 1.0) is used. If
+        a positive number, a `Volume` with that initial value is
+        used. If a `Volume` instance, it is used directly. If False,
+        no volume is simulated. See the lineage module for more on
+        volume-aware simulation.
+    return_dataframe : bool, default True
+        If True, return a `pandas.DataFrame`. If False, return the
+        raw bioscrape simulation result object.
+    **keywords
+        Additional keyword arguments forwarded to
+        `DeterministicSimulator.py_simulate` (i.e. to
+        `scipy.integrate.odeint`) for deterministic simulations.
+
+    Returns
+    -------
+    pandas.DataFrame or SSAResult
+        The simulation results as a DataFrame if `return_dataframe`
+        is True, otherwise a bioscrape simulation result object
+        (`SSAResult` or one of its subclasses, depending on `delay`
+        and `volume`).
     """
-    User interface function to simulate a Bioscrape Model. 
-    Args:
-        timepoints (np.ndarray): An array that contains the times for the simulation run.
-        Model (bioscrape.types.Model): The bioscrape Model object to run.
-        Interface (bioscrape.simulator.CSimInterface): Specifies particular model simulation interface to use.
-                                                       Default: None, to create the interface automatically.
-                                                       Developers may use this to pass existing interfaces to speed up simulations.
-        stochastic (bool): If `True`, a stochastic simulation using the Gillespie stochastic simulation algorithm is run.
-                           If `False` (default), a deterministic simulation using python scipy.integrate.odeint is run.
-        delay (bool): If `True`, a delay simulator is initialized. 
-                      If `False` or None (default), delay simulator is not initialized.
-        safe (bool): If `True`, a safe model model simulation interface is initialized.
-                     A safe model simulator issues warnings when ill-conditioned situations occur in simulation 
-                     (for example, a negative propensity of a reaction)
-                     If `False` (default), normal model simulation interface is used.
-        volume (bool): If `True`, a volume is initialized for the simulation (relevant for lineage simulations)
-                       If `False` (default), volume is not used in simulations.
-                       Refer to the lineage module for more information.
-        return_dataframe (bool): If `True` (default), a Pandas dataframe with the simulation results is returned.
-                                 If `False`, a bioscrape simulation result object is returned.
-    Returns:
-        pandas.DataFrame with the simulation results if return_dataframe is set to `True`
-        or a bioscrape simulation result object is returned if it is set to `False`.
-    """
-    
+
 
     #Check model and interface
     if Model is None and Interface is None:
