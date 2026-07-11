@@ -3148,13 +3148,6 @@ cdef class Model:
         """
         return self.params2index.keys()
 
-    def get_species(self):
-        """
-        Get the set of parameter names.
-        :return: (dict_keys str) the parameter names
-        """
-        return self.species2index.keys()
-
     def get_number_of_params(self):
         """Return the number of parameters in the model."""
         return len(self.params2index.keys())
