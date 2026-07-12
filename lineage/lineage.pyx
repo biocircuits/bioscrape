@@ -3706,6 +3706,10 @@ def py_SimulateSingleCell(timepoints, Model = None, interface = None, initial_ce
 
 	if initial_cell_state == None:
 		v = LineageVolumeCellState(v0 = 1, t0 = 0, state = interface.py_get_initial_state())
+	elif not isinstance(initial_cell_state, LineageVolumeCellState):
+		raise ValueError("initial_cell_state must be of type LineageVolumeCellState or None (in which case it will default to the Model's initial state).")
+	else:
+		v = initial_cell_state
 
 	result = simulator.py_SimulateSingleCell(timepoints, Model = Model, interface = interface, v = v)
 

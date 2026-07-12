@@ -8,7 +8,8 @@ lineage = pytest.importorskip("bioscrape.lineage")
 import numpy as np
 from bioscrape.lineage import (LineageModel, LineageVolumeSplitter,
     LineageCSimInterface, LineageSSASimulator,
-    InteractingLineageSSASimulator)
+    InteractingLineageSSASimulator, LineageVolumeCellState,
+    py_SimulateSingleCell)
 from bioscrape.simulator import ModelCSimInterface, VolumeSSASimulator
 from bioscrape.types import Model
 
@@ -56,3 +57,21 @@ def test_setup_global_volume_simulation():
     simulator = InteractingLineageSSASimulator()
     simulator.setup_global_volume_simulation(global_volume_simulator,
                                               global_interface, inds)
+
+
+#This test confirms that py_SimulateSingleCell actually uses a
+#  passed-in initial_cell_state. It previously only handled the
+#  initial_cell_state=None case, leaving the local variable v
+#  unassigned (and thus raising NameError) for any other value.
+def test_simulate_single_cell_initial_cell_state():
+    M = _make_minimal_lineage_model()
+    interface = LineageCSimInterface(M)
+    interface.py_set_initial_time(0.0)
+    initial_cell_state = LineageVolumeCellState(v0 = 1, t0 = 0,
+                                                 state = interface.py_get_initial_state())
+    timepoints = np.linspace(0, 1, 5)
+
+    result = py_SimulateSingleCell(timepoints, interface = interface,
+                                    initial_cell_state = initial_cell_state,
+                                    return_dataframes = False)
+    assert result is not None
