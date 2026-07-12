@@ -1809,8 +1809,7 @@ cdef class PerfectBinomialVolumeSplitter(VolumeSplitter):
 
 cdef class GeneralVolumeSplitter(VolumeSplitter):
     """
-    A volume splitting class that splits the cell into two cells and can split species
-    binomially, perfectly, or by duplication.
+    Splits species binomially, perfectly, or by duplication.
     """
     def __init__(self):
         self.partition_noise = 0

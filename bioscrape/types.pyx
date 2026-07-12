@@ -169,7 +169,7 @@ cdef class Propensity:
 
 cdef class ConstitutivePropensity(Propensity):
     r"""
-    Constant (zeroth-order) propensity: $\rho = k$.
+    Constant (zeroth-order) propensity, rate = k.
 
     Selected automatically by `~Model.create_reaction` for
     ``propensity_type='massaction'`` reactions with zero reactant
@@ -180,7 +180,7 @@ cdef class ConstitutivePropensity(Propensity):
     Attributes
     ----------
     rate_index : int
-        The parameter index of the rate $k$.
+        The parameter index of the rate k.
     """
     # constructor
     def __init__(self):
@@ -212,20 +212,20 @@ cdef class ConstitutivePropensity(Propensity):
 
 cdef class UnimolecularPropensity(Propensity):
     r"""
-    First-order propensity: $\rho = k x$.
+    First-order propensity, rate = k*x.
 
     Selected automatically by `~Model.create_reaction` for
     ``propensity_type='massaction'`` reactions with one reactant
     species; not normally constructed directly. Recognized
     `propensity_param_dict` keys: `k` (the rate parameter name) and
-    `species` (the reactant species name $x$).
+    `species` (the reactant species name x).
 
     Attributes
     ----------
     rate_index : int
-        The parameter index of the rate $k$.
+        The parameter index of the rate k.
     species_index : int
-        The species index of $x$.
+        The species index of x.
     """
     # constructor
     def __init__(self):
@@ -260,7 +260,7 @@ cdef class UnimolecularPropensity(Propensity):
 
 cdef class BimolecularPropensity(Propensity):
     r"""
-    Second-order propensity: $\rho = k x_1 x_2$.
+    Second-order propensity, rate = k*x1*x2.
 
     Selected automatically by `~Model.create_reaction` for
     ``propensity_type='massaction'`` reactions with two reactant
@@ -269,16 +269,16 @@ cdef class BimolecularPropensity(Propensity):
     `species` (the two reactant species names, e.g. 'A*B'). If the
     two species are the same (e.g. 'A*A'), the stochastic
     propensity accounts for the discrete copy-number effect of a
-    species reacting with itself: $\rho = k x_1 (x_1 - 1)$.
+    species reacting with itself: rate = k*x1*(x1 - 1).
 
     Attributes
     ----------
     rate_index : int
-        The parameter index of the rate $k$.
+        The parameter index of the rate k.
     s1_index : int
-        The species index of $x_1$.
+        The species index of x1.
     s2_index : int
-        The species index of $x_2$.
+        The species index of x2.
     """
     # constructor
     def __init__(self):
@@ -327,24 +327,23 @@ cdef class BimolecularPropensity(Propensity):
 
 cdef class PositiveHillPropensity(Propensity):
     r"""
-    Activating Hill propensity:
-    $\rho = k (x_1/K)^n / (1 + (x_1/K)^n)$.
+    Activating Hill propensity, rate = k*(x1/K)^n / (1 + (x1/K)^n).
 
     Constructed via `~Model.create_reaction` with
     ``propensity_type='hillpositive'``. Recognized
     `propensity_param_dict` keys: `k` (rate), `K` (Hill constant),
-    `n` (cooperativity/Hill coefficient), and `s1` (the species $x_1$).
+    `n` (cooperativity/Hill coefficient), and `s1` (the species x1).
 
     Attributes
     ----------
     K_index : int
-        The parameter index of the Hill constant $K$.
+        The parameter index of the Hill constant K.
     rate_index : int
-        The parameter index of the rate $k$.
+        The parameter index of the rate k.
     n_index : int
-        The parameter index of the cooperativity $n$.
+        The parameter index of the cooperativity n.
     s1_index : int
-        The species index of $x_1$.
+        The species index of x1.
     """
     # constructor
     def __init__(self):
@@ -393,28 +392,28 @@ cdef class PositiveHillPropensity(Propensity):
 
 cdef class PositiveProportionalHillPropensity(Propensity):
     r"""
-    Activating Hill propensity proportional to a second species:
-    $\rho = k d (x_1/K)^n / (1 + (x_1/K)^n)$.
+    Activating Hill propensity proportional to a second species.
 
-    Constructed via `~Model.create_reaction` with
+    rate = k*d*(x1/K)^n / (1 + (x1/K)^n). Constructed via
+    `~Model.create_reaction` with
     ``propensity_type='proportionalhillpositive'``. Recognized
     `propensity_param_dict` keys: `k` (rate), `K` (Hill constant),
-    `n` (cooperativity/Hill coefficient), `s1` (the species $x_1$),
-    and `d` (the proportional species $d$, e.g. an enzyme or
+    `n` (cooperativity/Hill coefficient), `s1` (the species x1),
+    and `d` (the proportional species d, e.g. an enzyme or
     polymerase whose abundance scales the rate).
 
     Attributes
     ----------
     K_index : int
-        The parameter index of the Hill constant $K$.
+        The parameter index of the Hill constant K.
     rate_index : int
-        The parameter index of the rate $k$.
+        The parameter index of the rate k.
     n_index : int
-        The parameter index of the cooperativity $n$.
+        The parameter index of the cooperativity n.
     s1_index : int
-        The species index of $x_1$.
+        The species index of x1.
     d_index : int
-        The species index of $d$.
+        The species index of d.
     """
     # constructor
     def __init__(self):
@@ -469,24 +468,24 @@ cdef class PositiveProportionalHillPropensity(Propensity):
 
 cdef class NegativeHillPropensity(Propensity):
     r"""
-    Repressing Hill propensity: $\rho = k / (1 + (x_1/K)^n)$.
+    Repressing Hill propensity, rate = k / (1 + (x1/K)^n).
 
     Constructed via `~Model.create_reaction` with
     ``propensity_type='hillnegative'``. Recognized
     `propensity_param_dict` keys: `k` (rate), `K` (Hill constant),
     `n` (cooperativity/Hill coefficient), and `s1` (the repressor
-    species $x_1$).
+    species x1).
 
     Attributes
     ----------
     K_index : int
-        The parameter index of the Hill constant $K$.
+        The parameter index of the Hill constant K.
     rate_index : int
-        The parameter index of the rate $k$.
+        The parameter index of the rate k.
     n_index : int
-        The parameter index of the cooperativity $n$.
+        The parameter index of the cooperativity n.
     s1_index : int
-        The species index of $x_1$.
+        The species index of x1.
     """
     # constructor
     def __init__(self):
@@ -530,27 +529,27 @@ cdef class NegativeHillPropensity(Propensity):
 
 cdef class NegativeProportionalHillPropensity(Propensity):
     r"""
-    Repressing Hill propensity proportional to a second species:
-    $\rho = k d / (1 + (x_1/K)^n)$.
+    Repressing Hill propensity proportional to a second species.
 
-    Constructed via `~Model.create_reaction` with
+    rate = k*d / (1 + (x1/K)^n). Constructed via
+    `~Model.create_reaction` with
     ``propensity_type='proportionalhillnegative'``. Recognized
     `propensity_param_dict` keys: `k` (rate), `K` (Hill constant),
     `n` (cooperativity/Hill coefficient), `s1` (the repressor species
-    $x_1$), and `d` (the proportional species $d$).
+    x1), and `d` (the proportional species d).
 
     Attributes
     ----------
     K_index : int
-        The parameter index of the Hill constant $K$.
+        The parameter index of the Hill constant K.
     rate_index : int
-        The parameter index of the rate $k$.
+        The parameter index of the rate k.
     n_index : int
-        The parameter index of the cooperativity $n$.
+        The parameter index of the cooperativity n.
     s1_index : int
-        The species index of $x_1$.
+        The species index of x1.
     d_index : int
-        The species index of $d$.
+        The species index of d.
     """
     # constructor
     def __init__(self):
@@ -649,8 +648,7 @@ cdef class NegativeProportionalHillPropensity(Propensity):
 
 cdef class MassActionPropensity(Propensity):
     r"""
-    General mass-action propensity: $\rho = k \prod_i x_i$ over the
-    reactant species.
+    General mass-action propensity, rate = k times the reactant product.
 
     Selected automatically by `~Model.create_reaction` for
     ``propensity_type='massaction'`` reactions with three or more
@@ -663,7 +661,7 @@ cdef class MassActionPropensity(Propensity):
     reaction where species `A` appears with multiplicity 2). The
     deterministic propensity multiplies each distinct species once;
     the stochastic propensity additionally accounts for repeated
-    species via falling-factorial terms (e.g. $x(x-1)$ for a species
+    species via falling-factorial terms (e.g. x*(x-1) for a species
     with multiplicity 2), matching combinatorial reaction kinetics.
 
     Attributes
@@ -673,7 +671,7 @@ cdef class MassActionPropensity(Propensity):
     sp_counts : list of int
         The multiplicity of each species in `sp_inds`.
     k_index : int
-        The parameter index of the rate $k$.
+        The parameter index of the rate k.
     """
     def __init__(self):
         self.propensity_type = PropensityType.mass_action
@@ -1064,7 +1062,7 @@ cdef class PowerTerm(Term):
 
 @cython.auto_pickle(True)
 cdef class ExpTerm(Term):
-    """An expression node computing $e$ raised to its argument term."""
+    """An expression node computing the natural exponential of its argument term."""
     cdef void set_arg(self, Term arg):
         self.arg = arg
 
@@ -1511,11 +1509,11 @@ cdef class GaussianDelay(Delay):
 
 cdef class GammaDelay(Delay):
     r"""
-    A gamma-distributed delay with shape $k$ and scale $\theta$.
+    A gamma-distributed delay with shape k and scale theta.
 
-    Resampled at each reaction firing; equivalent to the sum of $k$
-    independent exponential random variables with mean $\theta$; has
-    mean $k\theta$ and variance $k\theta^2$.
+    Resampled at each reaction firing; equivalent to the sum of k
+    independent exponential random variables with mean theta; has
+    mean k*theta and variance k*theta^2.
 
     Constructed via `~Model.create_reaction` with
     ``delay_type='gamma'``. Recognized `delay_param_dict` keys: `k`
@@ -1524,9 +1522,9 @@ cdef class GammaDelay(Delay):
     Attributes
     ----------
     k_index : int
-        The parameter index of the shape $k$.
+        The parameter index of the shape k.
     theta_index : int
-        The parameter index of the scale $\theta$.
+        The parameter index of the scale theta.
     """
 
     def __init__(self):
@@ -2052,28 +2050,28 @@ cdef class StochasticTimeThresholdVolume(Volume):
     A cell that grows exponentially and divides at a random time.
 
     Growth is deterministic; the division time is sampled once, at
-    `initialize`, as
-    $\mathcal{N}(1, \text{noise}) \times T$, where $T$ is the
-    deterministic time remaining to reach `average_division_volume`
-    at the current growth rate.
+    `initialize`, as T times a normally-distributed random variable
+    with mean 1 and standard deviation `division_noise`, where T is
+    the deterministic time remaining to reach
+    `average_division_volume` at the current growth rate.
 
     Parameters
     ----------
     cell_cycle_time : float
         The average cell cycle time; sets the growth rate to
-        $\log(2) / \text{cell\_cycle\_time}$.
+        log(2) / cell_cycle_time.
     average_division_volume : float
         The average volume at which the cell divides.
     division_noise : float
-        The relative noise (coefficient of variation, $\ll 1$) in the
-        division time.
+        The relative noise (coefficient of variation, much less than 1)
+        in the division time.
 
     Attributes
     ----------
     division_time : float
         The (pre-sampled) time at which the cell will divide.
     growth_rate : float
-        The volume growth rate $g$, where $dV/dt = gV$.
+        The volume growth rate g, where dV/dt = g*V.
     """
     def __init__(self, double cell_cycle_time, double average_division_volume, double division_noise):
         self.cell_cycle_time = cell_cycle_time
@@ -2147,8 +2145,7 @@ cdef class StochasticTimeThresholdVolume(Volume):
 
 cdef class StateDependentVolume(Volume):
     r"""
-    A cell whose growth rate depends on the current state, with a
-    randomly chosen division volume.
+    A cell with a state-dependent growth rate and a random division volume.
 
     Must be configured via `setup` after construction (`__init__`
     takes no arguments).
@@ -2160,8 +2157,8 @@ cdef class StateDependentVolume(Volume):
     average_division_volume : float
         The average volume at which to divide.
     division_noise : float
-        The relative noise (coefficient of variation, $\ll 1$) in the
-        division volume.
+        The relative noise (coefficient of variation, much less than 1)
+        in the division volume.
     growth_rate : Term
         The growth rate expression, evaluated based on the state.
     """
