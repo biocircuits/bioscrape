@@ -103,3 +103,57 @@ def test_lineage_volume_splitter_partition_noise_bounds():
         LineageVolumeSplitter(M, partition_noise = 5.0)
     with pytest.raises(ValueError):
         LineageVolumeSplitter(M, partition_noise = -1.0)
+
+
+#These tests confirm that LineageModel's rules=/events= constructor
+#  shortcuts correctly route short-form type aliases (e.g. "linear",
+#  "species", "deltaV") to create_volume_rule/create_death_rule/
+#  create_division_rule, not just fully-qualified names like
+#  "linearvolumerule" containing the literal word "volume"/"death"/
+#  "division". Previously, short-form aliases fell through the
+#  substring-based routing entirely and were silently forwarded to
+#  the base Model constructor as unrecognized rule/event types.
+def test_lineage_model_rules_short_form_volume():
+    species = ["X"]
+    x0 = {"X": 10}
+    rxn = [[], ["X"], "massaction", {"k": 1.0}]
+    M = LineageModel(species = species, reactions = [rxn],
+                      initial_condition_dict = x0,
+                      rules = [("linear", {"growth_rate": 0.1})])
+    assert M.py_get_num_volume_rules() == 1
+
+def test_lineage_model_rules_short_form_death():
+    species = ["X"]
+    x0 = {"X": 10}
+    rxn = [[], ["X"], "massaction", {"k": 1.0}]
+    M = LineageModel(species = species, reactions = [rxn],
+                      initial_condition_dict = x0,
+                      rules = [("species", {"specie": "X", "threshold": 5})])
+    assert M.py_get_num_death_rules() == 1
+
+#Division rules still can't be constructed via the rules= shortcut
+#  (create_division_rule requires an explicit VolumeSplitter that
+#  the shortcut has no way to supply -- a separate, documented
+#  limitation), but a short-form division alias like "deltaV" should
+#  now at least be correctly identified as a division rule (raising
+#  a clear TypeError about the missing volume_splitter) instead of
+#  being silently misrouted to the base Model as an unrecognized
+#  rule type.
+def test_lineage_model_rules_short_form_division_routes_correctly():
+    species = ["X"]
+    x0 = {"X": 10}
+    rxn = [[], ["X"], "massaction", {"k": 1.0}]
+    with pytest.raises(TypeError):
+        LineageModel(species = species, reactions = [rxn],
+                      initial_condition_dict = x0,
+                      rules = [("deltaV", {"threshold": 1.0})])
+
+def test_lineage_model_events_short_form_volume():
+    species = ["X"]
+    x0 = {"X": 10}
+    rxn = [[], ["X"], "massaction", {"k": 1.0}]
+    M = LineageModel(species = species, reactions = [rxn],
+                      initial_condition_dict = x0,
+                      events = [("linear", {"growth_rate": 0.1},
+                                 "massaction", {"k": 0.1, "species": ""})])
+    assert M.py_get_num_volume_events() == 1
