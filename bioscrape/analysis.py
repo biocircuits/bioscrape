@@ -20,8 +20,8 @@ def py_sensitivity_analysis(model: Model, timepoints: np.ndarray,
     Compute the sensitivity of a model's trajectories to its parameters.
 
     Simulates `model` deterministically over `timepoints` and returns the
-    sensitivity coefficients $s_{ij} = \partial x_i/\partial p_j$ for each
-    state $x_i$, parameter $p_j$, and time point.
+    sensitivity coefficients s_ij = d(x_i)/d(p_j) for each
+    state x_i, parameter p_j, and time point.
 
     Parameters
     ----------
@@ -30,7 +30,7 @@ def py_sensitivity_analysis(model: Model, timepoints: np.ndarray,
     timepoints : numpy.ndarray
         Array of time points at which to compute the sensitivity coefficients.
     normalize : bool
-        If True, each sensitivity coefficient is normalized by $x_i/p_j$ at
+        If True, each sensitivity coefficient is normalized by x_i/p_j at
         that time point. If False, the coefficients are not normalized.
     **kwargs
         Additional keyword arguments passed to `SensitivityAnalysis` and
@@ -54,7 +54,7 @@ def py_sensitivity_analysis(model: Model, timepoints: np.ndarray,
 
 def py_get_jacobian(model: Model, state: Union[list, np.ndarray], **kwargs) -> np.ndarray:
     r"""
-    Compute the Jacobian $J = \partial f/\partial x$ of a model.
+    Compute the Jacobian J = d(f)/d(x) of a model.
 
     Parameters
     ----------
@@ -78,7 +78,7 @@ def py_get_jacobian(model: Model, state: Union[list, np.ndarray], **kwargs) -> n
 def py_get_sensitivity_to_parameter(model: Model, state: Union[list, np.ndarray],
                                     param_name: str, **kwargs) -> np.ndarray:
     r"""
-    Compute a model's sensitivity $Z_j = \partial f/\partial p_j$ to $p_j$.
+    Compute a model's sensitivity Z_j = d(f)/d(p_j) to p_j.
 
     Parameters
     ----------
@@ -86,9 +86,9 @@ def py_get_sensitivity_to_parameter(model: Model, state: Union[list, np.ndarray]
         The bioscrape model to analyze.
     state : list or numpy.ndarray
         The state values (vector of length `n`) at which to compute
-        $\partial f/\partial p_j$.
+        d(f)/d(p_j).
     param_name : str
-        The name of the parameter $p_j$ to differentiate with respect to.
+        The name of the parameter p_j to differentiate with respect to.
     **kwargs
         Additional keyword arguments passed to
         `SensitivityAnalysis.compute_Zj`, including `method` (the
@@ -97,8 +97,7 @@ def py_get_sensitivity_to_parameter(model: Model, state: Union[list, np.ndarray]
     Returns
     -------
     numpy.ndarray
-        Vector of length `n` giving $\partial f_i/\partial p_j$ for each state
-        $i$.
+        Vector of length `n` giving d(f_i)/d(p_j) for each state i.
     """
     return SensitivityAnalysis(model).compute_Zj(state, param_name, **kwargs)
 
@@ -108,8 +107,8 @@ class SensitivityAnalysis(Model):
 
     Computes the sensitivity of a model's deterministic trajectories to its
     parameters, using finite-difference approximations of the Jacobian
-    $J = \partial f/\partial x$ and the parameter-sensitivity vector
-    $Z_j = \partial f/\partial p_j$, where $f$ is the model's right-hand side.
+    J = d(f)/d(x) and the parameter-sensitivity vector
+    Z_j = d(f)/d(p_j), where f is the model's right-hand side.
     See `py_sensitivity_analysis` for the higher-level, user-facing interface
     built on this class.
 
@@ -151,10 +150,10 @@ class SensitivityAnalysis(Model):
 
     def compute_J(self, x, time = 0.0, **kwargs):
         r"""
-        Compute the Jacobian $J = \partial f/\partial x$ at a point `x`.
+        Compute the Jacobian J = d(f)/d(x) at a point `x`.
 
         Uses a finite-difference approximation of the model's right-hand side
-        $f$; see `method` below for the available approximation orders.
+        f; see `method` below for the available approximation orders.
 
         Parameters
         ----------
@@ -226,9 +225,9 @@ class SensitivityAnalysis(Model):
         
     def compute_Zj(self, x, param_name, time = 0.0, **kwargs):
         r"""
-        Compute $Z_j = \partial f/\partial p_j$ at a point `x`.
+        Compute Z_j = d(f)/d(p_j) at a point `x`.
 
-        Uses the same finite-difference methods as `compute_J`, where $p_j$
+        Uses the same finite-difference methods as `compute_J`, where p_j
         is the parameter named `param_name`.
 
         Parameters
@@ -237,7 +236,7 @@ class SensitivityAnalysis(Model):
             The state (vector of length `n`) at which to evaluate the
             sensitivity.
         param_name : str
-            The name of the parameter $p_j$ to differentiate with respect to.
+            The name of the parameter p_j to differentiate with respect to.
         time : float, optional
             The time at which to evaluate the (possibly time-varying) model
             (default 0.0).
@@ -247,8 +246,7 @@ class SensitivityAnalysis(Model):
         Returns
         -------
         numpy.ndarray
-            Vector of length `n` giving $\partial f_i/\partial p_j$ for each
-            state $i$.
+            Vector of length `n` giving d(f_i)/d(p_j) for each state i.
         """
         method = kwargs.get('method')
         if method is None:
@@ -309,8 +307,8 @@ class SensitivityAnalysis(Model):
         r"""
         Compute the sensitivity coefficients for each parameter.
 
-        Computes $S_j = \partial x/\partial p_j$ for each parameter $p_j$, at
-        each time point, by integrating the sensitivity ODE $dS/dt = JS + Z_j$
+        Computes S_j = d(x)/d(p_j) for each parameter p_j, at
+        each time point, by integrating the sensitivity ODE dS/dt = J*S + Z_j
         forward in time using the Jacobian and parameter-sensitivity vectors
         from `compute_J` and `compute_Zj`.
 
@@ -337,7 +335,7 @@ class SensitivityAnalysis(Model):
         -------
         numpy.ndarray
             Array of shape `(len(timepoints), len(params), n)` containing the
-            sensitivity coefficients $S_j$ for each parameter and time point.
+            sensitivity coefficients S_j for each parameter and time point.
         """
         def sensitivity_ode(t, x, J, Z):
             # ODE to solve for sensitivity coefficient S
