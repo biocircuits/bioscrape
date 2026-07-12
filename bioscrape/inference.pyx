@@ -905,10 +905,9 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
         """
         if prop is None:
             if m.has_delay:
-                prop_delay = DelaySSASimulator()
+                if prop_delay is None:
+                    prop_delay = DelaySSASimulator()
                 self.has_delay = True
-                self.propagator_delay = prop_delay
-                prop = None
             else:
                 prop = SSASimulator()
                 self.has_delay = False

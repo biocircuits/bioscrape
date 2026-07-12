@@ -8,7 +8,7 @@ import pandas as pd
 
 from bioscrape.types import Model
 from bioscrape.simulator import py_simulate_model
-from bioscrape.inference import py_inference, Data
+from bioscrape.inference import py_inference, Data, StochasticTrajectories, StochasticTrajectoriesLikelihood
 from bioscrape.inference_setup import InferenceSetup
 from bioscrape.pid_interfaces import PIDInterface
 from emcee import EnsembleSampler
@@ -43,6 +43,35 @@ def test_data_py_get_methods():
     assert np.array_equal(data.py_get_timepoints(), timepoints)
     assert np.array_equal(data.py_get_measurements(), measurements)
     assert data.py_get_measured_species() == measured_species
+
+#This test confirms that StochasticTrajectoriesLikelihood auto-creates
+#  a DelaySSASimulator when a delayed model is used without an
+#  explicit prop_delay. It previously assigned the auto-created
+#  DelaySSASimulator to the wrong variable (immediately discarding
+#  it), and separately the value it did assign to
+#  self.propagator_delay was clobbered right after by
+#  ModelLikelihood.set_model's own (unpassed, defaulted to None)
+#  prop_delay parameter -- so self.propagator_delay ended up None,
+#  and py_log_likelihood raised AttributeError.
+def test_stochastic_trajectories_likelihood_delay():
+    species = ["A", "B"]
+    x0 = {"A": 10, "B": 0}
+    rxn = (["A"], [], "massaction", {"k": 1.0}, "fixed", [], ["B"],
+           {"delay": 1.0})
+    M = Model(species = species, reactions = [rxn],
+              initial_condition_dict = x0)
+    assert M.has_delays()
+
+    timepoints = np.linspace(0, 5, 6)
+    measured_species = ["A", "B"]
+    measurements = np.random.rand(1, len(timepoints), len(measured_species))
+    data = StochasticTrajectories(timepoints, measurements,
+                                   measured_species, 1)
+
+    LL = StochasticTrajectoriesLikelihood(model = M, init_state = x0,
+                                           data = data, N_simulations = 1)
+    ll = LL.py_log_likelihood()
+    assert np.isfinite(ll)
 
 def test_getstate(model_setup):
     M, params_to_estimate = model_setup
