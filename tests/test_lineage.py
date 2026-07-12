@@ -75,3 +75,31 @@ def test_simulate_single_cell_initial_cell_state():
                                     initial_cell_state = initial_cell_state,
                                     return_dataframes = False)
     assert result is not None
+
+
+#This test confirms that LineageVolumeSplitter's constructor can set
+#  up a custom default splitter without crashing. It previously did
+#  self.ind2customsplitter == {} (a comparison, typo for =), leaving
+#  ind2customsplitter as None and raising TypeError on item
+#  assignment the first time a custom default splitter was used.
+def test_lineage_volume_splitter_custom_default():
+    M = _make_minimal_lineage_model()
+    def my_splitter(parent, which):
+        return 1.0, 1.0
+    vsplit = LineageVolumeSplitter(M,
+        options = {"default": "my_custom", "volume": "my_custom"},
+        custom_partition_functions = {"my_custom": my_splitter})
+    assert vsplit is not None
+
+
+#This test confirms that LineageVolumeSplitter validates
+#  partition_noise is between 0 and 1. It previously compared
+#  self.partition_noise (still its cdef zero-default) before the
+#  constructor argument was ever assigned, so the check never fired
+#  for any input.
+def test_lineage_volume_splitter_partition_noise_bounds():
+    M = _make_minimal_lineage_model()
+    with pytest.raises(ValueError):
+        LineageVolumeSplitter(M, partition_noise = 5.0)
+    with pytest.raises(ValueError):
+        LineageVolumeSplitter(M, partition_noise = -1.0)

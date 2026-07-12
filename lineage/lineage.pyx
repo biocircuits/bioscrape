@@ -2080,9 +2080,9 @@ cdef class LineageVolumeSplitter(VolumeSplitter):
 
 	def __init__(self, Model M, options = {}, custom_partition_functions = {}, partition_noise = .5):
 		"""See class docstring."""
-		self.ind2customsplitter == {}
+		self.ind2customsplitter = {}
 		self.custom_partition_functions = custom_partition_functions
-		if self.partition_noise > 1:
+		if partition_noise > 1 or partition_noise < 0:
 			raise ValueError("Partition Noise must be between 0 and 1")
 		self.partition_noise = partition_noise
 
