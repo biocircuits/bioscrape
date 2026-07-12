@@ -2731,9 +2731,7 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
 
     Combines `DelaySSASimulator`'s delayed-reaction scheduling with
     `VolumeSSASimulator`'s volume tracking and propensity rescaling.
-    (Not currently reachable via `py_simulate_model`'s `delay=True,
-    volume=True` combination due to a separate wiring bug; construct
-    and use this class directly instead.)
+    Reached via `py_simulate_model` with `delay=True, volume=True`.
     """
     cdef DelayVolumeSSAResult delay_volume_simulate(self, CSimInterface sim, DelayQueue q,
                                                     Volume v, np.ndarray timepoints):
@@ -2991,7 +2989,7 @@ def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = F
             Sim = DelaySSASimulator()
             result = Sim.py_delay_simulate(Interface, q, timepoints)
         else:
-            Sim = DelayVolumeSimulator()
+            Sim = DelayVolumeSSASimulator()
             result = Sim.py_delay_volume_simulate(Interface, q, v, timepoints)
     elif stochastic:
         if v == None:

@@ -53,3 +53,22 @@ def test_schnitz_dataframe_pandas_fallback():
 
     assert np.array_equal(result, data)
 
+#This test confirms that py_simulate_model(delay=True, volume=True)
+#  doesn't raise NotImplementedError. It previously instantiated the
+#  abstract DelayVolumeSimulator instead of the concrete
+#  DelayVolumeSSASimulator.
+def test_simulate_delay_and_volume():
+    species = ["A", "B"]
+    x0 = {"A": 10, "B": 0}
+    rxn = (["A"], [], "massaction", {"k": 1.0}, "fixed", [], ["B"],
+           {"delay": 1.0})
+    M = Model(species = species, reactions = [rxn],
+              initial_condition_dict = x0)
+    delay_timepoints = np.linspace(0, 10, 11)
+
+    result = py_simulate_model(delay_timepoints, Model = M,
+                                stochastic = True, delay = True,
+                                volume = True, return_dataframe = False)
+
+    assert result.py_get_volume().shape == delay_timepoints.shape
+
