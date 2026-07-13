@@ -1,0 +1,33 @@
+<model>
+<reaction text="--" after="--mRNA">
+    <propensity type="massaction" k="beta" species="" />
+	<delay type="fixed" delay="tx_delay" />
+</reaction>
+
+<reaction text="mRNA--" after="--">
+    <propensity type="massaction" k="delta_m" species="mRNA" />
+	<delay type="none" />
+</reaction>
+
+<reaction text="--" after="--protein">
+    <propensity type="massaction" k="k_tl" species="mRNA" />
+    <delay type="gamma" k="tl_k" theta="tl_theta" />
+</reaction>
+
+<reaction text="protein--">
+    <propensity type="massaction" k="delta_p" species="protein" />
+    <delay type="none" />
+</reaction>
+
+
+<parameter name="beta" value="2.0" />
+<parameter name="delta_m" value="0.2" />
+<parameter name="k_tl" value="5.0" />
+<parameter name="delta_p" value="0.05" />
+<parameter name="tx_delay" value="10" />
+<parameter name="tl_k" value="2" />
+<parameter name="tl_theta" value="5" />
+
+<species name="mRNA" value="0" />
+<species name="protein" value="0" />
+</model>

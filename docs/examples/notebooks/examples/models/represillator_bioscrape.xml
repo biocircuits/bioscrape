@@ -1,0 +1,84 @@
+<model>
+<species name="PX" value="0.0" />
+<species name="PY" value="0.0" />
+<species name="PZ" value="0.0" />
+<species name="X" value="0.0" />
+<species name="Y" value="20.0" />
+<species name="Z" value="0.0" />
+
+<parameter name="beta" value="0.2" />
+<parameter name="alpha0" value="0.21640425613334455" />
+<parameter name="alpha" value="216.18785187721116" />
+<parameter name="eff" value="20.0" />
+<parameter name="n" value="2.0" />
+<parameter name="KM" value="40.0" />
+<parameter name="tau_mRNA" value="2.0" />
+<parameter name="tau_prot" value="10.0" />
+<parameter name="t_ave" value="2.8853900817779268" />
+<parameter name="kd_mRNA" value="0.34657359027997264" />
+<parameter name="kd_prot" value="0.06931471805599453" />
+<parameter name="k_tl" value="6.931471805599453" />
+<parameter name="a_tr" value="29.97" />
+<parameter name="ps_a" value="0.5" />
+<parameter name="ps_0" value="0.0005" />
+<parameter name="a0_tr" value="0.03" />
+
+<reaction text= "X -- ">
+	<propensity type="general" rate="X*_kd_mRNA" />
+	<delay type="none" />
+</reaction>
+<reaction text= "Y -- ">
+	<propensity type="general" rate="Y*_kd_mRNA" />
+	<delay type="none" />
+</reaction>
+<reaction text= "Z -- ">
+	<propensity type="general" rate="Z*_kd_mRNA" />
+	<delay type="none" />
+</reaction>
+<reaction text= "-- PX ">
+	<propensity type="general" rate="X*_k_tl" />
+	<delay type="none" />
+</reaction>
+<reaction text= "-- PY ">
+	<propensity type="general" rate="Y*_k_tl" />
+	<delay type="none" />
+</reaction>
+<reaction text= "-- PZ ">
+	<propensity type="general" rate="Z*_k_tl" />
+	<delay type="none" />
+</reaction>
+<reaction text= "PX -- ">
+	<propensity type="general" rate="PX*_kd_prot" />
+	<delay type="none" />
+</reaction>
+<reaction text= "PY -- ">
+	<propensity type="general" rate="PY*_kd_prot" />
+	<delay type="none" />
+</reaction>
+<reaction text= "PZ -- ">
+	<propensity type="general" rate="PZ*_kd_prot" />
+	<delay type="none" />
+</reaction>
+<reaction text= "-- X ">
+	<propensity type="general" rate="_KM**_n*_a_tr/(PZ**_n + _KM**_n) + _a0_tr" />
+	<delay type="none" />
+</reaction>
+<reaction text= "-- Y ">
+	<propensity type="general" rate="_KM**_n*_a_tr/(PX**_n + _KM**_n) + _a0_tr" />
+	<delay type="none" />
+</reaction>
+<reaction text= "-- Z ">
+	<propensity type="general" rate="_KM**_n*_a_tr/(PY**_n + _KM**_n) + _a0_tr" />
+	<delay type="none" />
+</reaction>
+
+<rule type="assignment" frequency="repeated" equation="_t_ave=_tau_mRNA/log(2)"  />
+<rule type="assignment" frequency="repeated" equation="_beta=_tau_mRNA/_tau_prot"  />
+<rule type="assignment" frequency="repeated" equation="_k_tl=_eff/_t_ave"  />
+<rule type="assignment" frequency="repeated" equation="_a_tr=-60*_ps_0 + 60*_ps_a"  />
+<rule type="assignment" frequency="repeated" equation="_a0_tr=60*_ps_0"  />
+<rule type="assignment" frequency="repeated" equation="_kd_prot=log(2)/_tau_prot"  />
+<rule type="assignment" frequency="repeated" equation="_kd_mRNA=log(2)/_tau_mRNA"  />
+<rule type="assignment" frequency="repeated" equation="_alpha=_a_tr*_eff*_tau_prot/(_KM*log(2))"  />
+<rule type="assignment" frequency="repeated" equation="_alpha0=_a0_tr*_eff*_tau_prot/(_KM*log(2))"  />
+</model>
