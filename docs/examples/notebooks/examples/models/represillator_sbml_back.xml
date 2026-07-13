@@ -1,0 +1,465 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" level="3" version="1">
+<<<<<<< HEAD
+  <model id="bioscrape_generated_model_907457" substanceUnits="mole" timeUnits="second" volumeUnits="litre" areaUnits="square_metre" lengthUnits="metre" extentUnits="mole">
+=======
+  <model id="bioscrape_generated_model_615140" substanceUnits="mole" timeUnits="second" volumeUnits="litre" areaUnits="square_metre" lengthUnits="metre" extentUnits="mole">
+>>>>>>> 597c3089012fb9e93a36e92dcfaa5814ed58c520
+    <listOfUnitDefinitions>
+      <unitDefinition id="square_metre" name="square_metre">
+        <listOfUnits>
+          <unit kind="metre" exponent="2" scale="0" multiplier="1"/>
+        </listOfUnits>
+      </unitDefinition>
+    </listOfUnitDefinitions>
+    <listOfCompartments>
+      <compartment id="default" name="default" spatialDimensions="3" size="1e-06" constant="true"/>
+    </listOfCompartments>
+    <listOfSpecies>
+      <species id="PX" name="PX" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="PY" name="PY" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="PZ" name="PZ" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="X" name="X" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="Y" name="Y" compartment="default" initialConcentration="20" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+      <species id="Z" name="Z" compartment="default" initialConcentration="0" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false"/>
+    </listOfSpecies>
+    <listOfParameters>
+      <parameter id="beta" name="beta" value="0.2" constant="false"/>
+      <parameter id="alpha0" name="alpha0" value="0.216404256133345" constant="false"/>
+      <parameter id="alpha" name="alpha" value="216.187851877211" constant="false"/>
+      <parameter id="eff" name="eff" value="20" constant="true"/>
+      <parameter id="n" name="n" value="2" constant="true"/>
+      <parameter id="KM" name="KM" value="40" constant="true"/>
+      <parameter id="tau_mRNA" name="tau_mRNA" value="2" constant="true"/>
+      <parameter id="tau_prot" name="tau_prot" value="10" constant="true"/>
+      <parameter id="t_ave" name="t_ave" value="2.88539008177793" constant="false"/>
+      <parameter id="kd_mRNA" name="kd_mRNA" value="0.346573590279973" constant="false"/>
+      <parameter id="kd_prot" name="kd_prot" value="0.0693147180559945" constant="false"/>
+      <parameter id="k_tl" name="k_tl" value="6.93147180559945" constant="false"/>
+      <parameter id="a_tr" name="a_tr" value="29.97" constant="false"/>
+      <parameter id="ps_a" name="ps_a" value="0.5" constant="true"/>
+      <parameter id="ps_0" name="ps_0" value="0.0005" constant="true"/>
+      <parameter id="a0_tr" name="a0_tr" value="0.03" constant="false"/>
+    </listOfParameters>
+    <listOfRules>
+      <assignmentRule variable="t_ave">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+          <apply>
+            <divide/>
+            <ci> tau_mRNA </ci>
+            <apply>
+              <ln/>
+              <cn type="integer"> 2 </cn>
+            </apply>
+          </apply>
+        </math>
+      </assignmentRule>
+      <assignmentRule variable="beta">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+          <apply>
+            <divide/>
+            <ci> tau_mRNA </ci>
+            <ci> tau_prot </ci>
+          </apply>
+        </math>
+      </assignmentRule>
+      <assignmentRule variable="k_tl">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+          <apply>
+            <divide/>
+            <ci> eff </ci>
+            <ci> t_ave </ci>
+          </apply>
+        </math>
+      </assignmentRule>
+      <assignmentRule variable="a_tr">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+          <apply>
+            <plus/>
+            <apply>
+              <times/>
+              <cn type="integer"> -60 </cn>
+              <ci> ps_0 </ci>
+            </apply>
+            <apply>
+              <times/>
+              <cn type="integer"> 60 </cn>
+              <ci> ps_a </ci>
+            </apply>
+          </apply>
+        </math>
+      </assignmentRule>
+      <assignmentRule variable="a0_tr">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+          <apply>
+            <times/>
+            <cn type="integer"> 60 </cn>
+            <ci> ps_0 </ci>
+          </apply>
+        </math>
+      </assignmentRule>
+      <assignmentRule variable="kd_prot">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+          <apply>
+            <divide/>
+            <apply>
+              <ln/>
+              <cn type="integer"> 2 </cn>
+            </apply>
+            <ci> tau_prot </ci>
+          </apply>
+        </math>
+      </assignmentRule>
+      <assignmentRule variable="kd_mRNA">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+          <apply>
+            <divide/>
+            <apply>
+              <ln/>
+              <cn type="integer"> 2 </cn>
+            </apply>
+            <ci> tau_mRNA </ci>
+          </apply>
+        </math>
+      </assignmentRule>
+      <assignmentRule variable="alpha">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+          <apply>
+            <divide/>
+            <apply>
+              <times/>
+              <ci> a_tr </ci>
+              <ci> eff </ci>
+              <ci> tau_prot </ci>
+            </apply>
+            <apply>
+              <times/>
+              <ci> KM </ci>
+              <apply>
+                <ln/>
+                <cn type="integer"> 2 </cn>
+              </apply>
+            </apply>
+          </apply>
+        </math>
+      </assignmentRule>
+      <assignmentRule variable="alpha0">
+        <math xmlns="http://www.w3.org/1998/Math/MathML">
+          <apply>
+            <divide/>
+            <apply>
+              <times/>
+              <ci> a0_tr </ci>
+              <ci> eff </ci>
+              <ci> tau_prot </ci>
+            </apply>
+            <apply>
+              <times/>
+              <ci> KM </ci>
+              <apply>
+                <ln/>
+                <cn type="integer"> 2 </cn>
+              </apply>
+            </apply>
+          </apply>
+        </math>
+      </assignmentRule>
+    </listOfRules>
+    <listOfReactions>
+      <reaction id="r0" name="r0" reversible="false" fast="false">
+        <annotation>
+          <PropensityType> type=general rate=X*_kd_mRNA</PropensityType>
+        </annotation>
+        <listOfReactants>
+          <speciesReference species="X" stoichiometry="1" constant="false"/>
+        </listOfReactants>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <times/>
+              <ci> X </ci>
+              <ci> kd_mRNA </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r1" name="r1" reversible="false" fast="false">
+        <annotation>
+          <PropensityType> type=general rate=Y*_kd_mRNA</PropensityType>
+        </annotation>
+        <listOfReactants>
+          <speciesReference species="Y" stoichiometry="1" constant="false"/>
+        </listOfReactants>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <times/>
+              <ci> Y </ci>
+              <ci> kd_mRNA </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r2" name="r2" reversible="false" fast="false">
+        <annotation>
+          <PropensityType> type=general rate=Z*_kd_mRNA</PropensityType>
+        </annotation>
+        <listOfReactants>
+          <speciesReference species="Z" stoichiometry="1" constant="false"/>
+        </listOfReactants>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <times/>
+              <ci> Z </ci>
+              <ci> kd_mRNA </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r3" name="r3" reversible="false" fast="false">
+        <annotation>
+          <PropensityType> type=general rate=X*_k_tl</PropensityType>
+        </annotation>
+        <listOfProducts>
+          <speciesReference species="PX" stoichiometry="1" constant="false"/>
+        </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference species="X"/>
+        </listOfModifiers>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <times/>
+              <ci> X </ci>
+              <ci> k_tl </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r4" name="r4" reversible="false" fast="false">
+        <annotation>
+          <PropensityType> type=general rate=Y*_k_tl</PropensityType>
+        </annotation>
+        <listOfProducts>
+          <speciesReference species="PY" stoichiometry="1" constant="false"/>
+        </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference species="Y"/>
+        </listOfModifiers>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <times/>
+              <ci> Y </ci>
+              <ci> k_tl </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r5" name="r5" reversible="false" fast="false">
+        <annotation>
+          <PropensityType> type=general rate=Z*_k_tl</PropensityType>
+        </annotation>
+        <listOfProducts>
+          <speciesReference species="PZ" stoichiometry="1" constant="false"/>
+        </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference species="Z"/>
+        </listOfModifiers>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <times/>
+              <ci> Z </ci>
+              <ci> k_tl </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r6" name="r6" reversible="false" fast="false">
+        <annotation>
+          <PropensityType> type=general rate=PX*_kd_prot</PropensityType>
+        </annotation>
+        <listOfReactants>
+          <speciesReference species="PX" stoichiometry="1" constant="false"/>
+        </listOfReactants>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <times/>
+              <ci> PX </ci>
+              <ci> kd_prot </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r7" name="r7" reversible="false" fast="false">
+        <annotation>
+          <PropensityType> type=general rate=PY*_kd_prot</PropensityType>
+        </annotation>
+        <listOfReactants>
+          <speciesReference species="PY" stoichiometry="1" constant="false"/>
+        </listOfReactants>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <times/>
+              <ci> PY </ci>
+              <ci> kd_prot </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r8" name="r8" reversible="false" fast="false">
+        <annotation>
+          <PropensityType> type=general rate=PZ*_kd_prot</PropensityType>
+        </annotation>
+        <listOfReactants>
+          <speciesReference species="PZ" stoichiometry="1" constant="false"/>
+        </listOfReactants>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <times/>
+              <ci> PZ </ci>
+              <ci> kd_prot </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r9" name="r9" reversible="false" fast="false">
+        <annotation>
+          <PropensityType> type=general rate=_KM**_n*_a_tr/(PZ**_n + _KM**_n) + _a0_tr</PropensityType>
+        </annotation>
+        <listOfProducts>
+          <speciesReference species="X" stoichiometry="1" constant="false"/>
+        </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference species="PZ"/>
+        </listOfModifiers>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <plus/>
+              <apply>
+                <divide/>
+                <apply>
+                  <times/>
+                  <apply>
+                    <power/>
+                    <ci> KM </ci>
+                    <ci> n </ci>
+                  </apply>
+                  <ci> a_tr </ci>
+                </apply>
+                <apply>
+                  <plus/>
+                  <apply>
+                    <power/>
+                    <ci> KM </ci>
+                    <ci> n </ci>
+                  </apply>
+                  <apply>
+                    <power/>
+                    <ci> PZ </ci>
+                    <ci> n </ci>
+                  </apply>
+                </apply>
+              </apply>
+              <ci> a0_tr </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r10" name="r10" reversible="false" fast="false">
+        <annotation>
+          <PropensityType> type=general rate=_KM**_n*_a_tr/(PX**_n + _KM**_n) + _a0_tr</PropensityType>
+        </annotation>
+        <listOfProducts>
+          <speciesReference species="Y" stoichiometry="1" constant="false"/>
+        </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference species="PX"/>
+        </listOfModifiers>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <plus/>
+              <apply>
+                <divide/>
+                <apply>
+                  <times/>
+                  <apply>
+                    <power/>
+                    <ci> KM </ci>
+                    <ci> n </ci>
+                  </apply>
+                  <ci> a_tr </ci>
+                </apply>
+                <apply>
+                  <plus/>
+                  <apply>
+                    <power/>
+                    <ci> KM </ci>
+                    <ci> n </ci>
+                  </apply>
+                  <apply>
+                    <power/>
+                    <ci> PX </ci>
+                    <ci> n </ci>
+                  </apply>
+                </apply>
+              </apply>
+              <ci> a0_tr </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+      <reaction id="r11" name="r11" reversible="false" fast="false">
+        <annotation>
+          <PropensityType> type=general rate=_KM**_n*_a_tr/(PY**_n + _KM**_n) + _a0_tr</PropensityType>
+        </annotation>
+        <listOfProducts>
+          <speciesReference species="Z" stoichiometry="1" constant="false"/>
+        </listOfProducts>
+        <listOfModifiers>
+          <modifierSpeciesReference species="PY"/>
+        </listOfModifiers>
+        <kineticLaw>
+          <math xmlns="http://www.w3.org/1998/Math/MathML">
+            <apply>
+              <plus/>
+              <apply>
+                <divide/>
+                <apply>
+                  <times/>
+                  <apply>
+                    <power/>
+                    <ci> KM </ci>
+                    <ci> n </ci>
+                  </apply>
+                  <ci> a_tr </ci>
+                </apply>
+                <apply>
+                  <plus/>
+                  <apply>
+                    <power/>
+                    <ci> KM </ci>
+                    <ci> n </ci>
+                  </apply>
+                  <apply>
+                    <power/>
+                    <ci> PY </ci>
+                    <ci> n </ci>
+                  </apply>
+                </apply>
+              </apply>
+              <ci> a0_tr </ci>
+            </apply>
+          </math>
+        </kineticLaw>
+      </reaction>
+    </listOfReactions>
+  </model>
+</sbml>
