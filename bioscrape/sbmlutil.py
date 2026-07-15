@@ -58,8 +58,8 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
     sbml_warnings : bool, optional
         If True, warn about unrecognized SBML components
         (compartments, unit definitions, events). Defaults to False
-        if the SBML model's ID contains ``'bioscrape'`` or
-        ``'biocrnpyler'``, True otherwise.
+        if the SBML model's ID contains 'bioscrape' or
+        'biocrnpyler', True otherwise.
     **kwargs
         Additional keyword arguments (currently only
         `sbml_warnings` is recognized).
@@ -156,7 +156,7 @@ def import_sbml(sbml_file, bioscrape_model = None, input_printout = False, **kwa
         raise ValueError("bioscrape_model keyword must be a Bioscrape Model object or None (in which case a Model object is returned).")
 
 def import_sbml_species(sbml_model):
-    """Import species from SBML model
+    """Import species from SBML model.
 
     Args:
         sbml_model ([Model]): libsbml Model object
@@ -179,7 +179,7 @@ def import_sbml_species(sbml_model):
     return allspecies
 
 def import_sbml_parameters(sbml_model):
-    """Import parameters from SBML model
+    """Import parameters from SBML model.
 
     Args:
         sbml_model ([Model]): libsbml Model object
@@ -195,7 +195,7 @@ def import_sbml_parameters(sbml_model):
     return allparams
 
 def import_sbml_reactions(sbml_model, allspecies, allparams, input_printout, sbml_warnings = True):
-    """Import reactions from SBML model
+    """Import reactions from SBML model.
 
     Args:
         sbml_model ([Model]): libsbml Model object
@@ -645,8 +645,8 @@ def add_parameter(model, param_name, param_value, debug=False):
 def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, rule_frequency, **kwargs):
     """Add a rule to an SBML model.
 
-    Bioscrape's ``'assignment'``/``'additive'`` rule types map to an
-    SBML assignment rule; ``'ode'``/``'ODE'``/``'GeneralODERule'``
+    Bioscrape's 'assignment'/'additive' rule types map to an
+    SBML assignment rule; 'ode'/'ODE'/'GeneralODERule'
     maps to an SBML rate rule. The bioscrape `rule_frequency` is
     stored in a ``<BioscrapeAnnotation>`` since SBML has no
     equivalent concept.
@@ -658,8 +658,8 @@ def add_rule(model, rule_id, rule_type, rule_variable, rule_formula, rule_freque
     rule_id : str
         ID (and name) for the created rule.
     rule_type : str
-        One of ``'assignment'``, ``'additive'``, ``'ode'``,
-        ``'ODE'``, or ``'GeneralODERule'``.
+        One of 'assignment', 'additive', 'ode',
+        'ODE', or 'GeneralODERule'.
     rule_variable : str
         ID of the species or parameter the rule assigns to.
     rule_formula : str
@@ -729,22 +729,22 @@ def add_reaction(model, inputs_list, outputs_list,
         Requested ID for the reaction (made unique if it collides
         with an existing SBML identifier).
     propensity_type : str
-        One of ``'massaction'``, ``'hillpositive'``,
-        ``'hillnegative'``, ``'proportionalhillpositive'``,
-        ``'proportionalhillnegative'``, or ``'general'``.
+        One of 'massaction', 'hillpositive',
+        'hillnegative', 'proportionalhillpositive',
+        'proportionalhillnegative', or 'general'.
     propensity_params : dict
-        Parameters for the given propensity type: ``'k'`` for
-        ``'massaction'``/Hill types (plus ``'K'``, ``'n'``, and
-        ``'s1'`` for Hill types, and ``'d'`` for the proportional
-        Hill types), or ``'rate'`` for ``'general'``.
+        Parameters for the given propensity type: 'k' for
+        'massaction'/Hill types (plus 'K', 'n', and
+        's1' for Hill types, and 'd' for the proportional
+        Hill types), or 'rate' for 'general'.
     stochastic : bool, default False
         If True, write a stochastic mass-action rate law (using
         falling-factorial terms for self-reacting species). If
         False, write a deterministic mass-action rate law.
     delay_annotation_dict : dict, optional
         If given, a delay description to store alongside the
-        propensity annotation, with keys ``'type'``, ``'reactants'``,
-        ``'products'``, and ``'parameters'``.
+        propensity annotation, with keys 'type', 'reactants',
+        'products', and 'parameters'.
 
     Returns
     -------
@@ -994,7 +994,7 @@ def getAllIds(allElements):
 def renameSIds(document, oldSIds, newSIds, debug = False):
     '''
     Updates the SId from oldSId to newSId for any component of the Subsystem.
-    Returns the SBMLDocument of the updated Subsystem
+    Returns the SBMLDocument of the updated Subsystem.
     '''
 
     #
@@ -1192,8 +1192,8 @@ class SetIdFromNames(libsbml.IdentifierTransformer):
         """Convert a name to a valid (but not necessarily unique) SBML ID.
 
         Non-alphanumeric characters become underscores; a leading
-        digit is prefixed with ``x_``; an ``'xx'`` marker is
-        inserted if `name` contains ``'*'``; a trailing underscore
+        digit is prefixed with ``x_``; an 'xx' marker is
+        inserted if `name` contains '*'; a trailing underscore
         is stripped.
 
         Parameters
@@ -1260,9 +1260,10 @@ class SetIdFromNames(libsbml.IdentifierTransformer):
 
 def getSpeciesByName(model, name, compartment=''):
     '''
-    Returns a list of species in the Model with the given name
-    compartment : (Optional) argument to specify the compartment name in which
-    to look for the species.
+    Returns a list of species in the Model with the given name.
+
+    compartment : (Optional) argument to specify the compartment name in
+    which to look for the species.
     '''
     if type(name) is not str:
         raise ValueError('"name" must be a string.')

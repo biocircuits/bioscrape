@@ -612,8 +612,8 @@ cdef class SpeciesDeathRule(DeathRule):
 	Constructed via `~LineageModel.create_death_rule` with
 	``rule_type='species'``. Recognized `param_dictionary` keys:
 	`specie` (the species name), `threshold` (a parameter name),
-	`comp` (one of ``'>'``/``'greater'``, ``'<'``/``'less'``, or
-	``'='``/``'equal'``; defaults to ``'>'`` with a warning if
+	`comp` (one of '>'/'greater', '<'/'less', or
+	'='/'equal'; defaults to '>' with a warning if
 	omitted), and, optionally, `noise` (a parameter name giving the
 	standard deviation of Gaussian noise added to `threshold`).
 	"""
@@ -675,8 +675,8 @@ cdef class ParamDeathRule(DeathRule):
 	Constructed via `~LineageModel.create_death_rule` with
 	``rule_type='param'``. Recognized `param_dictionary` keys:
 	`param` (the parameter name to compare), `threshold` (a
-	parameter name), `comp` (one of ``'>'``/``'greater'``,
-	``'<'``/``'less'``, or ``'='``/``'equal'``; defaults to ``'>'``
+	parameter name), `comp` (one of '>'/'greater',
+	'<'/'less', or '='/'equal'; defaults to '>'
 	with a warning if omitted), and, optionally, `noise` (a
 	parameter name giving the standard deviation of Gaussian noise
 	added to `threshold`).
@@ -805,13 +805,15 @@ cdef class LineageModel(Model):
 		death rule types are routed to `create_volume_rule`/
 		`create_division_rule`/`create_death_rule`; other types go
 		to the base `~bioscrape.types.Model`. Only recognized when
-		`rule_type` itself contains the word ``'volume'``,
-		``'division'``, or ``'death'`` (e.g.
-		``'linearvolumerule'``, not the short form ``'linear'``),
+		`rule_type` itself contains the word 'volume',
+		'division', or 'death' (e.g.
+		'linearvolumerule', not the short form 'linear'),
 		and division rules are not currently usable this way at all
 		(no way to supply a `VolumeSplitter`) -- prefer
 		`create_volume_rule`/`create_division_rule`/
 		`create_death_rule` instead.
+		TODO: this paragraph describes a known routing bug
+		(see task_03993410); update or remove it once fixed.
 	events : list of tuple, default []
 		Event tuples `(event_type, event_params,
 		event_propensity_type, propensity_params)`. Routed like
@@ -1064,7 +1066,7 @@ cdef class LineageModel(Model):
 		propensity_param_dict : dict
 			The propensity's field dictionary.
 		event_type : str, optional
-			One of ``'division'``, ``'volume'``, or ``'death'``
+			One of 'division', 'volume', or 'death'
 			(several capitalizations/suffixes accepted).
 		volume_splitter : VolumeSplitter, optional
 			Required if `event_type` is a division event; used to
@@ -1112,9 +1114,9 @@ cdef class LineageModel(Model):
 		Parameters
 		----------
 		event_type : str
-			Currently only the default type is supported: ``''``,
-			``'death'``, ``'deathevent'``, ``'death event'``, or
-			``'default'``.
+			Currently only the default type is supported: '',
+			'death', 'deathevent', 'death event', or
+			'default'.
 		event_params : dict
 			The event's field dictionary (unused by `DeathEvent`).
 		event_propensity_type : str
@@ -1145,9 +1147,9 @@ cdef class LineageModel(Model):
 		Parameters
 		----------
 		event_type : str
-			Currently only the default type is supported: ``''``,
-			``'division'``, ``'divisionevent'``, ``'division
-			event'``, or ``'default'``.
+			Currently only the default type is supported: '',
+			'division', 'divisionevent', 'division event',
+			or 'default'.
 		event_params : dict
 			The event's field dictionary (unused by `DivisionEvent`).
 		event_propensity_type : str
@@ -1185,8 +1187,8 @@ cdef class LineageModel(Model):
 		Parameters
 		----------
 		event_type : str
-			One of ``'linear'``, ``'multiplicative'``, or
-			``'general'`` (several capitalizations/suffixes
+			One of 'linear', 'multiplicative', or
+			'general' (several capitalizations/suffixes
 			accepted); see `LinearVolumeEvent`,
 			`MultiplicativeVolumeEvent`, `GeneralVolumeEvent` for
 			the corresponding `event_params` keys.
@@ -1240,8 +1242,8 @@ cdef class LineageModel(Model):
 			The rule's field dictionary (passed to
 			`LineageRule.initialize`).
 		rule_type : str
-			Must contain (case-insensitively) ``'division'``,
-			``'death'``, or ``'volume'``.
+			Must contain (case-insensitively) 'division',
+			'death', or 'volume'.
 		volume_splitter : VolumeSplitter, optional
 			Required if `rule_type` is a division rule; used to
 			partition the daughter cells.
@@ -1279,8 +1281,8 @@ cdef class LineageModel(Model):
 		Parameters
 		----------
 		rule_type : str
-			One of ``'species'``, ``'param'``/``'parameter'``, or
-			``'general'`` (or their `*DeathRule` class-name-style
+			One of 'species', 'param'/'parameter', or
+			'general' (or their `*DeathRule` class-name-style
 			aliases); see `SpeciesDeathRule`, `ParamDeathRule`,
 			`GeneralDeathRule` for the corresponding
 			`rule_param_dict` keys.
@@ -1317,8 +1319,8 @@ cdef class LineageModel(Model):
 		Parameters
 		----------
 		rule_type : str
-			One of ``'time'``, ``'volume'``, ``'delta'``/
-			``'deltaV'``, or ``'general'`` (or their
+			One of 'time', 'volume', 'delta'/
+			'deltaV', or 'general' (or their
 			`*DivisionRule` class-name-style aliases); see
 			`TimeDivisionRule`, `VolumeDivisionRule`,
 			`DeltaVDivisionRule`, `GeneralDivisionRule` for the
@@ -1361,8 +1363,8 @@ cdef class LineageModel(Model):
 		Parameters
 		----------
 		rule_type : str
-			One of ``'linear'``, ``'multiplicative'``,
-			``'assignment'``, or ``'ode'`` (or their `*VolumeRule`
+			One of 'linear', 'multiplicative',
+			'assignment', or 'ode' (or their `*VolumeRule`
 			class-name-style aliases); see `LinearVolumeRule`,
 			`MultiplicativeVolumeRule`, `AssignmentVolumeRule`,
 			`ODEVolumeRule` for the corresponding `rule_param_dict`
@@ -2039,9 +2041,9 @@ cdef class LineageVolumeSplitter(VolumeSplitter):
 	"""Splits a cell's volume and species between two daughter cells.
 
 	Each species (and the volume itself) can be partitioned
-	independently: ``'binomial'`` (each molecule independently goes
-	to one daughter with probability ~0.5), ``'perfect'``
-	(proportional to volume, +/- 1 for rounding), ``'duplicate'``
+	independently: 'binomial' (each molecule independently goes
+	to one daughter with probability ~0.5), 'perfect'
+	(proportional to volume, +/- 1 for rounding), 'duplicate'
 	(both daughters get the parent's full count), or a named entry
 	in `custom_partition_functions`.
 
@@ -2050,12 +2052,12 @@ cdef class LineageVolumeSplitter(VolumeSplitter):
 	M : Model
 		The model whose species are being partitioned.
 	options : dict, default {}
-		Maps a species name (or the special keys ``'default'`` and
-		``'volume'``) to its partitioning mode: ``'binomial'``,
-		``'perfect'``, ``'duplicate'``, or a key in
+		Maps a species name (or the special keys 'default' and
+		'volume') to its partitioning mode: 'binomial',
+		'perfect', 'duplicate', or a key in
 		`custom_partition_functions`. Species not listed use the
-		``'default'`` entry's mode (``'binomial'`` if not given);
-		``'volume'`` defaults to the same mode as ``'default'``.
+		'default' entry's mode ('binomial' if not given);
+		'volume' defaults to the same mode as 'default'.
 	custom_partition_functions : dict, optional
 		Maps a name to a callable used when that name is given as a
 		partitioning mode in `options`.
@@ -4825,8 +4827,8 @@ def py_set_up_InteractingLineage(global_species = [], interface_list = [],
 		Required when using `interface_list` instead of `model_list`.
 	global_volume_simulator : str, default "stochastic"
 		Simulator type for the optional shared-environment CRN given
-		by `global_volume_model`: ``'stochastic'`` or
-		``'deterministic'``.
+		by `global_volume_model`: 'stochastic' or
+		'deterministic'.
 	global_volume_model : Model, optional
 		A `~bioscrape.types.Model` describing reactions in the
 		shared extracellular environment (e.g. degradation of a
@@ -4967,8 +4969,8 @@ def py_PropagateInteractingCells(timepoints, global_sync_period,
 		`InteractingLineageSSASimulator`.
 	global_volume_simulator : str, default "stochastic"
 		Simulator type for the optional shared-environment CRN given
-		by `global_volume_model`: ``'stochastic'`` or
-		``'deterministic'``.
+		by `global_volume_model`: 'stochastic' or
+		'deterministic'.
 	global_volume_model : Model, optional
 		A `~bioscrape.types.Model` describing reactions in the
 		shared extracellular environment. If not given, global
@@ -5108,8 +5110,8 @@ def py_SimulateInteractingCellLineage(timepoints, global_sync_period,
 		`InteractingLineageSSASimulator`.
 	global_volume_simulator : str, default "stochastic"
 		Simulator type for the optional shared-environment CRN given
-		by `global_volume_model`: ``'stochastic'`` or
-		``'deterministic'``.
+		by `global_volume_model`: 'stochastic' or
+		'deterministic'.
 	global_volume_model : Model, optional
 		A `~bioscrape.types.Model` describing reactions in the
 		shared extracellular environment. If not given, global

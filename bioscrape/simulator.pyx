@@ -1822,12 +1822,12 @@ cdef class GeneralVolumeSplitter(VolumeSplitter):
         ----------
         options : dict of str to list of str
             Maps a partitioning mode to the species names using it.
-            ``'perfect'`` splits a species as evenly as possible
-            (+/- 0.5, keeping round numbers); ``'binomial'`` splits
-            it binomially; ``'duplicate'`` gives each daughter the
+            'perfect' splits a species as evenly as possible
+            (+/- 0.5, keeping round numbers); 'binomial' splits
+            it binomially; 'duplicate' gives each daughter the
             same count as the parent. Species not listed under
-            ``'perfect'`` or ``'duplicate'`` default to
-            ``'binomial'``.
+            'perfect' or 'duplicate' default to
+            'binomial'.
         m : Model
             The model used to look up species indices.
         """
