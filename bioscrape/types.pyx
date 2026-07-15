@@ -266,8 +266,8 @@ cdef class BimolecularPropensity(Propensity):
     ``propensity_type='massaction'`` reactions with two reactant
     species; not normally constructed directly. Recognized
     `propensity_param_dict` keys: `k` (the rate parameter name) and
-    `species` (the two reactant species names, e.g. ``'A*B'``). If the
-    two species are the same (e.g. ``'A*A'``), the stochastic
+    `species` (the two reactant species names, e.g. 'A*B'). If the
+    two species are the same (e.g. 'A*A'), the stochastic
     propensity accounts for the discrete copy-number effect of a
     species reacting with itself: $\rho = k x_1 (x_1 - 1)$.
 
@@ -659,7 +659,7 @@ cdef class MassActionPropensity(Propensity):
     instead for zero, one, and two reactant species respectively);
     not normally constructed directly. Recognized
     `propensity_param_dict` keys: `k` (the rate parameter name) and
-    `species` (the reactant species names, e.g. ``'A*A*B'`` for a
+    `species` (the reactant species names, e.g. 'A*A*B' for a
     reaction where species `A` appears with multiplicity 2). The
     deterministic propensity multiplies each distinct species once;
     the stochastic propensity additionally accounts for repeated
@@ -1280,7 +1280,7 @@ cdef class GeneralPropensity(Propensity):
     Constructed via `~Model.create_reaction` with
     ``propensity_type='general'``. Recognized
     `propensity_param_dict` key: `rate`, a string expression in
-    species and parameter names (e.g. ``'k*A*B'``), parsed into a
+    species and parameter names (e.g. 'k*A*B'), parsed into a
     `Term` expression tree via `parse_expression`.
     """
 
@@ -1709,7 +1709,7 @@ cdef class AdditiveAssignmentRule(Rule):
 
     Constructed via `~Model.create_rule` with
     ``rule_type='additive'``. `rule_attributes['equation']` must be of
-    the form ``'dest = src1 + src2 + ...'``, naming the destination
+    the form 'dest = src1 + src2 + ...', naming the destination
     species and the source species to sum (no other expression forms
     are supported; see `GeneralAssignmentRule` for arbitrary
     expressions).
@@ -1752,7 +1752,7 @@ cdef class GeneralAssignmentRule(Rule):
 
     Constructed via `~Model.create_rule` with
     ``rule_type='assignment'``. `rule_attributes['equation']` must be
-    of the form ``'dest = expression'``, where `expression` is parsed
+    of the form 'dest = expression', where `expression` is parsed
     (via `parse_expression`) into a `Term` tree and re-evaluated each
     time the rule fires; `dest` may be a species or a parameter name.
     """
@@ -2557,9 +2557,9 @@ cdef class Model:
         Parameters
         ----------
         propensity_type : str
-            One of ``'massaction'``, ``'hillpositive'``,
-            ``'proportionalhillpositive'``, ``'hillnegative'``,
-            ``'proportionalhillnegative'``, or ``'general'``.
+            One of 'massaction', 'hillpositive',
+            'proportionalhillpositive', 'hillnegative',
+            'proportionalhillnegative', or 'general'.
         propensity_param_dict : dict
             Parameters for the given propensity type. Numeric values
             are automatically converted to dummy parameters.
@@ -2657,14 +2657,14 @@ cdef class Model:
         products : list of str
             Product species names.
         propensity_type : str
-            One of ``'massaction'``, ``'hillpositive'``,
-            ``'proportionalhillpositive'``, ``'hillnegative'``,
-            ``'proportionalhillnegative'``, or ``'general'``.
+            One of 'massaction', 'hillpositive',
+            'proportionalhillpositive', 'hillnegative',
+            'proportionalhillnegative', or 'general'.
         propensity_param_dict : dict
             Parameters for the given propensity type.
         delay_type : str, optional
-            One of ``'none'``, ``'fixed'``, ``'gaussian'``, or
-            ``'gamma'``. Defaults to no delay.
+            One of 'none', 'fixed', 'gaussian', or
+            'gamma'. Defaults to no delay.
         delay_reactants : list of str, optional
             Reactant species names for the delayed part of the
             reaction.
@@ -2797,13 +2797,13 @@ cdef class Model:
         Parameters
         ----------
         rule_type : str
-            One of ``'additive'`` (`AdditiveAssignmentRule`),
-            ``'assignment'`` (`GeneralAssignmentRule`), or ``'ode'``
+            One of 'additive' (`AdditiveAssignmentRule`),
+            'assignment' (`GeneralAssignmentRule`), or 'ode'
             (`GeneralODERule`, always run at every timestep
             regardless of `rule_frequency`).
         rule_attributes : dict
             Rule parameters/attributes. For additive/assignment
-            rules, the only attribute used is ``'equation'``.
+            rules, the only attribute used is 'equation'.
         rule_frequency : str, default "repeated"
             When the rule fires; see `Rule.set_frequency_flag` for
             the supported values.
@@ -3489,7 +3489,7 @@ cdef class Model:
         -------
         list of str
             One string per reaction, formatted as
-            ``"reactants ->[propensity] products"``.
+            'reactants ->[propensity] products'.
         """
         reaction_strings = []
 
