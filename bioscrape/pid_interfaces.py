@@ -144,7 +144,7 @@ class PIDInterface():
             return np.log( 1/(upper_bound - lower_bound) )
 
     def gaussian_prior(self, param_name, param_value):
-        r"""
+        """
         Log-prior probability of `param_value` under a Gaussian prior.
 
         Parameters
@@ -158,9 +158,10 @@ class PIDInterface():
         Returns
         -------
         float
-            The log of the Gaussian probability density
-            $\mathcal{N}(\mu, \sigma^2)$ at `param_value`, or `numpy.inf`
-            (with a warning) if the computed probability is negative.
+            The log of the Gaussian probability density (with the mean and
+            standard deviation from `self.prior`) at `param_value`, or
+            `numpy.inf` (with a warning) if the computed probability is
+            negative.
 
         Raises
         ------
