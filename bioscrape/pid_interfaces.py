@@ -385,11 +385,12 @@ class PIDInterface():
 # Add a new class similar to this to create new interfaces.
 class StochasticInference(PIDInterface):
     """
-    PID interface for Bayesian inference against stochastic simulations.
+    PID interface for Bayesian inference of stochastic models.
 
     Fits `~bioscrape.types.Model` parameters to single-cell trajectory data
-    using `~bioscrape.inference.StochasticTrajectoriesLikelihood`, comparing
-    simulated and experimental trajectory statistics rather than individual
+    (which may come from experiments or from another simulation) using
+    `~bioscrape.inference.StochasticTrajectoriesLikelihood`, comparing
+    simulated and measured trajectory statistics rather than individual
     trajectories.
 
     Parameters
@@ -536,10 +537,11 @@ class StochasticInference(PIDInterface):
 # Add a new class similar to this to create new interfaces.
 class DeterministicInference(PIDInterface):
     """
-    PID interface for Bayesian inference against deterministic simulations.
+    PID interface for Bayesian inference of deterministic models.
 
-    Fits `~bioscrape.types.Model` parameters to bulk (deterministic)
-    trajectory data using `~bioscrape.inference.DeterministicLikelihood`.
+    Fits `~bioscrape.types.Model` parameters to bulk time-series data
+    (which may come from experiments or from another simulation) using
+    `~bioscrape.inference.DeterministicLikelihood`.
 
     Parameters
     ----------
