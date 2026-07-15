@@ -2485,7 +2485,7 @@ cdef class LineageSSASimulator:
 
 	#Sets the internal interface and associated internal variables
 	#Main speed-up due to not having to set c_stoic (which could be very large) as often
-	cdef void intialize_single_cell_interface(self, LineageCSimInterface interface):
+	cdef void initialize_single_cell_interface(self, LineageCSimInterface interface):
 		#Reset internal variables
 		self.interface = interface
 
@@ -2871,7 +2871,7 @@ cdef class LineageSSASimulator:
 			v = LineageVolumeCellState(v0 = 1, t0 = 0, state = Model.get_species_array())
 
 		self.set_c_truncated_timepoints(timepoints)
-		self.intialize_single_cell_interface(interface)
+		self.initialize_single_cell_interface(interface)
 
 		return self.SimulateSingleCell(v, self.c_truncated_timepoints, 1)#The 1 indicates that trajectory results will be saved to memory
 
@@ -3070,7 +3070,7 @@ cdef class LineageSSASimulator:
 		self.old_cell_states = []
 		self.old_schnitzes = []
 		self.set_c_timepoints(timepoints)
-		self.intialize_single_cell_interface(interface)
+		self.initialize_single_cell_interface(interface)
 		return self.SimulateCellLineage(initial_cell_states, self.c_timepoints)
 
 
@@ -3314,7 +3314,7 @@ cdef class LineageSSASimulator:
 		"""
 		self.cell_states = []
 		self.set_c_timepoints(timepoints)
-		self.intialize_single_cell_interface(interface)
+		self.initialize_single_cell_interface(interface)
 		self.initialize_single_cell_results_arrays(timepoints.shape[0])
 		return self.SimulateTurbidostat(initial_cell_states, timepoints, sample_times, population_cap, debug)
 
@@ -3350,7 +3350,7 @@ cdef class LineageSSASimulator:
 		self.cell_states = []
 		self.old_cell_states = []
 		self.set_c_timepoints(timepoints)
-		self.intialize_single_cell_interface(interface)
+		self.initialize_single_cell_interface(interface)
 		self.initialize_single_cell_results_arrays(timepoints.shape[0])
 		return self.PropagateCells(initial_cell_states, timepoints, sample_times, include_dead_cells)
 
@@ -3424,7 +3424,7 @@ cdef class LineageSSASimulator:
 			up to its death or the final timepoint.
 		"""
 		self.set_c_timepoints(timepoints)
-		self.intialize_single_cell_interface(interface)
+		self.initialize_single_cell_interface(interface)
 		return self.SingleCellLineage(initial_cell, timepoints)
 
 
@@ -3996,7 +3996,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 	#Initializes a new interface and sets all internal variables such as lineage and cell_lists appropriately
 	cdef void switch_interface(self, unsigned interface_ind, create_schnitzes):
 		#print("switch_interface", interface_ind)
-		self.intialize_single_cell_interface(self.interface_list[interface_ind])
+		self.initialize_single_cell_interface(self.interface_list[interface_ind])
 
 		self.old_cell_states = self.old_cell_state_list[interface_ind]
 		self.new_cell_states = self.new_cell_state_list[interface_ind]
