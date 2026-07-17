@@ -101,6 +101,7 @@ cdef class UniformDistribution(Distribution):
         The upper bound in each dimension; must be the same shape as `lb`.
     """
     def __init__(self, np.ndarray lb, np.ndarray ub):
+        """See class docstring."""
         self.dimension = lb.shape[0]
         self.lower_bounds = lb.copy()
         self.upper_bounds = ub.copy()
@@ -161,6 +162,7 @@ cdef class Data():
         The number of samples/trajectories (default 1).
     """
     def __init__(self, np.ndarray timepoints = None, np.ndarray measurements = None, list measured_species = [], unsigned N = 1):
+        """See class docstring."""
         self.set_data(timepoints, measurements, measured_species, N)
 
     def set_data(self,np.ndarray timepoints, np.ndarray measurements, list measured_species, unsigned N):
@@ -503,6 +505,7 @@ cdef class ModelLikelihood(Likelihood):
     def __init__(self, model = None, init_state = {}, init_params = {},
                  interface = None, simulator = None, data = None,
                  **keywords):
+        """See class docstring."""
         self.set_model(model, simulator, interface)
         self.set_likelihood_options(**keywords)
         if isinstance(init_state, dict):
@@ -586,7 +589,8 @@ cdef class ModelLikelihood(Likelihood):
         Parameters
         ----------
         species : numpy.ndarray
-            The default species value array, indexed as in `m`.
+            The default species value array, indexed as in the model
+            attached via `set_model`.
         """
         self.default_species = species
 

@@ -250,9 +250,9 @@ class InferenceSetup(object):
         Parameters
         ----------
         prior : dict
-            Maps each parameter name in `params_to_estimate` to a list
-            describing its prior distribution; see :doc:`../inference`
-            for the supported prior types.
+            Maps each parameter name in `self.params_to_estimate` to a
+            list describing its prior distribution; see
+            :doc:`../inference` for the supported prior types.
 
         Returns
         -------
@@ -263,7 +263,7 @@ class InferenceSetup(object):
         ------
         ValueError
             If `prior` does not have exactly one entry per parameter
-            in `params_to_estimate`.
+            in `self.params_to_estimate`.
         """
         self.prior = prior
         if len(list(self.prior.keys())) != len(self.params_to_estimate):
@@ -345,7 +345,7 @@ class InferenceSetup(object):
         """
         Force the timepoints to use for inference.
 
-        By default, the timepoints are extracted from `exp_data`.
+        By default, the timepoints are extracted from `self.exp_data`.
 
         Parameters
         ----------
@@ -367,7 +367,8 @@ class InferenceSetup(object):
         Parameters
         ----------
         params_to_estimate : list of str
-            The names of the parameters in `Model` to estimate.
+            The names of the parameters in the model (attached via
+            `set_model`) to estimate.
 
         Returns
         -------
@@ -418,7 +419,7 @@ class InferenceSetup(object):
         """
         Set the number of stochastic simulations averaged per data point.
 
-        Only applies when `sim_type` is 'stochastic'.
+        Only applies when `self.sim_type` is 'stochastic'.
 
         Parameters
         ----------
@@ -428,8 +429,8 @@ class InferenceSetup(object):
         Returns
         -------
         bool or None
-            True if set; otherwise None, with a warning, if `sim_type`
-            is not 'stochastic'.
+            True if set; otherwise None, with a warning, if
+            `self.sim_type` is not 'stochastic'.
         """
         if self.sim_type == 'stochastic':
             self.N_simulations = N_simulations
@@ -446,8 +447,8 @@ class InferenceSetup(object):
         initial_conditions : dict or list of dict
             A dictionary mapping species names to initial values, or a
             list of such dictionaries (one per trajectory in
-            `exp_data`, in the same order). If None, defaults to
-            `Model`'s own initial conditions.
+            `self.exp_data`, in the same order). If None, defaults to
+            the model's own initial conditions (see `set_model`).
 
         Returns
         -------
@@ -480,7 +481,8 @@ class InferenceSetup(object):
         parameter_conditions : dict or list of dict
             A dictionary mapping parameter names (that change between
             measurements) to values, or a list of such dictionaries
-            (one per trajectory in `exp_data`, in the same order).
+            (one per trajectory in `self.exp_data`, in the same
+            order).
 
         Returns
         -------
@@ -493,12 +495,13 @@ class InferenceSetup(object):
 
     def set_measurements(self, measurements: list):
         """
-        Set the list of measured species to look for in `exp_data`.
+        Set the list of measured species to look for in `self.exp_data`.
 
         Parameters
         ----------
         measurements : list of str
-            The name(s) of the species in `Model` that are measured.
+            The name(s) of the species in the model (attached via
+            `set_model`) that are measured.
 
         Returns
         -------
@@ -510,12 +513,13 @@ class InferenceSetup(object):
 
     def set_time_column(self, time_column: str):
         """
-        Set the name of the time column in `exp_data`.
+        Set the name of the time column in `self.exp_data`.
 
         Parameters
         ----------
         time_column : str
-            The column name in `exp_data` that holds the time points.
+            The column name in `self.exp_data` that holds the time
+            points.
 
         Returns
         -------
@@ -592,7 +596,8 @@ class InferenceSetup(object):
         Returns
         -------
         list of str
-            The names of the parameters in `Model` to estimate.
+            The names of the parameters in the model (attached via
+            `set_model`) to estimate.
         """
         return self.params_to_estimate
 
@@ -602,7 +607,7 @@ class InferenceSetup(object):
 
         Prepares the inference (extracting data, setting up the
         likelihood) and then runs `emcee.EnsembleSampler` for
-        `nsteps` steps with `nwalkers` walkers.
+        `self.nsteps` steps with `self.nwalkers` walkers.
 
         Parameters
         ----------
@@ -647,7 +652,7 @@ class InferenceSetup(object):
         Returns
         -------
         emcee.EnsembleSampler
-            The sampler, after running `nsteps` steps.
+            The sampler, after running `self.nsteps` steps.
         """
         self.prepare_inference(**kwargs)
         sampler = self.run_emcee(**kwargs)
@@ -659,7 +664,8 @@ class InferenceSetup(object):
 
         Applies any of the `timepoints`/`norm_order`/`N_simulations`/
         `debug` keyword arguments given, then prepares the initial and
-        parameter conditions and extracts `exp_data` into `LL_data`.
+        parameter conditions and extracts `self.exp_data` into
+        `self.LL_data`.
 
         Parameters
         ----------
@@ -704,13 +710,13 @@ class InferenceSetup(object):
 
     def prepare_initial_conditions(self):
         """
-        Expand `initial_conditions` to one dict per trajectory in `exp_data`.
+        Expand `self.initial_conditions` to one dict per trajectory.
 
         Raises
         ------
         ValueError
-            If `initial_conditions` is a list whose length does not
-            match the number of trajectories in `exp_data`.
+            If `self.initial_conditions` is a list whose length does not
+            match the number of trajectories in `self.exp_data`.
         """
         # Create initial conditions as required
         N = 1 if type(self.exp_data) is dict else len(self.exp_data)
@@ -728,16 +734,16 @@ class InferenceSetup(object):
 
     def prepare_parameter_conditions(self):
         """
-        Expand `parameter_conditions` to one dict per trajectory in `exp_data`.
+        Expand `self.parameter_conditions` to one dict per trajectory.
 
         Raises
         ------
         ValueError
-            If `parameter_conditions` is a list whose length does not
-            match the number of trajectories in `exp_data`.
+            If `self.parameter_conditions` is a list whose length does
+            not match the number of trajectories in `self.exp_data`.
         AssertionError
-            If a parameter in `params_to_estimate` also appears in a
-            per-trajectory parameter condition.
+            If a parameter in `self.params_to_estimate` also appears
+            in a per-trajectory parameter condition.
         """
         # Create parameter conditions as required
         N = 1 if type(self.exp_data) is dict else len(self.exp_data)
@@ -763,11 +769,11 @@ class InferenceSetup(object):
 
     def extract_data(self):
         """
-        Reshape `exp_data` into a single `(N, T, M)` array.
+        Reshape `self.exp_data` into a single `(N, T, M)` array.
 
-        Extracts the timepoints (from `time_column`) and measured
-        species (from `measurements`) from `exp_data`, which may be a
-        single `pandas.DataFrame` or a list of them (one per
+        Extracts the timepoints (from `self.time_column`) and measured
+        species (from `self.measurements`) from `self.exp_data`, which
+        may be a single `pandas.DataFrame` or a list of them (one per
         trajectory), into one array of measurements indexed by
         trajectory, timepoint, and measured species.
 
@@ -780,9 +786,10 @@ class InferenceSetup(object):
         Raises
         ------
         TypeError
-            If `time_column` is not set, if `exp_data` (or one of its
-            entries, when a list) is not a `pandas.DataFrame`, or if
-            `exp_data` is of an unrecognized type.
+            If `self.time_column` is not set, if `self.exp_data` (or
+            one of its entries, when a list) is not a
+            `pandas.DataFrame`, or if `self.exp_data` is of an
+            unrecognized type.
         """
         exp_data = self.exp_data
         # Get timepoints from given experimental data
@@ -859,12 +866,13 @@ class InferenceSetup(object):
 
     def setup_cost_function(self, **kwargs):
         """
-        Build the `PIDInterface`-derived likelihood object for `sim_type`.
+        Build the `PIDInterface`-derived likelihood for `self.sim_type`.
 
         Constructs a `~bioscrape.pid_interfaces.StochasticInference` or
         `~bioscrape.pid_interfaces.DeterministicInference` (depending
-        on `sim_type`), and sets it up against `LL_data`. Stores the
-        result as `pid_interface`, used by `cost_function`.
+        on `self.sim_type`), and sets it up against `self.LL_data`.
+        Stores the result as `self.pid_interface`, used by
+        `cost_function`.
 
         Parameters
         ----------
@@ -890,14 +898,15 @@ class InferenceSetup(object):
         """
         The log-likelihood of `params`, for use as an MCMC cost function.
 
-        Evaluates `pid_interface`'s likelihood at `params`, and records
-        both the value and `params` (in `cost_progress`/`cost_params`)
-        for later inspection.
+        Evaluates `self.pid_interface`'s likelihood at `params`, and
+        records both the value and `params` (in `self.cost_progress`/
+        `self.cost_params`) for later inspection.
 
         Parameters
         ----------
         params : array_like
-            The parameter values, in the order of `params_to_estimate`.
+            The parameter values, in the order of
+            `self.params_to_estimate`.
 
         Returns
         -------
@@ -921,7 +930,7 @@ class InferenceSetup(object):
         """
         Sample the initial parameter values for each MCMC walker.
 
-        Uses `init_seed` (optionally overridden by the `init_seed`
+        Uses `self.init_seed` (optionally overridden by the `init_seed`
         keyword argument) to determine the initial values; see the
         class docstring for the supported forms. Values whose prior
         has a 'positive' flag are clipped to be non-negative (or a
@@ -935,8 +944,8 @@ class InferenceSetup(object):
         Returns
         -------
         numpy.ndarray
-            Array of shape `(nwalkers, len(params_to_estimate))` giving
-            the initial parameter values for each walker.
+            Array of shape `(self.nwalkers, len(self.params_to_estimate))`
+            giving the initial parameter values for each walker.
 
         Raises
         ------
@@ -1026,14 +1035,14 @@ class InferenceSetup(object):
         Returns
         -------
         emcee.EnsembleSampler
-            The sampler, after running `nsteps` steps.
+            The sampler, after running `self.nsteps` steps.
 
         Raises
         ------
         ImportError
             If the `emcee` package is not installed, or if
-            `parallel` is True and the `multiprocessing` package is
-            not available.
+            `self.parallel` is True and the `multiprocessing` package
+            is not available.
         """
         if kwargs.get("reuse_likelihood", False) is False:
             self.setup_cost_function(**kwargs)
@@ -1119,11 +1128,11 @@ class InferenceSetup(object):
             Passed to `matplotlib.pyplot.subplots` for the chain plot.
         labels : list of str, optional
             Axis labels for each parameter; defaults to
-            `params_to_estimate`.
+            `self.params_to_estimate`.
         alpha : float, default 0.3
             Transparency of the individual walker traces in the chain
             plot.
-        discard : int, default `2 * nwalkers`
+        discard : int, default `2 * self.nwalkers`
             Number of initial steps to discard as burn-in before
             computing the posterior summary and corner plot.
         thin : int, default 1
@@ -1203,7 +1212,7 @@ class InferenceSetup(object):
         """
         Run least-squares parameter inference via `lmfit`.
 
-        Fits each trajectory in `exp_data` independently with
+        Fits each trajectory in `self.exp_data` independently with
         `lmfit.minimize`, using `~bioscrape.pid_interfaces.LMFitInference`.
 
         Parameters
@@ -1219,7 +1228,7 @@ class InferenceSetup(object):
         Returns
         -------
         list of lmfit.minimizer.MinimizerResult
-            One result per trajectory in `exp_data`.
+            One result per trajectory in `self.exp_data`.
         """
         self.prepare_inference(**kwargs)
         N = np.shape(self.LL_data)[0]

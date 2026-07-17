@@ -32,11 +32,13 @@ def py_sensitivity_analysis(model: Model, timepoints: np.ndarray,
     normalize : bool
         If True, each sensitivity coefficient is normalized by x_i/p_j at
         that time point. If False, the coefficients are not normalized.
-    **kwargs
-        Additional keyword arguments passed to `SensitivityAnalysis` and
-        `SensitivityAnalysis.compute_SSM`, including `dx` (the
-        finite-difference step size, default 0.01) and `precision` (the number
-        of decimal places to round results to, default 10).
+    dx : float, default 0.01
+        Finite-difference step size used when approximating derivatives.
+    precision : int, default 10
+        Number of decimal places to round returned sensitivity values to.
+    method : str, optional
+        The finite-difference method to use; see
+        `SensitivityAnalysis.compute_J`.
 
     Returns
     -------
@@ -63,10 +65,12 @@ def py_get_jacobian(model: Model, state: Union[list, np.ndarray], **kwargs) -> n
     state : list or numpy.ndarray
         The state values (vector of length `n`) at which to compute the
         Jacobian.
-    **kwargs
-        Additional keyword arguments passed to
-        `SensitivityAnalysis.compute_J`, including `method` (the
-        finite-difference method to use) and `time`.
+    method : str, optional
+        The finite-difference method to use; see
+        `SensitivityAnalysis.compute_J`.
+    time : float, optional
+        The time at which to evaluate the (possibly time-varying)
+        model (default 0.0).
 
     Returns
     -------
@@ -89,10 +93,12 @@ def py_get_sensitivity_to_parameter(model: Model, state: Union[list, np.ndarray]
         d(f)/d(p_j).
     param_name : str
         The name of the parameter p_j to differentiate with respect to.
-    **kwargs
-        Additional keyword arguments passed to
-        `SensitivityAnalysis.compute_Zj`, including `method` (the
-        finite-difference method to use) and `time`.
+    method : str, optional
+        The finite-difference method to use; see
+        `SensitivityAnalysis.compute_Zj`.
+    time : float, optional
+        The time at which to evaluate the (possibly time-varying)
+        model (default 0.0).
 
     Returns
     -------
@@ -327,9 +333,8 @@ class SensitivityAnalysis(Model):
         params : list of str, optional
             The parameters to compute sensitivities for. Defaults to all of
             the model's parameters.
-        **kwargs
-            Additional keyword arguments passed to `compute_J` and
-            `compute_Zj`, including `method`.
+        method : str, optional
+            The finite-difference method to use; see `compute_J`.
 
         Returns
         -------

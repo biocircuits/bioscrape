@@ -40,13 +40,14 @@ class PIDInterface():
         `['uniform', lower_bound, upper_bound]` or
         `['gaussian', mean, standard_deviation]`. See `check_prior` for the
         full list of built-in prior types and their parameters.
-    **kwargs
-        Additional keyword arguments, including `log_space_parameters` (bool,
-        default False; whether the parameters being estimated are in log
-        space) and `debug` (bool, default False; if True, print additional
-        diagnostic information during inference).
+    log_space_parameters : bool, default False
+        Whether the parameters being estimated are in log space.
+    debug : bool, default False
+        If True, print additional diagnostic information during
+        inference.
     """
     def __init__(self, params_to_estimate, M, prior, **kwargs):
+        """See class docstring."""
         self.params_to_estimate = params_to_estimate
         self.M = M
         self.prior = prior
@@ -159,9 +160,7 @@ class PIDInterface():
         -------
         float
             The log of the Gaussian probability density (with the mean and
-            standard deviation from `self.prior`) at `param_value`, or
-            `numpy.inf` (with a warning) if the computed probability is
-            negative.
+            standard deviation from `self.prior`) at `param_value`.
 
         Raises
         ------
@@ -358,9 +357,7 @@ class PIDInterface():
         Returns
         -------
         float
-            The log of the log-normal probability density at `param_value`,
-            or `numpy.inf` (with a warning) if the computed probability is
-            negative.
+            The log of the log-normal probability density at `param_value`.
 
         Raises
         ------
@@ -403,10 +400,15 @@ class StochasticInference(PIDInterface):
     prior : dict
         A dictionary specifying the prior distribution for each parameter;
         see `PIDInterface`.
-    **kwargs
-        Additional keyword arguments; see `PIDInterface`.
+    log_space_parameters : bool, default False
+        Whether the parameters being estimated are in log space; see
+        `PIDInterface`.
+    debug : bool, default False
+        If True, print additional diagnostic information during
+        inference.
     """
     def __init__(self, params_to_estimate, M, prior, **kwargs):
+        """See class docstring."""
         self.LL_stoch = None
         self.dataStoch = None
         if 'debug' in kwargs:
@@ -491,9 +493,10 @@ class StochasticInference(PIDInterface):
         Parameters
         ----------
         params : array_like
-            Candidate values for the parameters in `params_to_estimate`, in
-            the same order. If `log_space_parameters` is True, these are
-            interpreted as log-space values and exponentiated before use.
+            Candidate values for the parameters in `self.params_to_estimate`,
+            in the same order. If `self.log_space_parameters` is True,
+            these are interpreted as log-space values and exponentiated
+            before use.
 
         Returns
         -------
@@ -553,10 +556,15 @@ class DeterministicInference(PIDInterface):
     prior : dict
         A dictionary specifying the prior distribution for each parameter;
         see `PIDInterface`.
-    **kwargs
-        Additional keyword arguments; see `PIDInterface`.
+    log_space_parameters : bool, default False
+        Whether the parameters being estimated are in log space; see
+        `PIDInterface`.
+    debug : bool, default False
+        If True, print additional diagnostic information during
+        inference.
     """
     def __init__(self, params_to_estimate, M, prior, **kwargs):
+        """See class docstring."""
         self.LL_det = None
         self.dataDet = None
         self.debug = None
@@ -637,9 +645,10 @@ class DeterministicInference(PIDInterface):
         Parameters
         ----------
         params : array_like
-            Candidate values for the parameters in `params_to_estimate`, in
-            the same order. If `log_space_parameters` is True, these are
-            interpreted as log-space values and exponentiated before use.
+            Candidate values for the parameters in `self.params_to_estimate`,
+            in the same order. If `self.log_space_parameters` is True,
+            these are interpreted as log-space values and exponentiated
+            before use.
 
         Returns
         -------
@@ -703,10 +712,15 @@ class LMFitInference(PIDInterface):
         A dictionary specifying the prior distribution for each parameter;
         used to set the lower/upper bounds passed to `lmfit`. See
         `PIDInterface`.
-    **kwargs
-        Additional keyword arguments; see `PIDInterface`.
+    log_space_parameters : bool, default False
+        Whether the parameters being estimated are in log space; see
+        `PIDInterface`.
+    debug : bool, default False
+        If True, print additional diagnostic information during
+        inference.
     """
     def __init__(self, params_to_estimate, M, prior, **kwargs):
+        """See class docstring."""
         self.residual_function = None
         self.dataLMFit = None
         super().__init__(params_to_estimate, M, prior, **kwargs)
@@ -717,10 +731,10 @@ class LMFitInference(PIDInterface):
                               stochastic = False, debug = False,
                               plot_show = True, **kwargs):
         """
-        Fit `params_to_estimate` to `data` via residual minimization.
+        Fit `self.params_to_estimate` to `data` via residual minimization.
 
-        Builds an `lmfit.Parameters` object from `params_to_estimate` and
-        `self.prior` (using each parameter's prior bounds, or a `[0, inf)`
+        Builds an `lmfit.Parameters` object from `self.params_to_estimate`
+        and `self.prior` (using each parameter's prior bounds, or a `[0, inf)`
         bound if its prior has a 'positive' flag), then calls `lmfit.minimize`
         on a residual function that simulates the model at each candidate
         parameter set and compares it against `data`. If a candidate parameter

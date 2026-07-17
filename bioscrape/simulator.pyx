@@ -186,7 +186,7 @@ cdef class ArrayDelayQueue(DelayQueue):
     """A `DelayQueue` backed by an array of future reaction counts.
 
     The max future time that can be handled is
-    ``dt * (number of queue columns)``.
+    dt * (number of queue columns).
 
     Parameters
     ----------
@@ -711,7 +711,7 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
     propensity is set to 0 without evaluating it. Also warns (and
     zeroes out) any propensity that computes as negative, and warns
     if any species count or volume falls outside
-    ``[0, max_species_count]``/``(0, max_volume]`` before computing
+    [0, max_species_count]/(0, max_volume] before computing
     stochastic propensities, instead of silently propagating an
     ill-conditioned value.
 
@@ -1812,6 +1812,7 @@ cdef class GeneralVolumeSplitter(VolumeSplitter):
     Splits species binomially, perfectly, or by duplication.
     """
     def __init__(self):
+        """See class docstring."""
         self.partition_noise = 0
 
     def py_set_partitioning(self, dict options, Model m):
@@ -1864,7 +1865,7 @@ cdef class GeneralVolumeSplitter(VolumeSplitter):
         """Set the volume-split noise.
 
         The split fraction is drawn uniformly from
-        ``[0.5 - noise, 0.5]`` of the parent's volume rather than
+        [0.5 - noise, 0.5] of the parent's volume rather than
         always splitting exactly in half.
 
         Parameters
