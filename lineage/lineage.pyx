@@ -109,11 +109,11 @@ cdef class VolumeEvent(Event):
 		raise NotImplementedError("VolumeReactions Must be subclassed")
 
 cdef class LinearVolumeEvent(VolumeEvent):
-	"""Sets volume to ``volume + growth_rate`` when the event fires.
+	"""Sets volume to volume + growth_rate when the event fires.
 
 	Constructed via `~LineageModel.create_volume_event` with
 	``event_type='linear'``. Recognized `event_params` key:
-	`growth_rate` (a parameter name).
+	'growth_rate' (a parameter name).
 	"""
 	cdef unsigned growth_rate_ind
 
@@ -131,11 +131,11 @@ cdef class LinearVolumeEvent(VolumeEvent):
 		return ([], [event_fields["growth_rate"]])
 
 cdef class MultiplicativeVolumeEvent(VolumeEvent):
-	"""Sets volume to ``volume * (1 + growth_rate)`` when it fires.
+	"""Sets volume to volume * (1 + growth_rate) when it fires.
 
 	Constructed via `~LineageModel.create_volume_event` with
 	``event_type='multiplicative'``. Recognized `event_params` key:
-	`growth_rate` (a parameter name).
+	'growth_rate' (a parameter name).
 	"""
 	cdef unsigned growth_rate_ind
 	cdef Term volume_equation
@@ -159,7 +159,7 @@ cdef class GeneralVolumeEvent(VolumeEvent):
 
 	Constructed via `~LineageModel.create_volume_event` with
 	``event_type='general'``. Recognized `event_params` key:
-	`equation` (a symbolic expression string, parsed via
+	'equation' (a symbolic expression string, parsed via
 	`~bioscrape.types.parse_expression`; may reference species,
 	parameters, and `volume`).
 	"""
@@ -281,13 +281,13 @@ cdef class VolumeRule(LineageRule):
 		raise NotImplementedError("get_volume must be implemented in VolumeRule Subclasses")
 
 cdef class LinearVolumeRule(VolumeRule):
-	"""Grows volume linearly: ``volume += growth_rate * dt`` (+noise).
+	"""Grows volume linearly: volume += growth_rate * dt (+noise).
 
 	Constructed via `~LineageModel.create_volume_rule` with
 	``rule_type='linear'``. Recognized `param_dictionary` keys:
-	`growth_rate` (a parameter name) and, optionally, `noise` (a
+	'growth_rate' (a parameter name) and, optionally, 'noise' (a
 	parameter name giving the standard deviation of Gaussian noise
-	added to `growth_rate` at each step).
+	added to 'growth_rate' at each step).
 	"""
 	cdef unsigned has_noise
 	cdef unsigned growth_rate_ind
@@ -317,13 +317,13 @@ cdef class LinearVolumeRule(VolumeRule):
 			return ([], [fields["growth_rate"]])
 
 cdef class MultiplicativeVolumeRule(VolumeRule):
-	"""Grows volume exponentially: ``volume += volume*growth_rate*dt``.
+	"""Grows volume exponentially: volume += volume*growth_rate*dt.
 
 	Constructed via `~LineageModel.create_volume_rule` with
 	``rule_type='multiplicative'``. Recognized `param_dictionary`
-	keys: `growth_rate` (a parameter name) and, optionally, `noise`
+	keys: 'growth_rate' (a parameter name) and, optionally, 'noise'
 	(a parameter name giving the standard deviation of Gaussian
-	noise added to `growth_rate` at each step).
+	noise added to 'growth_rate' at each step).
 	"""
 	cdef unsigned has_noise
 	cdef unsigned growth_rate_ind
@@ -357,7 +357,7 @@ cdef class AssignmentVolumeRule(VolumeRule):
 
 	Constructed via `~LineageModel.create_volume_rule` with
 	``rule_type='assignment'``. Recognized `param_dictionary` key:
-	`equation` (a symbolic expression string, parsed via
+	'equation' (a symbolic expression string, parsed via
 	`~bioscrape.types.parse_expression`; may reference species,
 	parameters, and `volume`).
 	"""
@@ -379,11 +379,11 @@ cdef class AssignmentVolumeRule(VolumeRule):
 		return (species, parameters)
 
 cdef class ODEVolumeRule(VolumeRule):
-	"""Integrates volume via Euler's method: ``volume += equation*dt``.
+	"""Integrates volume via Euler's method: volume += equation*dt.
 
 	Constructed via `~LineageModel.create_volume_rule` with
 	``rule_type='ode'``. Recognized `param_dictionary` key:
-	`equation` (a symbolic expression string for dV/dt, parsed via
+	'equation' (a symbolic expression string for dV/dt, parsed via
 	`~bioscrape.types.parse_expression`; may reference species,
 	parameters, and `volume`).
 	"""
@@ -429,10 +429,10 @@ cdef class TimeDivisionRule(DivisionRule):
 
 	Constructed via `~LineageModel.create_division_rule` with
 	``rule_type='time'``. Recognized `param_dictionary` keys:
-	`threshold` (a parameter name giving the time since the cell's
-	birth at which it divides) and, optionally, `noise` (a parameter
+	'threshold' (a parameter name giving the time since the cell's
+	birth at which it divides) and, optionally, 'noise' (a parameter
 	name giving the standard deviation of Gaussian noise added to
-	`threshold`).
+	'threshold').
 	"""
 	cdef unsigned has_noise
 	cdef unsigned threshold_ind
@@ -474,9 +474,9 @@ cdef class VolumeDivisionRule(DivisionRule):
 
 	Constructed via `~LineageModel.create_division_rule` with
 	``rule_type='volume'``. Recognized `param_dictionary` keys:
-	`threshold` (a parameter name giving the volume at which the
-	cell divides) and, optionally, `noise` (a parameter name giving
-	the standard deviation of Gaussian noise added to `threshold`).
+	'threshold' (a parameter name giving the volume at which the
+	cell divides) and, optionally, 'noise' (a parameter name giving
+	the standard deviation of Gaussian noise added to 'threshold').
 	"""
 	cdef unsigned has_noise
 	cdef unsigned threshold_ind
@@ -519,10 +519,10 @@ cdef class DeltaVDivisionRule(DivisionRule):
 
 	Constructed via `~LineageModel.create_division_rule` with
 	``rule_type='deltaV'``. Recognized `param_dictionary` keys:
-	`threshold` (a parameter name giving the volume increase, since
+	'threshold' (a parameter name giving the volume increase, since
 	the cell's birth volume, at which it divides) and, optionally,
-	`noise` (a parameter name giving the standard deviation of
-	Gaussian noise added to `threshold`).
+	'noise' (a parameter name giving the standard deviation of
+	Gaussian noise added to 'threshold').
 	"""
 	cdef unsigned has_noise
 	cdef unsigned threshold_ind
@@ -565,7 +565,7 @@ cdef class GeneralDivisionRule(DivisionRule):
 
 	Constructed via `~LineageModel.create_division_rule` with
 	``rule_type='general'``. Recognized `param_dictionary` key:
-	`equation` (a symbolic expression string, parsed via
+	'equation' (a symbolic expression string, parsed via
 	`~bioscrape.types.parse_expression`; the cell divides once this
 	evaluates to a value greater than 0).
 	"""
@@ -611,11 +611,11 @@ cdef class SpeciesDeathRule(DeathRule):
 
 	Constructed via `~LineageModel.create_death_rule` with
 	``rule_type='species'``. Recognized `param_dictionary` keys:
-	`specie` (the species name), `threshold` (a parameter name),
-	`comp` (one of '>'/'greater', '<'/'less', or
+	'specie' (the species name), 'threshold' (a parameter name),
+	'comp' (one of '>'/'greater', '<'/'less', or
 	'='/'equal'; defaults to '>' with a warning if
-	omitted), and, optionally, `noise` (a parameter name giving the
-	standard deviation of Gaussian noise added to `threshold`).
+	omitted), and, optionally, 'noise' (a parameter name giving the
+	standard deviation of Gaussian noise added to 'threshold').
 	"""
 	cdef unsigned has_noise
 	cdef unsigned species_ind
@@ -674,12 +674,12 @@ cdef class ParamDeathRule(DeathRule):
 
 	Constructed via `~LineageModel.create_death_rule` with
 	``rule_type='param'``. Recognized `param_dictionary` keys:
-	`param` (the parameter name to compare), `threshold` (a
-	parameter name), `comp` (one of '>'/'greater',
+	'param' (the parameter name to compare), 'threshold' (a
+	parameter name), 'comp' (one of '>'/'greater',
 	'<'/'less', or '='/'equal'; defaults to '>'
-	with a warning if omitted), and, optionally, `noise` (a
+	with a warning if omitted), and, optionally, 'noise' (a
 	parameter name giving the standard deviation of Gaussian noise
-	added to `threshold`).
+	added to 'threshold').
 	"""
 	cdef unsigned param_ind
 	cdef unsigned threshold_ind
@@ -739,7 +739,7 @@ cdef class GeneralDeathRule(DeathRule):
 
 	Constructed via `~LineageModel.create_death_rule` with
 	``rule_type='general'``. Recognized `param_dictionary` key:
-	`equation` (a symbolic expression string, parsed via
+	'equation' (a symbolic expression string, parsed via
 	`~bioscrape.types.parse_expression`; the cell dies once this
 	evaluates to a value greater than 0).
 	"""
@@ -1147,9 +1147,12 @@ cdef class LineageModel(Model):
 		Parameters
 		----------
 		event_type : str
-			Currently only the default type is supported: '',
-			'division', 'divisionevent', 'division event',
-			or 'default'.
+			`DivisionEvent` has no subtypes (unlike `VolumeEvent`, which
+			has `LinearVolumeEvent`/`MultiplicativeVolumeEvent`/
+			`GeneralVolumeEvent`), so this only validates the spelling
+			rather than choosing between alternatives. Accepted
+			(case-insensitive, all equivalent): '', 'division',
+			'divisionevent', 'division event', or 'default'.
 		event_params : dict
 			The event's field dictionary (unused by `DivisionEvent`).
 		event_propensity_type : str
@@ -1717,7 +1720,7 @@ cdef class SafeLineageCSimInterface(LineageCSimInterface):
 	See `~bioscrape.simulator.SafeModelCSimInterface`, which this
 	mirrors: warns (and zeroes out) negative propensities, and warns
 	if a species count or volume falls outside
-	``[0, max_species_count]``/``(0, max_volume]``.
+	[0, max_species_count]/(0, max_volume].
 
 	Parameters
 	----------

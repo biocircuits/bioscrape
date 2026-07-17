@@ -42,6 +42,7 @@ cdef class Propensity:
     when a species reacts with itself).
     """
     def __init__(self):
+        """See class docstring."""
         self.propensity_type = PropensityType.unset
 
     def py_get_propensity(self, np.ndarray[np.double_t,ndim=1] state, np.ndarray[np.double_t,ndim=1] params,
@@ -175,7 +176,7 @@ cdef class ConstitutivePropensity(Propensity):
     ``propensity_type='massaction'`` reactions with zero reactant
     species (the fastest of the specialized mass-action propensities);
     not normally constructed directly. Recognized
-    `propensity_param_dict` key: `k` (the rate parameter name).
+    `propensity_param_dict` key: 'k' (the rate parameter name).
 
     Attributes
     ----------
@@ -184,6 +185,7 @@ cdef class ConstitutivePropensity(Propensity):
     """
     # constructor
     def __init__(self):
+        """See class docstring."""
         self.propensity_type = PropensityType.constitutive
 
     cdef double get_propensity(self, double* state, double* params, double time):
@@ -217,8 +219,8 @@ cdef class UnimolecularPropensity(Propensity):
     Selected automatically by `~Model.create_reaction` for
     ``propensity_type='massaction'`` reactions with one reactant
     species; not normally constructed directly. Recognized
-    `propensity_param_dict` keys: `k` (the rate parameter name) and
-    `species` (the reactant species name x).
+    `propensity_param_dict` keys: 'k' (the rate parameter name) and
+    'species' (the reactant species name x).
 
     Attributes
     ----------
@@ -229,6 +231,7 @@ cdef class UnimolecularPropensity(Propensity):
     """
     # constructor
     def __init__(self):
+        """See class docstring."""
         self.propensity_type = PropensityType.unimolecular
 
     cdef double get_propensity(self, double* state, double* params, double time):
@@ -265,8 +268,8 @@ cdef class BimolecularPropensity(Propensity):
     Selected automatically by `~Model.create_reaction` for
     ``propensity_type='massaction'`` reactions with two reactant
     species; not normally constructed directly. Recognized
-    `propensity_param_dict` keys: `k` (the rate parameter name) and
-    `species` (the two reactant species names, e.g. 'A*B'). If the
+    `propensity_param_dict` keys: 'k' (the rate parameter name) and
+    'species' (the two reactant species names, e.g. 'A*B'). If the
     two species are the same (e.g. 'A*A'), the stochastic
     propensity accounts for the discrete copy-number effect of a
     species reacting with itself: rate = k*x1*(x1 - 1).
@@ -282,6 +285,7 @@ cdef class BimolecularPropensity(Propensity):
     """
     # constructor
     def __init__(self):
+        """See class docstring."""
         self.propensity_type = PropensityType.bimolecular
 
     cdef double get_propensity(self, double* state, double* params, double time):
@@ -331,8 +335,8 @@ cdef class PositiveHillPropensity(Propensity):
 
     Constructed via `~Model.create_reaction` with
     ``propensity_type='hillpositive'``. Recognized
-    `propensity_param_dict` keys: `k` (rate), `K` (Hill constant),
-    `n` (cooperativity/Hill coefficient), and `s1` (the species x1).
+    `propensity_param_dict` keys: 'k' (rate), 'K' (Hill constant),
+    'n' (cooperativity/Hill coefficient), and 's1' (the species x1).
 
     Attributes
     ----------
@@ -347,6 +351,7 @@ cdef class PositiveHillPropensity(Propensity):
     """
     # constructor
     def __init__(self):
+        """See class docstring."""
         self.propensity_type = PropensityType.hill_positive
 
     cdef double get_propensity(self, double* state, double* params, double time):
@@ -397,9 +402,9 @@ cdef class PositiveProportionalHillPropensity(Propensity):
     rate = k*d*(x1/K)^n / (1 + (x1/K)^n). Constructed via
     `~Model.create_reaction` with
     ``propensity_type='proportionalhillpositive'``. Recognized
-    `propensity_param_dict` keys: `k` (rate), `K` (Hill constant),
-    `n` (cooperativity/Hill coefficient), `s1` (the species x1),
-    and `d` (the proportional species d, e.g. an enzyme or
+    `propensity_param_dict` keys: 'k' (rate), 'K' (Hill constant),
+    'n' (cooperativity/Hill coefficient), 's1' (the species x1),
+    and 'd' (the proportional species d, e.g. an enzyme or
     polymerase whose abundance scales the rate).
 
     Attributes
@@ -417,6 +422,7 @@ cdef class PositiveProportionalHillPropensity(Propensity):
     """
     # constructor
     def __init__(self):
+        """See class docstring."""
         self.propensity_type = PropensityType.proportional_hill_positive
 
     cdef double get_propensity(self, double* state, double* params, double time):
@@ -472,8 +478,8 @@ cdef class NegativeHillPropensity(Propensity):
 
     Constructed via `~Model.create_reaction` with
     ``propensity_type='hillnegative'``. Recognized
-    `propensity_param_dict` keys: `k` (rate), `K` (Hill constant),
-    `n` (cooperativity/Hill coefficient), and `s1` (the repressor
+    `propensity_param_dict` keys: 'k' (rate), 'K' (Hill constant),
+    'n' (cooperativity/Hill coefficient), and 's1' (the repressor
     species x1).
 
     Attributes
@@ -489,6 +495,7 @@ cdef class NegativeHillPropensity(Propensity):
     """
     # constructor
     def __init__(self):
+        """See class docstring."""
         self.propensity_type = PropensityType.hill_negative
 
     cdef double get_propensity(self, double* state, double* params, double time):
@@ -534,9 +541,9 @@ cdef class NegativeProportionalHillPropensity(Propensity):
     rate = k*d / (1 + (x1/K)^n). Constructed via
     `~Model.create_reaction` with
     ``propensity_type='proportionalhillnegative'``. Recognized
-    `propensity_param_dict` keys: `k` (rate), `K` (Hill constant),
-    `n` (cooperativity/Hill coefficient), `s1` (the repressor species
-    x1), and `d` (the proportional species d).
+    `propensity_param_dict` keys: 'k' (rate), 'K' (Hill constant),
+    'n' (cooperativity/Hill coefficient), 's1' (the repressor species
+    x1), and 'd' (the proportional species d).
 
     Attributes
     ----------
@@ -553,6 +560,7 @@ cdef class NegativeProportionalHillPropensity(Propensity):
     """
     # constructor
     def __init__(self):
+        """See class docstring."""
         self.propensity_type = PropensityType.proportional_hill_negative
 
     cdef double get_propensity(self, double* state, double* params, double time):
@@ -656,9 +664,9 @@ cdef class MassActionPropensity(Propensity):
     `UnimolecularPropensity`, and `BimolecularPropensity` are used
     instead for zero, one, and two reactant species respectively);
     not normally constructed directly. Recognized
-    `propensity_param_dict` keys: `k` (the rate parameter name) and
-    `species` (the reactant species names, e.g. 'A*A*B' for a
-    reaction where species `A` appears with multiplicity 2). The
+    `propensity_param_dict` keys: 'k' (the rate parameter name) and
+    'species' (the reactant species names, e.g. 'A*A*B' for a
+    reaction where species 'A' appears with multiplicity 2). The
     deterministic propensity multiplies each distinct species once;
     the stochastic propensity additionally accounts for repeated
     species via falling-factorial terms (e.g. x*(x-1) for a species
@@ -674,6 +682,7 @@ cdef class MassActionPropensity(Propensity):
         The parameter index of the rate k.
     """
     def __init__(self):
+        """See class docstring."""
         self.propensity_type = PropensityType.mass_action
 
     cdef double get_propensity(self, double* state, double* params, double time):
@@ -820,6 +829,7 @@ cdef class ConstantTerm(Term):
     """
 
     def __init__(self, double val):
+        """See class docstring."""
         self.value = val
 
     cdef double evaluate(self, double *species, double *params, double time):
@@ -841,6 +851,7 @@ cdef class SpeciesTerm(Term):
         The species index.
     """
     def __init__(self, unsigned ind):
+        """See class docstring."""
         self.index = ind
 
     cdef double evaluate(self, double *species, double *params, double time):
@@ -862,6 +873,7 @@ cdef class ParameterTerm(Term):
         The parameter index.
     """
     def __init__(self, unsigned ind):
+        """See class docstring."""
         self.index = ind
 
     cdef double evaluate(self, double *species, double *params, double time):
@@ -914,6 +926,7 @@ cdef class BinaryTerm(Term):
     terms added via `py_add_term`.
     """
     def __init__(self):
+        """See class docstring."""
         self.terms_list = []
 
     def __reduce__(self):
@@ -1277,7 +1290,7 @@ cdef class GeneralPropensity(Propensity):
 
     Constructed via `~Model.create_reaction` with
     ``propensity_type='general'``. Recognized
-    `propensity_param_dict` key: `rate`, a string expression in
+    `propensity_param_dict` key: 'rate', a string expression in
     species and parameter names (e.g. 'k*A*B'), parsed into a
     `Term` expression tree via `parse_expression`.
     """
@@ -1288,6 +1301,7 @@ cdef class GeneralPropensity(Propensity):
         return self.term.volume_evaluate(state,params,volume,time)
 
     def __init__(self):
+        """See class docstring."""
         self.propensity_type = PropensityType.general
 
     def initialize(self, dict dictionary, dict species2index, dict params2index):
@@ -1347,6 +1361,7 @@ cdef class Delay:
         The type of delay.
     """
     def __init__(self):
+        """See class docstring."""
         self.delay_type = DelayType.unset_delay
 
     def py_get_delay(self, np.ndarray[np.double_t,ndim=1] state,
@@ -1430,6 +1445,7 @@ cdef class Delay:
 cdef class NoDelay(Delay):
     """A delay of 0.0 (no delay); the default when no delay is specified."""
     def __init__(self):
+        """See class docstring."""
         self.delay_type = DelayType.none
 
     cdef double get_delay(self, double* state, double* params):
@@ -1440,7 +1456,7 @@ cdef class FixedDelay(Delay):
     A fixed (deterministic) delay.
 
     Constructed via `~Model.create_reaction` with
-    ``delay_type='fixed'``. Recognized `delay_param_dict` key: `delay`
+    ``delay_type='fixed'``. Recognized `delay_param_dict` key: 'delay'
     (the name of the parameter giving the fixed delay value).
 
     Attributes
@@ -1450,6 +1466,7 @@ cdef class FixedDelay(Delay):
     """
 
     def __init__(self):
+        """See class docstring."""
         self.delay_type = DelayType.fixed
 
     cdef double get_delay(self, double* state, double* params):
@@ -1473,7 +1490,7 @@ cdef class GaussianDelay(Delay):
 
     Constructed via `~Model.create_reaction` with
     ``delay_type='gaussian'``. Recognized `delay_param_dict` keys:
-    `mean` and `std` (parameter names giving the distribution's mean
+    'mean' and 'std' (parameter names giving the distribution's mean
     and standard deviation).
 
     Attributes
@@ -1485,6 +1502,7 @@ cdef class GaussianDelay(Delay):
     """
 
     def __init__(self):
+        """See class docstring."""
         self.delay_type = DelayType.gaussian
 
     cdef double get_delay(self, double* state, double* params):
@@ -1516,8 +1534,8 @@ cdef class GammaDelay(Delay):
     mean k*theta and variance k*theta^2.
 
     Constructed via `~Model.create_reaction` with
-    ``delay_type='gamma'``. Recognized `delay_param_dict` keys: `k`
-    and `theta` (parameter names giving the shape and scale).
+    ``delay_type='gamma'``. Recognized `delay_param_dict` keys: 'k'
+    and 'theta' (parameter names giving the shape and scale).
 
     Attributes
     ----------
@@ -1528,6 +1546,7 @@ cdef class GammaDelay(Delay):
     """
 
     def __init__(self):
+        """See class docstring."""
         self.delay_type = DelayType.gamma
 
     cdef double get_delay(self, double* state, double* params):
@@ -1806,10 +1825,10 @@ cdef class GeneralODERule(Rule):
 
     Constructed via `~Model.create_rule` with ``rule_type='ode'``
     (frequency is forced to fire once per simulation time step).
-    `rule_attributes` must contain `target` (the destination species
-    or parameter name) and `equation` (a symbolic expression `f`,
+    `rule_attributes` must contain 'target' (the destination species
+    or parameter name) and 'equation' (a symbolic expression `f`,
     parsed via `parse_expression`); each firing adds
-    ``f(state, params, time) * dt`` to the target's current value (a
+    f(state, params, time) * dt to the target's current value (a
     first-order Euler step).
     """
     cdef void rule_operation(self, double *state, double *params, double time, double dt):
@@ -2074,6 +2093,7 @@ cdef class StochasticTimeThresholdVolume(Volume):
         The volume growth rate g, where dV/dt = g*V.
     """
     def __init__(self, double cell_cycle_time, double average_division_volume, double division_noise):
+        """See class docstring."""
         self.cell_cycle_time = cell_cycle_time
         self.average_division_volume = average_division_volume
         self.division_noise = division_noise
@@ -2164,6 +2184,7 @@ cdef class StateDependentVolume(Volume):
     """
 
     def __init__(self):
+        """See class docstring."""
         pass
 
     def setup(self, double average_division_volume, double division_noise, growth_rate, Model m):
@@ -3831,7 +3852,7 @@ cdef class Lineage:
         Parameters
         ----------
         index : unsigned
-            The Schnitz to retrieve, ``0 <= index < py_size()``.
+            The Schnitz to retrieve, 0 <= index < py_size().
 
         Returns
         -------
