@@ -1164,6 +1164,16 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
     """
     User-level interface for Bayesian parameter inference.
 
+    Fits `params_to_estimate` to `exp_data` via Markov Chain Monte
+    Carlo (MCMC) sampling, using
+    `emcee <https://emcee.readthedocs.io/>`_ under the hood. Returns
+    the `emcee` sampler (holding the full set of posterior samples)
+    together with the `~bioscrape.inference_setup.InferenceSetup`
+    object that orchestrated the run; unless `plot_show=False`, it
+    also plots the resulting posterior parameter distributions, and
+    always writes the raw samples and a fit summary to
+    `filename_csv`/`filename_txt`.
+
     Parameters
     ----------
     Model : Model

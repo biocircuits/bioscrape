@@ -3660,6 +3660,13 @@ def py_SimulateCellLineage(timepoints, initial_cell_states = [], initial_cell_co
 def py_SimulateSingleCell(timepoints, Model = None, interface = None, initial_cell_state = None, return_dataframes = True, safe = False):
 	"""Simulate one cell until it divides, dies, or time runs out.
 
+	Unlike `py_SimulateCellLineage`/`py_PropagateCells`/
+	`py_SingleCellLineage`, which track a population or continue
+	past divisions, this stops at the first division or death event
+	(or the final timepoint), returning just that one cell's
+	trajectory up to that point -- the single-cell building block
+	the other lineage functions are built on.
+
 	Parameters
 	----------
 	timepoints : numpy.ndarray
