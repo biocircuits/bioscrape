@@ -2068,7 +2068,16 @@ def rhs_ivp(double t, np.ndarray[np.double_t, ndim=1] state):
 cdef class RegularSimulator:
     """Interface for simulators with no delay or volume involved.
 
-    Must be subclassed.
+    This class is used as a base class for deterministic or
+    stochastic simulators that do not involve delay or volume. The
+    `py_simulate` method is provided with the reaction system to
+    simulate and the timepoints to report results. Must be
+    subclassed.
+
+    See Also
+    --------
+    DeterministicSimulator : Concrete ODE-based implementation.
+    SSASimulator : Concrete stochastic (Gillespie) implementation.
     """
     cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints):
         """
@@ -2105,6 +2114,12 @@ cdef class RegularSimulator:
 
 cdef class DeterministicSimulator(RegularSimulator):
     """A deterministic simulator using `scipy.integrate.odeint`.
+
+    Integrates the model's ODEs -- the deterministic limit of the
+    propensity-based reaction network -- forward in time, retrying
+    with a larger `mxstep` if the integrator fails to converge. Used
+    when `py_simulate_model` is called with `stochastic=False` (the
+    default).
 
     Attributes
     ----------
@@ -2240,8 +2255,14 @@ cdef class DeterministicSimulator(RegularSimulator):
         return self._helper_simulate(sim, timepoints, **keywords)
 
 cdef class SSASimulator(RegularSimulator):
-    """
-    A class for implementing a stochastic SSA simulator.
+    """A stochastic simulator using the Gillespie algorithm (SSA).
+
+    At each step, samples the waiting time to the next reaction from
+    the sum of all propensities, then chooses which reaction fires
+    weighted by its own propensity -- an exact sampling of the
+    chemical master equation, rather than the deterministic ODE
+    approximation. Used when `py_simulate_model` is called with
+    `stochastic=True`.
     """
     cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints):
         cdef np.ndarray[np.double_t,ndim=1] c_timepoints = timepoints
@@ -2313,8 +2334,17 @@ cdef class SSASimulator(RegularSimulator):
 
 
 cdef class DelaySimulator:
-    """
-    Interface class for defining a simulator with delay.
+    """Interface class for defining a simulator with delay.
+
+    This class is used as a base class for deterministic or
+    stochastic simulators that involve delayed reactions. The
+    `py_delay_simulate` method is provided with reaction system to
+    simulate, the initial queue of delayed reactions, and the
+    timepoints to report results. Must be subclassed.
+
+    See Also
+    --------
+    DelaySSASimulator : Concrete implementation.
     """
     cdef DelaySSAResult delay_simulate(self, CSimInterface sim, DelayQueue dq, np.ndarray timepoints):
         """
@@ -2353,8 +2383,13 @@ cdef class DelaySimulator:
 
 
 cdef class DelaySSASimulator(DelaySimulator):
-    """
-    A class for doing delay simulations using the stochastic simulation algorithm.
+    """Stochastic (SSA) simulation with delayed reactions.
+
+    Extends `SSASimulator` so a reaction's effects can be scheduled
+    to complete some time after it fires (via a `Delay` attached to
+    the reaction) instead of immediately, tracking reactions already
+    "in flight" in a `DelayQueue`. Used when `py_simulate_model` is
+    called with `stochastic=True, delay=True`.
     """
     cdef DelaySSAResult delay_simulate(self, CSimInterface sim, DelayQueue q, np.ndarray timepoints):
         # Set up the needed variables in C
@@ -2469,8 +2504,17 @@ cdef class DelaySSASimulator(DelaySimulator):
 
 
 cdef class VolumeSimulator:
-    """
-    Interface class for doing volume simulations.
+    """Interface class for doing volume simulations.
+
+    This class is used as a base class for simulators that track a
+    growing/dividing cell's volume alongside the reaction system. The
+    `py_volume_simulate` method is provided with the reaction system
+    to simulate, the volume model, and the timepoints to report
+    results. Must be subclassed.
+
+    See Also
+    --------
+    VolumeSSASimulator : Concrete implementation.
     """
     cdef VolumeSSAResult volume_simulate(self, CSimInterface sim, Volume v, np.ndarray timepoints):
         """
@@ -2508,8 +2552,14 @@ cdef class VolumeSimulator:
 
 
 cdef class VolumeSSASimulator(VolumeSimulator):
-    """
-    Volume SSA implementation.
+    """Stochastic (SSA) simulation of a growing/dividing cell's volume.
+
+    Extends `SSASimulator` to additionally track a `Volume` alongside
+    species counts, rescaling reaction propensities by the current
+    volume as the cell grows. Used when `py_simulate_model` is called
+    with `stochastic=True, volume=True`; full population/lineage
+    tracking across many divisions is provided by `bioscrape.lineage`
+    instead.
     """
     cdef VolumeSSAResult volume_simulate(self, CSimInterface sim, Volume v, np.ndarray timepoints):
         """
@@ -2624,8 +2674,18 @@ cdef class VolumeSSASimulator(VolumeSimulator):
 
 
 cdef class DelayVolumeSimulator:
-    """
-    Interface class for doing simulations with delay and volume.
+    """Interface class for doing simulations with delay and volume.
+
+    This class is used as a base class for simulators that combine
+    delayed reactions with a growing/dividing cell's volume. The
+    `py_delay_volume_simulate` method is provided with the reaction
+    system to simulate, the initial queue of delayed reactions, the
+    volume model, and the timepoints to report results. Must be
+    subclassed.
+
+    See Also
+    --------
+    DelayVolumeSSASimulator : Concrete implementation.
     """
     cdef DelayVolumeSSAResult delay_volume_simulate(self, CSimInterface sim, DelayQueue q,
                                                     Volume v, np.ndarray timepoints):
@@ -2667,8 +2727,13 @@ cdef class DelayVolumeSimulator:
         return self.delay_volume_simulate(sim,q,v,timepoints)
 
 cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
-    """
-    SSA implementation for doing simulations with delay and volume.
+    """Stochastic (SSA) simulation combining delay and volume.
+
+    Combines `DelaySSASimulator`'s delayed-reaction scheduling with
+    `VolumeSSASimulator`'s volume tracking and propensity rescaling.
+    (Not currently reachable via `py_simulate_model`'s `delay=True,
+    volume=True` combination due to a separate wiring bug; construct
+    and use this class directly instead.)
     """
     cdef DelayVolumeSSAResult delay_volume_simulate(self, CSimInterface sim, DelayQueue q,
                                                     Volume v, np.ndarray timepoints):
@@ -2815,6 +2880,17 @@ cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
 def py_simulate_model(timepoints, Model = None, Interface = None, stochastic = False,
                     delay = None, safe = False, volume = False, return_dataframe = True, **keywords):
     """Simulate a bioscrape `Model`.
+
+    Selects and configures the appropriate simulator from the
+    `stochastic`, `delay`, and `volume` flags: deterministic
+    simulation integrates the ODEs with `scipy.integrate.odeint`,
+    stochastic simulation uses Gillespie's Stochastic Simulation
+    Algorithm (SSA), `delay=True` additionally tracks in-flight
+    delayed reactions via a `DelayQueue`, and `volume=True` tracks a
+    growing cell's volume and automatically rescales reaction
+    propensities by it. This is the simplest way to simulate a
+    model; most users should not need to construct a specific
+    simulator class directly.
 
     Parameters
     ----------
