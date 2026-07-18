@@ -158,6 +158,14 @@ cdef class Propensity:
         fields : dict
             The propensity's field dictionary (as passed to
             `initialize`).
+        **keywords
+            Ignored here; `~Model` calls every propensity's
+            `get_species_and_parameters` uniformly with
+            `species2index`/`params2index` (dicts mapping species/
+            parameter names to their state/parameter vector index),
+            for the benefit of subclasses (e.g. `GeneralPropensity`)
+            that need to resolve a symbolic expression instead of
+            just reading names out of `fields`.
 
         Returns
         -------
@@ -1433,6 +1441,13 @@ cdef class Delay:
         ----------
         fields : dict
             The delay's field dictionary (as passed to `initialize`).
+        **keywords
+            Ignored here; `~Model` calls every delay's
+            `get_species_and_parameters` uniformly with
+            `species2index`/`params2index` (dicts mapping species/
+            parameter names to their state/parameter vector index),
+            not used by any built-in `Delay` subclass but available
+            to custom subclasses that need them.
 
         Returns
         -------
@@ -2473,9 +2488,6 @@ cdef class Model:
         for rule_object in self.repeat_rules:
             self.c_repeat_rules.push_back(<void*> rule_object)
 
-    def py_initialize(self):
-        self._initialize()
-
     def __eq__(self, Model other):
         if other is None or not isinstance(other, Model):
             return False
@@ -2984,7 +2996,7 @@ cdef class Model:
         Fills in all local variables (propensities, delays, update
         arrays) and maps species/parameters to indices.
 
-        .. deprecated::
+        .. deprecated:: 1.0.2.2
             Bioscrape XML is being replaced by SBML and will no
             longer be supported in a future version of the software.
 
