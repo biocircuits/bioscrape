@@ -1,6 +1,14 @@
 # cython: boundscheck=False
 # cython: cdivision=True
 # cython: wraparound=False
+"""
+Simulation of growing, dividing, and dying cell populations.
+
+A wrapper around `bioscrape.types` and `bioscrape.simulator` for
+lineage-level simulation. See `LineageModel` and `LineageSSASimulator`
+for the main entry points, and the module-level `py_Simulate*`/
+`py_Propagate*` functions for the simplest ways to run a simulation.
+"""
 
 import numpy as np
 import copy
@@ -39,14 +47,42 @@ import warnings
 
 import pandas
 
-# Events are general objects that happen with some internal propensity but are 
+# Events are general objects that happen with some internal propensity but are
 # not chemical reactions
 cdef class Event:
+	"""Base class for per-cell events fired by an internal propensity.
+
+	Like a reaction, an `Event` is associated with a `Propensity`
+	(from `bioscrape.types`) and fires stochastically according to
+	it, but instead of changing species counts it changes a cell's
+	volume, divides it, or kills it. Must be subclassed. Not
+	normally constructed directly -- attached to a `LineageModel` via
+	`~LineageModel.create_volume_event`,
+	`~LineageModel.create_division_event`, or
+	`~LineageModel.create_death_event`.
+	"""
 
 	cdef initialize(self, dict event_params, dict species_indices, dict parameter_indices):
 		raise NotImplementedError("VolumeReactions Must be subclassed")
 
 	def get_species_and_parameters(self, dict event_fields, dict species2index, dict params2index):
+		"""The species and parameter names referenced by this event.
+
+		Parameters
+		----------
+		event_fields : dict
+			The event's field dictionary (as passed to `initialize`).
+		species2index : dict
+			Maps species names to their index in the state vector.
+		params2index : dict
+			Maps parameter names to their index in the parameter
+			vector.
+
+		Returns
+		-------
+		tuple of list of str
+			`(species_names, parameter_names)`.
+		"""
 		raise NotImplementedError("VolumeReactions Must be subclassed")
 
 	#cdef Propensity get_propensity(self):
@@ -58,6 +94,11 @@ cdef class Event:
 
 #Volume Events are stochastic events which alter a single cell's volume.
 cdef class VolumeEvent(Event):
+	"""Base class for events that change a cell's volume when fired.
+
+	Subclasses implement `get_volume`. Attached to a `LineageModel`
+	via `~LineageModel.create_volume_event`.
+	"""
 	cdef double evaluate_event(self, double* state, double *params, double volume, double time):
 		return self.get_volume(state, params,volume, time)
 
@@ -68,6 +109,12 @@ cdef class VolumeEvent(Event):
 		raise NotImplementedError("VolumeReactions Must be subclassed")
 
 cdef class LinearVolumeEvent(VolumeEvent):
+	"""Sets volume to volume + growth_rate when the event fires.
+
+	Constructed via `~LineageModel.create_volume_event` with
+	``event_type='linear'``. Recognized `event_params` key:
+	'growth_rate' (a parameter name).
+	"""
 	cdef unsigned growth_rate_ind
 
 	cdef initialize(self, dict event_params, dict species_indices, dict parameter_indices):
@@ -84,6 +131,12 @@ cdef class LinearVolumeEvent(VolumeEvent):
 		return ([], [event_fields["growth_rate"]])
 
 cdef class MultiplicativeVolumeEvent(VolumeEvent):
+	"""Sets volume to volume * (1 + growth_rate) when it fires.
+
+	Constructed via `~LineageModel.create_volume_event` with
+	``event_type='multiplicative'``. Recognized `event_params` key:
+	'growth_rate' (a parameter name).
+	"""
 	cdef unsigned growth_rate_ind
 	cdef Term volume_equation
 
@@ -102,6 +155,14 @@ cdef class MultiplicativeVolumeEvent(VolumeEvent):
 		return ([], [event_fields["growth_rate"]])
 
 cdef class GeneralVolumeEvent(VolumeEvent):
+	"""Sets volume to an arbitrary expression's value when it fires.
+
+	Constructed via `~LineageModel.create_volume_event` with
+	``event_type='general'``. Recognized `event_params` key:
+	'equation' (a symbolic expression string, parsed via
+	`~bioscrape.types.parse_expression`; may reference species,
+	parameters, and `volume`).
+	"""
 	cdef Term volume_equation
 
 	cdef initialize(self, dict event_params, dict species_indices, dict parameter_indices):
@@ -122,6 +183,12 @@ cdef class GeneralVolumeEvent(VolumeEvent):
 
 #Division Events are stochastic events which cause a cell to divide using a particular VolumeSplitter
 cdef class DivisionEvent(Event):
+	"""An event that divides a cell (via a `VolumeSplitter`) when fired.
+
+	Attached to a `LineageModel` via
+	`~LineageModel.create_division_event`, which also takes the
+	`VolumeSplitter` used to partition the daughter cells.
+	"""
 	cdef initialize(self, dict event_params, dict species_indices, dict parameter_indices):
 		#self.propensity = propensity
 		#self.propensity.initialize(propensity_params, species_indices, parameter_indices)
@@ -141,6 +208,11 @@ cdef class DivisionEvent(Event):
 
 #Death Events are stochastic events which casue a cell to die
 cdef class DeathEvent(Event):
+	"""An event that kills a cell when fired.
+
+	Attached to a `LineageModel` via
+	`~LineageModel.create_death_event`.
+	"""
 	cdef initialize(self, dict event_params, dict species_indices, dict parameter_indices):
 		pass
 
@@ -154,18 +226,69 @@ cdef class DeathEvent(Event):
 
 #Dummy class to help with inheritance, compilation, and code simplification. Does nothing
 cdef class LineageRule(Rule):
+	"""Base class for lineage-specific rules.
+
+	Shared base for `VolumeRule`, `DivisionRule`, and `DeathRule`.
+	Must be subclassed.
+	"""
 	def initialize(self, dict param_dictionary, dict species_indices, dict parameter_indices, rule_frequency = "repeat"):
+		"""Configure this rule from its parameter dictionary.
+
+		Parameters
+		----------
+		param_dictionary : dict
+			The rule's field dictionary (recognized keys are
+			subclass-specific; see each subclass's docstring).
+		species_indices : dict
+			Maps species names to their index in the state vector.
+		parameter_indices : dict
+			Maps parameter names to their index in the parameter
+			vector.
+		rule_frequency : str, default "repeat"
+			When the rule fires; see
+			`~bioscrape.types.Rule.set_frequency_flag`.
+		"""
 		raise NotImplementedError("LineageRule must be subclassed")
 
 	def get_species_and_parameters(self, dict fields, dict species2index, dict params2index):
+		"""The species and parameter names referenced by this rule.
+
+		Parameters
+		----------
+		fields : dict
+			The rule's field dictionary (as passed to `initialize`).
+		species2index : dict
+			Maps species names to their index in the state vector.
+		params2index : dict
+			Maps parameter names to their index in the parameter
+			vector.
+
+		Returns
+		-------
+		tuple of list of str
+			`(species_names, parameter_names)`.
+		"""
 		raise NotImplementedError("LineageRule must be subclassed")
 
 #Volume Rules occur every dt (determined by the simulation timepoints) and update the volume
 cdef class VolumeRule(LineageRule):
+	"""Base class for rules that update a cell's volume every step.
+
+	Subclasses implement `get_volume`. Attached to a `LineageModel`
+	via `~LineageModel.create_volume_rule`.
+	"""
 	cdef double get_volume(self, double* state, double *params, double volume, double time, double dt):
 		raise NotImplementedError("get_volume must be implemented in VolumeRule Subclasses")
 
 cdef class LinearVolumeRule(VolumeRule):
+	"""Grows volume linearly: volume += growth_rate * dt (+noise).
+
+	Constructed via `~LineageModel.create_volume_rule` with
+	``rule_type='linear'``. Recognized `param_dictionary` keys:
+	'growth_rate' (a parameter name) and, optionally, 'noise' (a
+	parameter name giving the standard deviation of Gaussian noise
+	added to 'growth_rate' at each step).
+	"""
 	cdef unsigned has_noise
 	cdef unsigned growth_rate_ind
 	cdef unsigned noise_ind
@@ -194,6 +317,14 @@ cdef class LinearVolumeRule(VolumeRule):
 			return ([], [fields["growth_rate"]])
 
 cdef class MultiplicativeVolumeRule(VolumeRule):
+	"""Grows volume exponentially: volume += volume*growth_rate*dt.
+
+	Constructed via `~LineageModel.create_volume_rule` with
+	``rule_type='multiplicative'``. Recognized `param_dictionary`
+	keys: 'growth_rate' (a parameter name) and, optionally, 'noise'
+	(a parameter name giving the standard deviation of Gaussian
+	noise added to 'growth_rate' at each step).
+	"""
 	cdef unsigned has_noise
 	cdef unsigned growth_rate_ind
 	cdef unsigned noise_ind
@@ -222,6 +353,14 @@ cdef class MultiplicativeVolumeRule(VolumeRule):
 			return ([], [fields["growth_rate"]])
 
 cdef class AssignmentVolumeRule(VolumeRule):
+	"""Sets volume to an arbitrary expression's value at every step.
+
+	Constructed via `~LineageModel.create_volume_rule` with
+	``rule_type='assignment'``. Recognized `param_dictionary` key:
+	'equation' (a symbolic expression string, parsed via
+	`~bioscrape.types.parse_expression`; may reference species,
+	parameters, and `volume`).
+	"""
 	cdef Term volume_equation
 	cdef double get_volume(self, double* state, double *params, double volume, double time, double dt):
 		return (<Term>self.volume_equation).volume_evaluate(state,params,volume,time)
@@ -240,6 +379,14 @@ cdef class AssignmentVolumeRule(VolumeRule):
 		return (species, parameters)
 
 cdef class ODEVolumeRule(VolumeRule):
+	"""Integrates volume via Euler's method: volume += equation*dt.
+
+	Constructed via `~LineageModel.create_volume_rule` with
+	``rule_type='ode'``. Recognized `param_dictionary` key:
+	'equation' (a symbolic expression string for dV/dt, parsed via
+	`~bioscrape.types.parse_expression`; may reference species,
+	parameters, and `volume`).
+	"""
 	cdef Term volume_equation
 	cdef double get_volume(self, double* state, double *params, double volume, double time, double dt):
 		return volume+(<Term>self.volume_equation).volume_evaluate(state,params,volume,time)*dt
@@ -260,6 +407,12 @@ cdef class ODEVolumeRule(VolumeRule):
 
 #Division rules are checked at the beginning of each simulation loop to see if a cell should divide
 cdef class DivisionRule(LineageRule):
+	"""Base class for rules checked each step to see if a cell divides.
+
+	Subclasses implement `check_divide`. Attached to a `LineageModel`
+	via `~LineageModel.create_division_rule`, which also takes the
+	`VolumeSplitter` used to partition the daughter cells.
+	"""
 
 	cdef int check_divide(self, double* state, double *params, double time, double volume, double initial_time, double initial_volume):
 		raise NotImplementedError("check_divide must be implemented in DivisionRule subclasses")
@@ -272,6 +425,15 @@ cdef class DivisionRule(LineageRule):
 
 #A division rule where division occurs after some amount of time (with an optional noise term)
 cdef class TimeDivisionRule(DivisionRule):
+	"""Divides a cell after a fixed time (+noise) since its birth.
+
+	Constructed via `~LineageModel.create_division_rule` with
+	``rule_type='time'``. Recognized `param_dictionary` keys:
+	'threshold' (a parameter name giving the time since the cell's
+	birth at which it divides) and, optionally, 'noise' (a parameter
+	name giving the standard deviation of Gaussian noise added to
+	'threshold').
+	"""
 	cdef unsigned has_noise
 	cdef unsigned threshold_ind
 	cdef unsigned threshold_noise_ind
@@ -308,6 +470,14 @@ cdef class TimeDivisionRule(DivisionRule):
 
 #A division rule where division occurs at some volume threshold (with an optional noise term)
 cdef class VolumeDivisionRule(DivisionRule):
+	"""Divides a cell once its volume passes a threshold (+noise).
+
+	Constructed via `~LineageModel.create_division_rule` with
+	``rule_type='volume'``. Recognized `param_dictionary` keys:
+	'threshold' (a parameter name giving the volume at which the
+	cell divides) and, optionally, 'noise' (a parameter name giving
+	the standard deviation of Gaussian noise added to 'threshold').
+	"""
 	cdef unsigned has_noise
 	cdef unsigned threshold_ind
 	cdef unsigned threshold_noise_ind
@@ -345,6 +515,15 @@ cdef class VolumeDivisionRule(DivisionRule):
 
 #A division rule where division occurs after the cell has grown by some amount delta (with an optional noise term)
 cdef class DeltaVDivisionRule(DivisionRule):
+	"""Divides a cell once it has grown by a fixed amount (+noise).
+
+	Constructed via `~LineageModel.create_division_rule` with
+	``rule_type='deltaV'``. Recognized `param_dictionary` keys:
+	'threshold' (a parameter name giving the volume increase, since
+	the cell's birth volume, at which it divides) and, optionally,
+	'noise' (a parameter name giving the standard deviation of
+	Gaussian noise added to 'threshold').
+	"""
 	cdef unsigned has_noise
 	cdef unsigned threshold_ind
 	cdef unsigned threshold_noise_ind
@@ -382,6 +561,14 @@ cdef class DeltaVDivisionRule(DivisionRule):
 #A general division rule
 #returns 1 if equation(state, params, volume, time) > 0
 cdef class GeneralDivisionRule(DivisionRule):
+	"""Divides a cell when an arbitrary expression becomes positive.
+
+	Constructed via `~LineageModel.create_division_rule` with
+	``rule_type='general'``. Recognized `param_dictionary` key:
+	'equation' (a symbolic expression string, parsed via
+	`~bioscrape.types.parse_expression`; the cell divides once this
+	evaluates to a value greater than 0).
+	"""
 	cdef Term equation
 	cdef int check_divide(self, double* state, double *params, double time, double volume, double initial_time, double intial_volume):
 		if (<Term> self.equation).volume_evaluate(state,params,volume,time) > 0:
@@ -404,6 +591,11 @@ cdef class GeneralDivisionRule(DivisionRule):
 
 #Death rules are checked at the beginning of each simulation loop to see if a cell should die
 cdef class DeathRule(LineageRule):
+	"""Base class for rules checked each step to see if a cell dies.
+
+	Subclasses implement `check_dead`. Attached to a `LineageModel`
+	via `~LineageModel.create_death_rule`.
+	"""
 	cdef int check_dead(self, double* state, double *params, double time, double volume, double initial_time, double initial_volume):
 		raise NotImplementedError("check_dead must be implemented in DeathRule subclasses.")
 
@@ -415,6 +607,16 @@ cdef class DeathRule(LineageRule):
 
 #A death rule where death occurs when some species is greater than or less than a given threshold
 cdef class SpeciesDeathRule(DeathRule):
+	"""Kills a cell by comparing a species count to a threshold.
+
+	Constructed via `~LineageModel.create_death_rule` with
+	``rule_type='species'``. Recognized `param_dictionary` keys:
+	'specie' (the species name), 'threshold' (a parameter name),
+	'comp' (one of '>'/'greater', '<'/'less', or
+	'='/'equal'; defaults to '>' with a warning if
+	omitted), and, optionally, 'noise' (a parameter name giving the
+	standard deviation of Gaussian noise added to 'threshold').
+	"""
 	cdef unsigned has_noise
 	cdef unsigned species_ind
 	cdef unsigned threshold_ind
@@ -468,6 +670,17 @@ cdef class SpeciesDeathRule(DeathRule):
 
 #A death rule where death occurs when some parameter is greater than or less than a given threshold
 cdef class ParamDeathRule(DeathRule):
+	"""Kills a cell by comparing a parameter's value to a threshold.
+
+	Constructed via `~LineageModel.create_death_rule` with
+	``rule_type='param'``. Recognized `param_dictionary` keys:
+	'param' (the parameter name to compare), 'threshold' (a
+	parameter name), 'comp' (one of '>'/'greater',
+	'<'/'less', or '='/'equal'; defaults to '>'
+	with a warning if omitted), and, optionally, 'noise' (a
+	parameter name giving the standard deviation of Gaussian noise
+	added to 'threshold').
+	"""
 	cdef unsigned param_ind
 	cdef unsigned threshold_ind
 	cdef unsigned threshold_noise_ind
@@ -522,6 +735,14 @@ cdef class ParamDeathRule(DeathRule):
 
 #A general death rule. Returns 1 if equation > 0. 0 otherwise
 cdef class GeneralDeathRule(DeathRule):
+	"""Kills a cell when an arbitrary expression becomes positive.
+
+	Constructed via `~LineageModel.create_death_rule` with
+	``rule_type='general'``. Recognized `param_dictionary` key:
+	'equation' (a symbolic expression string, parsed via
+	`~bioscrape.types.parse_expression`; the cell dies once this
+	evaluates to a value greater than 0).
+	"""
 	cdef Term equation
 	cdef int check_dead(self, double* state, double *params, double time, double volume, double initial_time, double initial_volume):
 		if (<Term> self.equation).volume_evaluate(state,params,volume,time) > 0:
@@ -544,6 +765,72 @@ cdef class GeneralDeathRule(DeathRule):
 
 #A subclass of Bioscrape.Types.Model which contains new cell lineage features
 cdef class LineageModel(Model):
+	"""A `~bioscrape.types.Model` extended with growth, division, death.
+
+	Adds volume dynamics and three kinds of per-cell behavior, each
+	governed by either a `LineageRule` (checked every timestep) or
+	an `Event` (fires stochastically via a `Propensity`, like a
+	reaction):
+
+	- Volume: how a cell's volume changes over time
+	  (`VolumeRule`/`VolumeEvent` subclasses).
+	- Division: when a cell divides into two daughters, and (via a
+	  `~bioscrape.simulator.VolumeSplitter`) how species and volume
+	  are partitioned between them (`DivisionRule`/`DivisionEvent`
+	  subclasses).
+	- Death: when a cell is removed from the simulation
+	  (`DeathRule`/`DeathEvent` subclasses).
+
+	The reliable way to attach this behavior is the
+	`create_volume_rule`/`create_volume_event`,
+	`create_division_rule`/`create_division_event`, and
+	`create_death_rule`/`create_death_event` methods, called after
+	construction (as in every example notebook). Simulate the
+	resulting model with `LineageSSASimulator` or the module-level
+	`py_Simulate*`/`py_Propagate*` functions.
+
+	Parameters
+	----------
+	filename : str, optional
+		Path to a (deprecated) bioscrape XML file to import.
+	species : list of str, default []
+		Species names to add to the model.
+	reactions : list of tuple, default []
+		Reaction tuples; see `~bioscrape.types.Model`.
+	parameters : list of tuple or dict, default []
+		`(name, value)` pairs, or a dict, giving initial parameter
+		values.
+	rules : list of tuple, default []
+		Rule tuples `(rule_type, rule_attributes)`. Volume/division/
+		death rule types are routed to `create_volume_rule`/
+		`create_division_rule`/`create_death_rule`; other types go
+		to the base `~bioscrape.types.Model`. Only recognized when
+		`rule_type` itself contains the word 'volume',
+		'division', or 'death' (e.g.
+		'linearvolumerule', not the short form 'linear'),
+		and division rules are not currently usable this way at all
+		(no way to supply a `VolumeSplitter`) -- prefer
+		`create_volume_rule`/`create_division_rule`/
+		`create_death_rule` instead.
+		TODO: this paragraph describes a known routing bug
+		(see task_03993410); update or remove it once fixed.
+	events : list of tuple, default []
+		Event tuples `(event_type, event_params,
+		event_propensity_type, propensity_params)`. Routed like
+		`rules`, with the same limitations -- prefer
+		`create_volume_event`/`create_division_event`/
+		`create_death_event` instead.
+	sbml_filename : str, optional
+		Path to an SBML file to import.
+	initial_condition_dict : dict, optional
+		Maps species names to initial values.
+	input_printout : bool, default False
+		If True, print verbose status messages while constructing
+		the model.
+	initialize_model : bool, default True
+		If True, validate the model and build its internal arrays
+		after construction.
+	"""
 
 	############################################################################
 	# DEVELOPER WARNING 
@@ -598,6 +885,7 @@ cdef class LineageModel(Model):
 	cdef double global_volume
 
 	def __init__(self, filename = None, species = [], reactions = [], parameters = [], rules = [], events = [], sbml_filename = None, initial_condition_dict = None, input_printout = False, initialize_model = True):
+		"""See class docstring."""
 
 
 		self.volume_events_list = []
@@ -726,17 +1014,71 @@ cdef class LineageModel(Model):
 			self.c_death_events.push_back(<void*>event)
 
 	def py_initialize(self):
+		"""Validate the model and build its internal C-level arrays.
+
+		Called automatically by the constructor unless
+		`initialize_model=False` was passed. See
+		`~bioscrape.types.Model.py_initialize`.
+		"""
 		self._initialize()
 		self.initialized = True
 
 	def py_get_event_counts(self):
+		"""Return the number of division, volume, and death events.
+
+		Returns
+		-------
+		tuple of int
+			`(num_division_events, num_volume_events,
+			num_death_events)`.
+		"""
 		return self.num_division_events, self.num_volume_events, self.num_death_events
 	def py_get_rule_counts(self):
+		"""Return the number of division, volume, and death rules.
+
+		Returns
+		-------
+		tuple of int
+			`(num_division_rules, num_volume_rules,
+			num_death_rules)`.
+		"""
 		return self.num_division_rules, self.num_volume_rules, self.num_death_rules
 
-	def add_event(self, Event event_object, dict event_param_dict, 
-				  Propensity prop_object, dict propensity_param_dict, 
+	def add_event(self, Event event_object, dict event_param_dict,
+				  Propensity prop_object, dict propensity_param_dict,
 				  str event_type = None, VolumeSplitter volume_splitter = None):
+		"""Attach a pre-built `Event` and `Propensity` to the model.
+
+		Lower-level building block used by `create_volume_event`,
+		`create_division_event`, and `create_death_event`; prefer
+		those methods, which also construct the `Event` and
+		`Propensity` objects for you.
+
+		Parameters
+		----------
+		event_object : Event
+			The event to attach.
+		event_param_dict : dict
+			The event's field dictionary (passed to
+			`Event.initialize`).
+		prop_object : Propensity
+			The propensity governing when the event fires.
+		propensity_param_dict : dict
+			The propensity's field dictionary.
+		event_type : str, optional
+			One of 'division', 'volume', or 'death'
+			(several capitalizations/suffixes accepted).
+		volume_splitter : VolumeSplitter, optional
+			Required if `event_type` is a division event; used to
+			partition the daughter cells.
+
+		Raises
+		------
+		ValueError
+			If `event_type` is a division event and
+			`volume_splitter` is not given, or if `event_type` is
+			not recognized.
+		"""
 		self.initialized = False
 
 		species_names_e, param_names_e = \
@@ -767,6 +1109,29 @@ cdef class LineageModel(Model):
 			# self.other_events_list.append((event_object, prop_object))
 
 	def create_death_event(self, str event_type, dict event_params, str event_propensity_type, dict propensity_params, print_out = False):
+		"""Create a `DeathEvent` and add it to the model.
+
+		Parameters
+		----------
+		event_type : str
+			Currently only the default type is supported: '',
+			'death', 'deathevent', 'death event', or
+			'default'.
+		event_params : dict
+			The event's field dictionary (unused by `DeathEvent`).
+		event_propensity_type : str
+			The propensity type governing when the event fires; see
+			`create_propensity`.
+		propensity_params : dict
+			Parameters for the given propensity type.
+		print_out : bool, default False
+			If True, print the propensity being created.
+
+		Raises
+		------
+		ValueError
+			If `event_type` is not a recognized type.
+		"""
 		event_params = dict(event_params)
 		propensity_params = dict(propensity_params)
 		prop_object = self.create_propensity(event_propensity_type, propensity_params, input_printout = print_out)
@@ -777,6 +1142,35 @@ cdef class LineageModel(Model):
 		self.add_event(event_object, event_params, prop_object, propensity_params, event_type = "death")
 
 	def create_division_event(self, str event_type, dict event_params, str event_propensity_type, dict propensity_params, VolumeSplitter volume_splitter, print_out = False):
+		"""Create a `DivisionEvent` and add it to the model.
+
+		Parameters
+		----------
+		event_type : str
+			`DivisionEvent` has no subtypes (unlike `VolumeEvent`, which
+			has `LinearVolumeEvent`/`MultiplicativeVolumeEvent`/
+			`GeneralVolumeEvent`), so this only validates the spelling
+			rather than choosing between alternatives. Accepted
+			(case-insensitive, all equivalent): '', 'division',
+			'divisionevent', 'division event', or 'default'.
+		event_params : dict
+			The event's field dictionary (unused by `DivisionEvent`).
+		event_propensity_type : str
+			The propensity type governing when the event fires; see
+			`create_propensity`.
+		propensity_params : dict
+			Parameters for the given propensity type.
+		volume_splitter : VolumeSplitter
+			Used to partition the daughter cells' species and
+			volume.
+		print_out : bool, default False
+			If True, print the event being created.
+
+		Raises
+		------
+		ValueError
+			If `event_type` is not a recognized type.
+		"""
 		if print_out:
 			print("Adding New DivisionEvent with event_type=", event_type, "params=", event_params, "propensity_type=",event_propensity_type, "propensity_params=", propensity_params, "and VolumeSplitter=", volume_splitter)
 		event_params = dict(event_params)
@@ -791,6 +1185,31 @@ cdef class LineageModel(Model):
 		self.add_event(event_object, event_params, prop_object, propensity_params, event_type = "division", volume_splitter = volume_splitter)
 
 	def create_volume_event(self, event_type, dict event_params, str event_propensity_type, dict propensity_params, print_out = False):
+		"""Create a volume-changing `Event` and add it to the model.
+
+		Parameters
+		----------
+		event_type : str
+			One of 'linear', 'multiplicative', or
+			'general' (several capitalizations/suffixes
+			accepted); see `LinearVolumeEvent`,
+			`MultiplicativeVolumeEvent`, `GeneralVolumeEvent` for
+			the corresponding `event_params` keys.
+		event_params : dict
+			The event's field dictionary.
+		event_propensity_type : str
+			The propensity type governing when the event fires; see
+			`create_propensity`.
+		propensity_params : dict
+			Parameters for the given propensity type.
+		print_out : bool, default False
+			If True, warn with the event being created.
+
+		Raises
+		------
+		ValueError
+			If `event_type` is not a recognized type.
+		"""
 		event_params = dict(event_params)
 		propensity_params = dict(propensity_params)
 		if print_out:
@@ -811,6 +1230,34 @@ cdef class LineageModel(Model):
 		self.add_event(event_object, event_params, prop_object, propensity_params, event_type = "volume")
 
 	def add_lineage_rule(self, LineageRule rule_object, dict rule_param_dict, str rule_type, VolumeSplitter volume_splitter = None):
+		"""Attach a pre-built `LineageRule` to the model.
+
+		Lower-level building block used by `create_volume_rule`,
+		`create_division_rule`, and `create_death_rule`; prefer
+		those methods, which also construct the `LineageRule` object
+		for you.
+
+		Parameters
+		----------
+		rule_object : LineageRule
+			The rule to attach.
+		rule_param_dict : dict
+			The rule's field dictionary (passed to
+			`LineageRule.initialize`).
+		rule_type : str
+			Must contain (case-insensitively) 'division',
+			'death', or 'volume'.
+		volume_splitter : VolumeSplitter, optional
+			Required if `rule_type` is a division rule; used to
+			partition the daughter cells.
+
+		Raises
+		------
+		ValueError
+			If `rule_type` is a division rule and `volume_splitter`
+			is not given, or if `rule_type` doesn't identify a
+			division, death, or volume rule.
+		"""
 		species_names, param_names = rule_object.get_species_and_parameters(rule_param_dict, self.species2index, self.params2index)
 
 		for species_name in species_names:
@@ -832,6 +1279,24 @@ cdef class LineageModel(Model):
 				raise ValueError("add_lineage_rule only takes rules of type 'DeathRule', 'DivisionRule', and 'VolumeRule'. For Other rule types, consider trying Model.add_rule.")
 
 	def create_death_rule(self, str rule_type, dict rule_param_dict):
+		"""Create a `DeathRule` and add it to the model.
+
+		Parameters
+		----------
+		rule_type : str
+			One of 'species', 'param'/'parameter', or
+			'general' (or their `*DeathRule` class-name-style
+			aliases); see `SpeciesDeathRule`, `ParamDeathRule`,
+			`GeneralDeathRule` for the corresponding
+			`rule_param_dict` keys.
+		rule_param_dict : dict
+			The rule's field dictionary.
+
+		Raises
+		------
+		ValueError
+			If `rule_type` is not a recognized type.
+		"""
 		if rule_type.lower() in ["species", "speciesdeathrule"]:
 			self._param_dict_check(rule_param_dict, "specie", "DummyVar_SpeciesDeathRule")
 			self._param_dict_check(rule_param_dict, "threshold", "DummyVar_SpeciesDeathRule")
@@ -852,6 +1317,28 @@ cdef class LineageModel(Model):
 		self.add_lineage_rule(rule_object, rule_param_dict, rule_type = "death")
 
 	def create_division_rule(self, str rule_type, dict rule_param_dict, VolumeSplitter volume_splitter):
+		"""Create a `DivisionRule` and add it to the model.
+
+		Parameters
+		----------
+		rule_type : str
+			One of 'time', 'volume', 'delta'/
+			'deltaV', or 'general' (or their
+			`*DivisionRule` class-name-style aliases); see
+			`TimeDivisionRule`, `VolumeDivisionRule`,
+			`DeltaVDivisionRule`, `GeneralDivisionRule` for the
+			corresponding `rule_param_dict` keys.
+		rule_param_dict : dict
+			The rule's field dictionary.
+		volume_splitter : VolumeSplitter
+			Used to partition the daughter cells' species and
+			volume.
+
+		Raises
+		------
+		ValueError
+			If `rule_type` is not a recognized type.
+		"""
 		if rule_type.lower() in ["time", "timedivisionrule"]:
 			self._param_dict_check(rule_param_dict, "threshold", "DummyVar_TimeDeathRule")
 			if "noise" in rule_param_dict:
@@ -874,6 +1361,25 @@ cdef class LineageModel(Model):
 		self.add_lineage_rule(rule_object, rule_param_dict, rule_type = 'division', volume_splitter = volume_splitter)
 
 	def create_volume_rule(self, str rule_type, dict rule_param_dict):
+		"""Create a `VolumeRule` and add it to the model.
+
+		Parameters
+		----------
+		rule_type : str
+			One of 'linear', 'multiplicative',
+			'assignment', or 'ode' (or their `*VolumeRule`
+			class-name-style aliases); see `LinearVolumeRule`,
+			`MultiplicativeVolumeRule`, `AssignmentVolumeRule`,
+			`ODEVolumeRule` for the corresponding `rule_param_dict`
+			keys.
+		rule_param_dict : dict
+			The rule's field dictionary.
+
+		Raises
+		------
+		ValueError
+			If `rule_type` is not a recognized type.
+		"""
 		if rule_type.lower() in ["linear", "linearvolumerule"]:
 			self._param_dict_check(rule_param_dict, "growth_rate", "DummyVar_LinearVolumeRule")
 			if "noise" in rule_param_dict:
@@ -907,20 +1413,32 @@ cdef class LineageModel(Model):
 	cdef list get_lineage_propensities(self):
 		return self.lineage_propensities
 	def py_get_lineage_propensities(self):
+		"""Return the `Propensity` objects backing every event.
+
+		Covers every volume, division, and death event, in the
+		order they were added.
+		"""
 		return self.lineage_propensities
 	def py_get_num_lineage_propensities(self):
+		"""Return the total number of volume/division/death event propensities."""
 		return len(self.lineage_propensities)
 	def py_get_num_division_rules(self):
+		"""Return the number of division rules."""
 		return self.get_num_division_rules()
 	def py_get_num_volume_rules(self):
+		"""Return the number of volume rules."""
 		return self.get_num_volume_rules()
 	def py_get_num_death_rules(self):
+		"""Return the number of death rules."""
 		return self.get_num_death_rules()
 	def py_get_num_division_events(self):
+		"""Return the number of division events."""
 		return self.get_num_division_events()
 	def py_get_num_volume_events(self):
+		"""Return the number of volume events."""
 		return self.get_num_volume_events()
 	def py_get_num_death_events(self):
+		"""Return the number of death events."""
 		return self.get_num_death_events()
 
 	cdef (vector[void*])* get_c_lineage_propensities(self):
@@ -939,6 +1457,15 @@ cdef class LineageModel(Model):
 		return & self.c_death_events
 
 	def py_get_volume_splitters(self):
+		"""Return the `VolumeSplitter` for every division rule and event.
+
+		Returns
+		-------
+		tuple of list of VolumeSplitter
+			`(rule_volume_splitters, event_volume_splitters)`, each
+			in the order the corresponding division rule/event was
+			added.
+		"""
 		return self.rule_volume_splitters, self.event_volume_splitters
 
 	def __getstate__(self):
@@ -1049,6 +1576,17 @@ cdef class LineageModel(Model):
 		self.global_volume = state[21]
 
 cdef class LineageCSimInterface(ModelCSimInterface):
+	"""A `~bioscrape.simulator.ModelCSimInterface` for a `LineageModel`.
+
+	Extracts a `LineageModel`'s volume/division/death rules and
+	events, and their `VolumeSplitter` objects, for use by
+	`LineageSSASimulator`.
+
+	Parameters
+	----------
+	M : LineageModel
+		The model to wrap.
+	"""
 	cdef unsigned num_division_events
 	cdef unsigned num_division_rules
 	cdef unsigned num_death_events
@@ -1074,6 +1612,7 @@ cdef class LineageCSimInterface(ModelCSimInterface):
 	cdef list division_rule_volume_splitters
 
 	def __init__(self, LineageModel M):
+		"""See class docstring."""
 		super().__init__(M)
 		self.num_division_rules = <unsigned>M.py_get_num_division_rules()
 		self.num_volume_rules = <unsigned>M.py_get_num_volume_rules()
@@ -1176,6 +1715,22 @@ cdef class LineageCSimInterface(ModelCSimInterface):
 
 #A safe-mode CSimInterface for Lineages
 cdef class SafeLineageCSimInterface(LineageCSimInterface):
+	"""A `LineageCSimInterface` with extra validity checks.
+
+	See `~bioscrape.simulator.SafeModelCSimInterface`, which this
+	mirrors: warns (and zeroes out) negative propensities, and warns
+	if a species count or volume falls outside
+	[0, max_species_count]/(0, max_volume].
+
+	Parameters
+	----------
+	external_model : LineageModel
+		The model to wrap.
+	max_volume : float, default 10000
+		Upper bound on volume before a warning is issued.
+	max_species_count : float, default 10000
+		Upper bound on a species count before a warning is issued.
+	"""
 	cdef unsigned rxn_ind
 	cdef unsigned s_ind
 	cdef unsigned prop_is_0
@@ -1184,6 +1739,7 @@ cdef class SafeLineageCSimInterface(LineageCSimInterface):
 	cdef double max_volume
 
 	def __init__(self, external_model, max_volume = 10000, max_species_count = 10000):
+		"""See class docstring."""
 		self.max_volume = max_volume
 		self.max_species_count = max_species_count
 		super().__init__(external_model)
@@ -1254,6 +1810,45 @@ cdef class SafeLineageCSimInterface(LineageCSimInterface):
 
 #A new wrapper for the VolumeCellState with new internal variables
 cdef class LineageVolumeCellState(DelayVolumeCellState):
+	"""A cell state for lineage simulation: species, time, volume, birth.
+
+	Extends `~bioscrape.simulator.DelayVolumeCellState` with the
+	cell's birth time/volume and whether/why it has divided or died.
+
+	Parameters
+	----------
+	v0 : float, default 0
+		The cell's volume at birth.
+	t0 : float, default 0
+		The cell's birth time.
+	state : array-like, default []
+		The species values.
+	volume : float, optional
+		The cell's current volume. Defaults to `v0`.
+	time : float, optional
+		The cell's current time. Defaults to `t0`.
+	divided : int, default -1
+		Whether/why the cell has divided; see the `divided`
+		attribute.
+	dead : int, default -1
+		Whether/why the cell has died; see the `dead` attribute.
+
+	Attributes
+	----------
+	divided : int
+		-1 if the cell has not divided. If in
+		``[0, num_division_rules)``, the index of the `DivisionRule`
+		that caused division. If in ``[num_division_rules,
+		num_division_rules + num_division_events)``, the index
+		(offset by `num_division_rules`) of the `DivisionEvent` that
+		caused division.
+	dead : int
+		-1 if the cell has not died. If in ``[0, num_death_rules)``,
+		the index of the `DeathRule` that caused death. If in
+		``[num_death_rules, num_death_rules +
+		num_death_events)``, the index (offset by `num_death_rules`)
+		of the `DeathEvent` that caused death.
+	"""
 	cdef double initial_volume #Stores the birth Volume
 	cdef double initial_time #Stores the time the Cell was "born"
 	#divided = -1: Cell Not divided
@@ -1267,6 +1862,7 @@ cdef class LineageVolumeCellState(DelayVolumeCellState):
 	cdef state_set
 
 	def __init__(self, v0 = 0, t0 = 0, state = [], volume = None, time = None, divided = -1, dead = -1):
+		"""See class docstring."""
 		self.set_initial_vars(v0, t0)
 		if volume is not None:
 			self.set_volume(volume)
@@ -1286,9 +1882,17 @@ cdef class LineageVolumeCellState(DelayVolumeCellState):
 			self.py_set_state(state)
 
 	def get_state_set(self):
+		"""Return whether the species state has been explicitly set."""
 		return self.state_set
 
 	def py_set_state(self, state):
+		"""Set the species values.
+
+		Parameters
+		----------
+		state : array-like
+			The species values.
+		"""
 		self.state_set = 1
 		return super().py_set_state(np.asarray(state))
 
@@ -1306,12 +1910,14 @@ cdef class LineageVolumeCellState(DelayVolumeCellState):
 		return self.state[comp_ind]
 
 	def py_get_initial_volume(self):
+		"""Return the cell's volume at birth."""
 		return self.get_initial_volume()
 
 	cdef double get_initial_time(self):
 		return self.initial_time
 
 	def py_get_initial_time(self):
+		"""Return the cell's birth time."""
 		return self.get_initial_time()
 
 	cdef void set_divided(self, divided):
@@ -1341,6 +1947,30 @@ cdef class LineageVolumeCellState(DelayVolumeCellState):
 		return (self.__class__, (self.initial_volume, self.initial_time, self.state, self.volume, self.time, self.divided, self.dead))
 
 cdef class SingleCellSSAResult(VolumeSSAResult):
+	"""The result of simulating a single cell up to division/death.
+
+	Extends `~bioscrape.simulator.VolumeSSAResult` with whether/why
+	the cell divided or died, and (optionally) its initial time and
+	volume. `divided`/`dead` and the initial time/volume are not set
+	by the constructor -- use `py_set_divided`/`py_set_dead`/
+	`py_set_initial_time`/`py_set_initial_volume`.
+
+	Attributes
+	----------
+	divided : int
+		-1 if the cell has not divided. If in
+		``[0, num_division_rules)``, the index of the `DivisionRule`
+		that caused division. If in ``[num_division_rules,
+		num_division_rules + num_division_events)``, the index
+		(offset by `num_division_rules`) of the `DivisionEvent` that
+		caused division.
+	dead : int
+		-1 if the cell has not died. If in ``[0, num_death_rules)``,
+		the index of the `DeathRule` that caused death. If in
+		``[num_death_rules, num_death_rules +
+		num_death_events)``, the index (offset by `num_death_rules`)
+		of the `DeathEvent` that caused death.
+	"""
 	#divided = -1: Cell Not divided
 	#divided E [0, num_division_rules): DivisionRule divided caused the cell to divide
 	#divided E [num_division_rules, num_division_rules + num_division_events]: Division Event divided-num_division_rules caused the cell to divide
@@ -1358,31 +1988,37 @@ cdef class SingleCellSSAResult(VolumeSSAResult):
 	cdef void set_dead(self, int dead):
 		self.dead = dead
 	def py_set_dead(self, dead):
+		"""Set the `dead` attribute; see the class docstring."""
 		self.set_dead(dead)
 
 	cdef int get_dead(self):
 		return self.dead
 	def py_get_dead(self):
+		"""Return the `dead` attribute; see the class docstring."""
 		return self.get_dead()
 
 	cdef void set_divided(self, int divided):
 		self.divided = divided
 	def py_set_divided(self, divided):
+		"""Set the `divided` attribute; see the class docstring."""
 		self.set_divided(divided)
 
 	cdef int get_divided(self):
 		return self.divided
 	def py_get_divided(self):
+		"""Return the `divided` attribute; see the class docstring."""
 		return self.get_divided()
 
 	cdef void set_initial_time(self, double t):
 		self.t0 = t
 	def py_set_initial_time(self, t):
+		"""Set the cell's initial (birth) time."""
 		self.set_initial_time(t)
 
 	cdef void set_initial_volume(self, double v):
 		self.v0 = v
 	def py_set_initial_volume(self, v):
+		"""Set the cell's initial (birth) volume."""
 		self.set_initial_volume(v)
 
 	cdef VolumeCellState get_final_cell_state(self):
@@ -1405,6 +2041,33 @@ cdef class SingleCellSSAResult(VolumeSSAResult):
 
 
 cdef class LineageVolumeSplitter(VolumeSplitter):
+	"""Splits a cell's volume and species between two daughter cells.
+
+	Each species (and the volume itself) can be partitioned
+	independently: 'binomial' (each molecule independently goes
+	to one daughter with probability ~0.5), 'perfect'
+	(proportional to volume, +/- 1 for rounding), 'duplicate'
+	(both daughters get the parent's full count), or a named entry
+	in `custom_partition_functions`.
+
+	Parameters
+	----------
+	M : Model
+		The model whose species are being partitioned.
+	options : dict, default {}
+		Maps a species name (or the special keys 'default' and
+		'volume') to its partitioning mode: 'binomial',
+		'perfect', 'duplicate', or a key in
+		`custom_partition_functions`. Species not listed use the
+		'default' entry's mode ('binomial' if not given);
+		'volume' defaults to the same mode as 'default'.
+	custom_partition_functions : dict, optional
+		Maps a name to a callable used when that name is given as a
+		partitioning mode in `options`.
+	partition_noise : float, default 0.5
+		Extra randomness in the binomial split fraction; must be
+		between 0 and 1.
+	"""
 	cdef unsigned how_to_split_v
 	cdef unsigned how_to_split_default
 	cdef vector[int] binomial_indices
@@ -1416,6 +2079,7 @@ cdef class LineageVolumeSplitter(VolumeSplitter):
 	cdef dict custom_partition_functions
 
 	def __init__(self, Model M, options = {}, custom_partition_functions = {}, partition_noise = .5):
+		"""See class docstring."""
 		self.ind2customsplitter == {}
 		self.custom_partition_functions = custom_partition_functions
 		if self.partition_noise > 1:
@@ -1559,21 +2223,28 @@ cdef class LineageVolumeSplitter(VolumeSplitter):
 		return ans
 
 cdef class CappedStateQueue():
-	'''
-	Implements a minimum priority queue for LineageVolumeCellStates, sorted by
-	time, so pop_event() always returns the LineageVolumeCellState with the lowest
-	time. 
+	"""A size-capped min-priority queue of `LineageVolumeCellState`.
 
-	Additionally, CappedStateQueues have a maximum size, set by pop_cap. If the 
-	queue is full and another event is added, then after adding the new one, a random one
-	will be removed from the queue, and the heap restored.
-	'''
+	A minimum priority queue (binary heap) sorted by time, so
+	`py_pop_event` always returns the `LineageVolumeCellState` with
+	the lowest time.
+
+	Has a maximum size, `pop_cap`. If the queue is full and another
+	event is added, a random element is then removed and the heap
+	restored, keeping the queue at or under `pop_cap`.
+
+	Parameters
+	----------
+	pop_cap : int
+		The maximum queue size.
+	"""
 	cdef list queue_array # <-- think more about this name! Confusing that array != list
 	cdef unsigned int pop_cap
 	cdef unsigned int pop_size
 	cdef LineageVolumeCellState s1, s2, s3
 
 	def __init__(self, pop_cap):
+		"""See class docstring."""
 		self.pop_cap  = pop_cap
 		self.pop_size = 0
 		self.queue_array = [None] * (pop_cap+1)
@@ -1593,9 +2264,23 @@ cdef class CappedStateQueue():
 		self.pop_size = len(new_array)
 
 	def py_get_underlying_array(self):
+		"""Return the queue's backing array (heap order, not sorted)."""
 		return self.get_underlying_array()
 
 	def py_set_underlying_array(self, new_array):
+		"""Replace the queue's contents with a pre-built heap array.
+
+		Parameters
+		----------
+		new_array : list of LineageVolumeCellState
+			The new backing array; must already satisfy the min-heap
+			property, and have at most `pop_cap` elements.
+
+		Raises
+		------
+		ValueError
+			If `new_array` is longer than `pop_cap`.
+		"""
 		self.set_underlying_array(new_array)
 
 	cdef void push_event(self, LineageVolumeCellState new_event):	
@@ -1633,9 +2318,20 @@ cdef class CappedStateQueue():
 		return self.s1
 
 	def py_pop_event(self):
+		"""Remove and return the earliest-time `LineageVolumeCellState`."""
 		return self.pop_event()
 
 	def py_push_event(self, new_event):
+		"""Add a `LineageVolumeCellState` to the queue.
+
+		If this leaves the queue over `pop_cap`, a random element is
+		then removed.
+
+		Parameters
+		----------
+		new_event : LineageVolumeCellState
+			The cell state to add.
+		"""
 		self.push_event(new_event)
 
 	cdef void rebuild_from_position_up(self, unsigned int i):
@@ -1676,11 +2372,16 @@ cdef class CappedStateQueue():
 		return self.pop_size == 0
 
 	def is_still_heap(self):
-		'''
-		Checks that the underlying array's minimum heap property is still valid.
-		Iterates through each non-leaf node and checks that each child has larger
-		time. 
-		'''
+		"""Check that the backing array still satisfies the min-heap property.
+
+		Iterates through each non-leaf node and checks that each
+		child has a later (or equal) time.
+
+		Returns
+		-------
+		bool
+			True if the min-heap property holds.
+		"""
 		cdef unsigned int i, j
 		if self.pop_size <= 1:
 			return True
@@ -1702,6 +2403,18 @@ cdef class CappedStateQueue():
 
 
 cdef class LineageSSASimulator:
+	"""A stochastic simulator for `LineageModel` cell lineages.
+
+	Implements the core per-cell SSA -- checking division/death
+	rules and events, applying volume rules, and resolving
+	reaction/event propensities -- used by the module-level
+	`py_SimulateSingleCell`, `py_SimulateCellLineage`,
+	`py_SingleCellLineage`, `py_PropagateCells`, and
+	`py_SimulateTurbidostat` functions. Not normally constructed
+	with arguments directly; use those module-level functions, which
+	build the required `LineageCSimInterface` and initial cell
+	states for you.
+	"""
 	#Memory Views are reused between each individual cell
 	#Sometimes, to be compatable with the double* used in original bioscrape, these are cast to double*
 	#these are used by SimulateSingleCell
@@ -1734,6 +2447,19 @@ cdef class LineageSSASimulator:
 
 	#Python accessible version
 	def py_create_propensity_buffer(self, LineageCSimInterface interface):
+		"""Return a zeroed propensity buffer sized for `interface`.
+
+		Parameters
+		----------
+		interface : LineageCSimInterface
+			The interface to size the buffer for (covers reactions
+			plus volume/division/death event propensities).
+
+		Returns
+		-------
+		numpy.ndarray
+			The zeroed buffer.
+		"""
 		return self.create_propensity_buffer(interface)
 
 	#helper function to take an np.ndarrays and set them to internal memory views
@@ -1741,12 +2467,20 @@ cdef class LineageSSASimulator:
 		self.c_truncated_timepoints = timepoints
 	#python accessible version
 	def py_set_c_truncated_timepoints(self, np.ndarray timepoints):
+		"""Set the internal truncated-timepoints buffer.
+
+		Advanced/internal use; typically not called directly.
+		"""
 		self.set_c_truncated_timepoints(timepoints)
 
 	cdef void set_c_timepoints(self, np.ndarray timepoints):
 		self.c_timepoints = timepoints
 	#Python accessible version
 	def py_set_c_timepoints(self, np.ndarray timepoints):
+		"""Set the internal timepoints buffer.
+
+		Advanced/internal use; typically not called directly.
+		"""
 		self.set_c_timepoints(timepoints)
 
 	#Sets the internal interface and associated internal variables
@@ -1779,15 +2513,27 @@ cdef class LineageSSASimulator:
 		self.c_current_state = np.zeros(self.num_species)
 
 	def py_initialize_single_cell_interface(self, LineageCSimInterface interface):
+		"""Set the interface to simulate and reset internal buffers.
+
+		Must be called before simulating with a given `interface`
+		via the lower-level `cdef` methods. The module-level
+		`py_Simulate*`/`py_Propagate*` functions call this for you.
+		Advanced/internal use; typically not called directly.
+
+		Parameters
+		----------
+		interface : LineageCSimInterface
+			The interface to simulate.
+		"""
 		self.initialize_single_cell_interface(interface)
 
 	#Allocates buffer to store results from SimulateSingleCell
 	cdef void initialize_single_cell_results_arrays(self, unsigned num_timepoints):
-		cdef np.ndarray[np.double_t,ndim=2] results 
+		cdef np.ndarray[np.double_t,ndim=2] results
 		cdef np.ndarray[np.double_t,ndim=1] volume_trace
 
 		if num_timepoints == 0:
-			num_timepoints = 1 
+			num_timepoints = 1
 		results = np.zeros((num_timepoints,self.num_species))
 		self.c_results = results
 		volume_trace = np.zeros(num_timepoints,)
@@ -1795,6 +2541,15 @@ cdef class LineageSSASimulator:
 
 	#python accessible version
 	def py_initialize_single_cell_results_arrays(self, int num_timepoints):
+		"""Allocate the result buffers for a single-cell simulation.
+
+		Advanced/internal use; typically not called directly.
+
+		Parameters
+		----------
+		num_timepoints : int
+			The number of timepoints to allocate room for.
+		"""
 		self.initialize_single_cell_results_arrays(num_timepoints)
 
 	#SSA for a single cell. Simulates until it divides or dies using division / death rules and/or reactions.
@@ -2073,7 +2828,37 @@ cdef class LineageSSASimulator:
 		return SCR
 
 	def py_SimulateSingleCell(self, np.ndarray timepoints, LineageModel Model = None, LineageCSimInterface interface = None, LineageVolumeCellState v = None, safe = False):
+		"""Simulate one cell until it divides, dies, or time runs out.
 
+		Lower-level than the module-level `py_SimulateSingleCell`;
+		prefer that function unless reusing this simulator across
+		many calls for performance.
+
+		Parameters
+		----------
+		timepoints : numpy.ndarray
+			The times to report simulation results at.
+		Model : LineageModel, optional
+			The model to simulate. Exactly one of `Model` or
+			`interface` must be given.
+		interface : LineageCSimInterface, optional
+			A specific simulation interface to use instead of
+			building one from `Model`. Exactly one of `Model` or
+			`interface` must be given.
+		v : LineageVolumeCellState, optional
+			The starting cell state. Defaults to the model's initial
+			state, with volume 1 and time 0.
+		safe : bool, default False
+			If True and `interface` is not given, build a
+			`SafeLineageCSimInterface` instead of a
+			`LineageCSimInterface`.
+
+		Returns
+		-------
+		SingleCellSSAResult
+			The single cell's trajectory, up to its division, death,
+			or the final timepoint.
+		"""
 		if Model == None and interface == None:
 			raise ValueError('py_SimulateSingleCell requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 		elif interface == None:
@@ -2260,6 +3045,26 @@ cdef class LineageSSASimulator:
 
 	#Python wrapper of the above
 	def py_SimulateCellLineage(self, np.ndarray timepoints, initial_cell_states, LineageCSimInterface interface):
+		"""Simulate a full lineage of growing, dividing, and dying cells.
+
+		Lower-level than the module-level `py_SimulateCellLineage`;
+		prefer that function unless reusing this simulator across
+		many calls for performance.
+
+		Parameters
+		----------
+		timepoints : numpy.ndarray
+			The times to simulate over.
+		initial_cell_states : list of LineageVolumeCellState
+			The starting cells.
+		interface : LineageCSimInterface
+			The simulation interface to use.
+
+		Returns
+		-------
+		Lineage
+			The full simulated lineage tree.
+		"""
 		#Instantiate variables
 		self.lineage = Lineage()
 		self.old_cell_states = []
@@ -2477,6 +3282,36 @@ cdef class LineageSSASimulator:
 
 	#Python wrapper of SimulateTurbidostat
 	def py_SimulateTurbidostat(self, list initial_cell_states, np.ndarray timepoints, np.ndarray sample_times, unsigned int population_cap, LineageCSimInterface interface, bool debug = False):
+		"""Simulate a cell population capped at a maximum size.
+
+		Lower-level than the module-level `py_SimulateTurbidostat`;
+		prefer that function unless reusing this simulator across
+		many calls for performance.
+
+		Parameters
+		----------
+		initial_cell_states : list of LineageVolumeCellState
+			The starting cells.
+		timepoints : numpy.ndarray
+			The times to simulate over.
+		sample_times : numpy.ndarray
+			Times at which to sample (and downsample) the
+			population.
+		population_cap : int
+			The maximum population size to maintain at each sample
+			time.
+		interface : LineageCSimInterface
+			The simulation interface to use.
+		debug : bool, default False
+			If True, print verbose status messages during
+			simulation.
+
+		Returns
+		-------
+		list
+			One entry per sample time: a list of
+			`LineageVolumeCellState`.
+		"""
 		self.cell_states = []
 		self.set_c_timepoints(timepoints)
 		self.intialize_single_cell_interface(interface)
@@ -2485,6 +3320,33 @@ cdef class LineageSSASimulator:
 
 	#Python wrapper of the above
 	def py_PropagateCells(self, np.ndarray timepoints, list initial_cell_states, LineageCSimInterface interface, np.ndarray sample_times, unsigned include_dead_cells):
+		"""Simulate a population of cells, returning periodic snapshots.
+
+		Lower-level than the module-level `py_PropagateCells`;
+		prefer that function unless reusing this simulator across
+		many calls for performance.
+
+		Parameters
+		----------
+		timepoints : numpy.ndarray
+			The times to simulate over.
+		initial_cell_states : list of LineageVolumeCellState
+			The starting cells.
+		interface : LineageCSimInterface
+			The simulation interface to use.
+		sample_times : numpy.ndarray
+			Times at which to sample the population; must be a
+			subset of `timepoints`.
+		include_dead_cells : unsigned
+			If nonzero, dead cells accumulated along the way are
+			included in the returned samples.
+
+		Returns
+		-------
+		list
+			One entry per sample time: a list of
+			`LineageVolumeCellState`.
+		"""
 		self.cell_states = []
 		self.old_cell_states = []
 		self.set_c_timepoints(timepoints)
@@ -2540,6 +3402,27 @@ cdef class LineageSSASimulator:
 		return self.cell_states
 	#Python wrapper of the above
 	def py_SingleCellLineage(self, np.ndarray timepoints, LineageVolumeCellState initial_cell, LineageCSimInterface interface):
+		"""Track a single continuous-time cell lineage trace.
+
+		Lower-level than the module-level `py_SingleCellLineage`;
+		prefer that function unless reusing this simulator across
+		many calls for performance.
+
+		Parameters
+		----------
+		timepoints : numpy.ndarray
+			The times to report simulation results at.
+		initial_cell : LineageVolumeCellState
+			The starting cell state.
+		interface : LineageCSimInterface
+			The simulation interface to use.
+
+		Returns
+		-------
+		list of SingleCellSSAResult
+			The single cell's trajectory segments, one per division,
+			up to its death or the final timepoint.
+		"""
 		self.set_c_timepoints(timepoints)
 		self.intialize_single_cell_interface(interface)
 		return self.SingleCellLineage(initial_cell, timepoints)
@@ -2549,6 +3432,44 @@ cdef class LineageSSASimulator:
 
 #SingleCellLineage simulates the trajectory of a single cell, randomly discarding one of its daughters every division.
 def py_SingleCellLineage(timepoints, initial_cell_state = None, LineageModel Model = None, LineageCSimInterface interface = None, LineageSSASimulator simulator = None, return_dataframes = True, safe = False):
+	"""Track a single continuous-time cell lineage trace.
+
+	Simulates one cell; at each division, one daughter is chosen at
+	random and kept, the other is discarded. This produces a single
+	continuous time-course rather than a full lineage tree, which is
+	more efficient than `py_SimulateCellLineage` when only one
+	trace is needed.
+
+	Parameters
+	----------
+	timepoints : numpy.ndarray
+		The times to report simulation results at.
+	initial_cell_state : LineageVolumeCellState, optional
+		The starting cell state. Defaults to the model's initial
+		state, with volume 1 and time 0.
+	Model : LineageModel, optional
+		The model to simulate. Exactly one of `Model` or `interface`
+		must be given.
+	interface : LineageCSimInterface, optional
+		A specific simulation interface to use instead of building
+		one from `Model`. Exactly one of `Model` or `interface` must
+		be given.
+	simulator : LineageSSASimulator, optional
+		The simulator to use. Defaults to a new `LineageSSASimulator`.
+	return_dataframes : bool, default True
+		If True, return a `pandas.DataFrame`. If False (or if pandas
+		is not installed), return the raw list of simulation results.
+	safe : bool, default False
+		If True and `interface` is not given, build a
+		`SafeLineageCSimInterface` instead of a `LineageCSimInterface`.
+
+	Returns
+	-------
+	pandas.DataFrame or list
+		The single-cell trace, concatenated across every division,
+		as a DataFrame if `return_dataframes` is True (and pandas is
+		installed), otherwise the raw list of per-segment results.
+	"""
 	if Model == None and interface == None:
 		raise ValueError('py_SingleCellLineage requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 	elif interface == None:
@@ -2577,13 +3498,61 @@ def py_SingleCellLineage(timepoints, initial_cell_state = None, LineageModel Mod
 	else:
 		return result
 
-#py_PropagateCells simulates an ensemble of growing dividing cells, returning only the cell states at the end of timepoints
-#include_dead_cells toggles whether all dead cells accumulated along the way will also be returned.
-#return data_frames returns all the results as a pandas dataframe. Otherwise results are returned as a list of LineageVolumeCellStates
-def  py_PropagateCells(timepoints, initial_cell_states = [], LineageModel Model = None, 
-	LineageCSimInterface interface = None, LineageSSASimulator simulator = None, 
+def  py_PropagateCells(timepoints, initial_cell_states = [], LineageModel Model = None,
+	LineageCSimInterface interface = None, LineageSSASimulator simulator = None,
 	sample_times = 1, include_dead_cells = False, return_dataframes = True, return_sample_times = True, safe = False):
+	"""Simulate a population of cells, returning periodic snapshots.
 
+	Propagates an ensemble of cells (growing, dividing, and
+	optionally dying), sampling the population's cell states at
+	`sample_times` rather than storing full time-course trajectories
+	-- more memory-efficient than `py_SimulateCellLineage` when only
+	snapshots are needed.
+
+	Parameters
+	----------
+	timepoints : numpy.ndarray
+		The times to simulate over.
+	initial_cell_states : list of LineageVolumeCellState or int, default []
+		The starting cells. An int gives that many copies of the
+		model's initial state; an empty list defaults to a single
+		copy of the model's initial state.
+	Model : LineageModel, optional
+		The model to simulate. Exactly one of `Model` or `interface`
+		must be given.
+	interface : LineageCSimInterface, optional
+		A specific simulation interface to use instead of building
+		one from `Model`. Exactly one of `Model` or `interface` must
+		be given.
+	simulator : LineageSSASimulator, optional
+		The simulator to use. Defaults to a new `LineageSSASimulator`.
+	sample_times : int or array-like, default 1
+		Times at which to sample the population. An int gives that
+		many evenly-spaced sample points ending at `timepoints[-1]`.
+	include_dead_cells : bool, default False
+		If True, dead cells accumulated along the way are included
+		in the returned samples, not just cells alive at each sample
+		time.
+	return_dataframes : bool, default True
+		If True (and pandas is installed), return each sample as a
+		`pandas.DataFrame`. If False, return each sample as a list
+		of `LineageVolumeCellState`.
+	return_sample_times : bool, default True
+		If True, also return the actual `sample_times` used.
+	safe : bool, default False
+		If True and `interface` is not given, build a
+		`SafeLineageCSimInterface` instead of a `LineageCSimInterface`.
+
+	Returns
+	-------
+	samples : list
+		One entry per sample time: a DataFrame of cell states (each
+		row a cell, columns are species plus `'volume'`) if
+		`return_dataframes` is True, otherwise a list of
+		`LineageVolumeCellState`.
+	sample_times : numpy.ndarray
+		Only returned if `return_sample_times` is True.
+	"""
 	if Model == None and interface == None:
 		raise ValueError('py_PropagateCells requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
 	elif interface == None:
@@ -2635,10 +3604,39 @@ def  py_PropagateCells(timepoints, initial_cell_states = [], LineageModel Model 
 	else:
 		return return_data
 
-#SimulateCellLineage simulates a lineage of growing, dividing, and dieing cells over timepoints.
-#The entire time trajectory of the simulation is returned as a Lineage which contains a binary tree of Schnitzes each containing a LineageSingleCellSSAResult.
 def py_SimulateCellLineage(timepoints, initial_cell_states = [], initial_cell_count = 1, interface = None, Model = None, safe = False):
+	"""Simulate a full lineage of growing, dividing, and dying cells.
 
+	Unlike `py_PropagateCells`, the entire time trajectory is kept:
+	the result is a `~bioscrape.types.Lineage` containing a binary
+	tree of `~bioscrape.types.Schnitz` objects (one per cell, from
+	its birth/start to its division or death), each holding a
+	`SingleCellSSAResult`.
+
+	Parameters
+	----------
+	timepoints : numpy.ndarray
+		The times to simulate over.
+	initial_cell_states : list of LineageVolumeCellState or int, default []
+		The starting cells. An int gives that many copies of the
+		model's initial state; an empty list defaults to a single
+		copy of the model's initial state.
+	interface : LineageCSimInterface, optional
+		A specific simulation interface to use instead of building
+		one from `Model`. Exactly one of `Model` or `interface` must
+		be given.
+	Model : LineageModel, optional
+		The model to simulate. Exactly one of `Model` or `interface`
+		must be given.
+	safe : bool, default False
+		If True and `interface` is not given, build a
+		`SafeLineageCSimInterface` instead of a `LineageCSimInterface`.
+
+	Returns
+	-------
+	Lineage
+		The full simulated lineage tree.
+	"""
 	simulator = LineageSSASimulator()
 	if Model == None and interface == None:
 		raise ValueError('py_SimulateCellLineage requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
@@ -2659,8 +3657,43 @@ def py_SimulateCellLineage(timepoints, initial_cell_states = [], initial_cell_co
 	return simulator.py_SimulateCellLineage(timepoints, interface = interface, initial_cell_states = initial_cell_states)
 
 
-#SimulateSingleCell performs an SSA simulation on a single cell until it divides, dies, or the final timepoint arrives.
 def py_SimulateSingleCell(timepoints, Model = None, interface = None, initial_cell_state = None, return_dataframes = True, safe = False):
+	"""Simulate one cell until it divides, dies, or time runs out.
+
+	Unlike `py_SimulateCellLineage`/`py_PropagateCells`/
+	`py_SingleCellLineage`, which track a population or continue
+	past divisions, this stops at the first division or death event
+	(or the final timepoint), returning just that one cell's
+	trajectory up to that point -- the single-cell building block
+	the other lineage functions are built on.
+
+	Parameters
+	----------
+	timepoints : numpy.ndarray
+		The times to report simulation results at.
+	Model : LineageModel, optional
+		The model to simulate. Exactly one of `Model` or `interface`
+		must be given.
+	interface : LineageCSimInterface, optional
+		A specific simulation interface to use instead of building
+		one from `Model`. Exactly one of `Model` or `interface` must
+		be given.
+	initial_cell_state : LineageVolumeCellState, optional
+		The starting cell state. Defaults to the model's initial
+		state, with volume 1 and time 0.
+	return_dataframes : bool, default True
+		If True, return a `pandas.DataFrame`. If False, return the
+		raw simulation result object.
+	safe : bool, default False
+		If True and `interface` is not given, build a
+		`SafeLineageCSimInterface` instead of a `LineageCSimInterface`.
+
+	Returns
+	-------
+	pandas.DataFrame or SingleCellSSAResult
+		The single cell's trajectory, up to its division, death, or
+		the final timepoint.
+	"""
 	simulator = LineageSSASimulator()
 	if Model == None and interface == None:
 		raise ValueError('py_SimulateSingleCell requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
@@ -2681,9 +3714,57 @@ def py_SimulateSingleCell(timepoints, Model = None, interface = None, initial_ce
 	else:
 		return result
 
-#Python class-free wrapper of LinageSSASimulator' SimulateTurbidostat function.
-def py_SimulateTurbidostat(initial_cell_states, timepoints, sample_times, population_cap, 
+def py_SimulateTurbidostat(initial_cell_states, timepoints, sample_times, population_cap,
 	Model = None, interface = None, debug = False, safe = False, return_dataframes = True, return_sample_times = True):
+	"""Simulate a cell population capped at a maximum size.
+
+	Like `py_PropagateCells`, but the population is downsampled at
+	each entry of `sample_times` to stay at or below
+	`population_cap`, making this more efficient for simulating
+	long-running, large populations.
+
+	Parameters
+	----------
+	initial_cell_states : list of LineageVolumeCellState or int
+		The starting cells. An int gives that many copies of the
+		model's initial state.
+	timepoints : numpy.ndarray
+		The times to simulate over.
+	sample_times : int or array-like
+		Times at which to sample (and downsample) the population. An
+		int gives that many evenly-spaced sample points ending at
+		`timepoints[-1]`.
+	population_cap : int
+		The maximum population size to maintain at each sample time.
+	Model : LineageModel, optional
+		The model to simulate. Exactly one of `Model` or `interface`
+		must be given.
+	interface : LineageCSimInterface, optional
+		A specific simulation interface to use instead of building
+		one from `Model`. Exactly one of `Model` or `interface` must
+		be given.
+	debug : bool, default False
+		If True, print verbose status messages during simulation.
+	safe : bool, default False
+		If True and `interface` is not given, build a
+		`SafeLineageCSimInterface` instead of a `LineageCSimInterface`.
+	return_dataframes : bool, default True
+		If True (and pandas is installed), return each sample as a
+		`pandas.DataFrame`. If False, return each sample as a list
+		of `LineageVolumeCellState`.
+	return_sample_times : bool, default True
+		If True, also return the actual `sample_times` used.
+
+	Returns
+	-------
+	samples : list
+		One entry per sample time: a DataFrame of cell states (each
+		row a cell, columns are species plus `'volume'`) if
+		`return_dataframes` is True, otherwise a list of
+		`LineageVolumeCellState`.
+	sample_times : numpy.ndarray
+		Only returned if `return_sample_times` is True.
+	"""
 	simulator = LineageSSASimulator()
 	if Model == None and interface == None:
 		raise ValueError('py_SimulateTurbidostat requires either a LineageModel Model or a LineageCSimInterface interface to be passed in as keyword parameters.')
@@ -2737,6 +3818,19 @@ def py_SimulateTurbidostat(initial_cell_states, timepoints, sample_times, popula
 
 #A simulator class for interacting cell lineages
 cdef class InteractingLineageSSASimulator(LineageSSASimulator):
+	"""A stochastic simulator for interacting `LineageModel` populations.
+
+	Extends `LineageSSASimulator` to one or more cell types that
+	exchange species through a shared extracellular environment,
+	resynchronized periodically. Used by the module-level
+	`py_SimulateInteractingCellLineage` and
+	`py_PropagateInteractingCells` functions, which build the
+	required interfaces for you.
+
+	Warnings
+	--------
+	Interacting-lineage simulation is experimental/beta functionality.
+	"""
 
 	#Used for Simulating Interacting lineages
 	cdef int spec_ind, global_crn_initialized
@@ -2762,9 +3856,18 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 	cdef VolumeSSAResult global_crn_result, period_global_crn_result
 
 	def __init__(self):
+		"""See class docstring."""
 		self.global_crn_initialized = 0
 
 	def get_global_species_array(self):
+		"""Return the global species' values over time.
+
+		Returns
+		-------
+		numpy.ndarray
+			The global species array, or an empty array (with a
+			warning) if no simulation has been run yet.
+		"""
 		#print("get_global_species_array")
 		if self.c_global_species_array is None:
 			warnings.warn("Global Species Array has not been created. Perhaps a simulation hasn't been run yet? Returning empty array.")
@@ -2773,6 +3876,17 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			return np.asarray(self.c_global_species_array)
 
 	def get_global_crn_results(self):
+		"""Return the shared-environment CRN's simulation result.
+
+		Only meaningful if `setup_global_volume_simulation` was used
+		(i.e. a `global_volume_model` was given).
+
+		Returns
+		-------
+		VolumeSSAResult or None
+			The result, or None (with a warning) if no global CRN
+			simulation was performed.
+		"""
 		#print("get_global_crn_results")
 		if self.global_crn_initialized == 0 or self.global_crn_result == None:
 			warnings.warn("No Global simulation was performed. Will return None.")
@@ -2781,6 +3895,17 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			return self.global_crn_result
 
 	def get_lineage_list(self):
+		"""Return the simulated lineages, one per cell type.
+
+		Only set after `py_SimulateInteractingCellLineage`.
+
+		Returns
+		-------
+		list of Lineage or None
+			The lineages, or None (with a warning) if the most
+			recent simulation was a `py_PropagateInteractingCells`
+			call instead (see `get_samples`).
+		"""
 		if self.lineage_list is not None:
 			return self.lineage_list
 		else:
@@ -2788,6 +3913,18 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 			return None
 
 	def get_samples(self):
+		"""Return the population snapshots, one per cell type.
+
+		Only set after `py_PropagateInteractingCells`.
+
+		Returns
+		-------
+		tuple of (list, numpy.ndarray) or None
+			`(samples, sample_times)`, or None (with a warning) if
+			the most recent simulation was a
+			`py_SimulateInteractingCellLineage` call instead (see
+			`get_lineage_list`).
+		"""
 		if self.samples is not None:
 			return self.samples, self.sample_times
 		else:
@@ -2796,6 +3933,28 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 	#Functions to set up Global simulation
 	def setup_global_volume_simulation(self, simulator, interface, global_species_global_crn_inds):
+		"""Configure a CRN simulating reactions in the shared environment.
+
+		Called internally by `py_set_up_InteractingLineage` when a
+		`global_volume_model` is given; not normally called
+		directly.
+
+		Parameters
+		----------
+		simulator : VolumeSSASimulator or DeterministicSimulator
+			The simulator to use for the shared-environment CRN.
+		interface : ModelCSimInterface
+			The interface for the shared-environment CRN.
+		global_species_global_crn_inds : numpy.ndarray
+			Maps each global species to its species index in
+			`interface`.
+
+		Raises
+		------
+		ValueError
+			If `simulator` or `interface` is not one of the
+			expected types.
+		"""
 		cdef np.ndarray results
 		cdef np.ndarray time = np.zeros(1)
 		cdef np.ndarray volume = np.zeros(1)
@@ -3357,13 +4516,52 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 
 	#Python accessor
 
-	def py_SimulateInteractingCellLineage(self, np.ndarray timepoints, 
-										  list interface_list, 
-										  list initial_cell_states, 
-										  double global_sync_period, 
-										  np.ndarray global_species_inds, 
-										  double global_volume_param, 
+	def py_SimulateInteractingCellLineage(self, np.ndarray timepoints,
+										  list interface_list,
+										  list initial_cell_states,
+										  double global_sync_period,
+										  np.ndarray global_species_inds,
+										  double global_volume_param,
 										  double average_dist_threshold):
+		"""Simulate full lineages of interacting cell populations.
+
+		Lower-level than the module-level
+		`py_SimulateInteractingCellLineage`; prefer that function
+		unless reusing this simulator across many calls for
+		performance.
+
+		Warnings
+		--------
+		Interacting-lineage simulation is experimental/beta functionality.
+
+		Parameters
+		----------
+		timepoints : numpy.ndarray
+			The times to simulate over.
+		interface_list : list of LineageCSimInterface
+			One simulation interface per cell type.
+		initial_cell_states : list of list of LineageVolumeCellState
+			The starting cells, one list per interface.
+		global_sync_period : float
+			How often (in simulation time) cells resynchronize their
+			shared species with each other and the environment.
+		global_species_inds : numpy.ndarray
+			`global_species_inds[i, j]` is the species index of
+			global species `i` in interface `j`.
+		global_volume_param : float
+			The volume of the shared extracellular environment (0
+			for no explicit environment, in which case it's taken to
+			be the total cell volume).
+		average_dist_threshold : float
+			Redistribution threshold for each global species at
+			synchronization; see the module-level
+			`py_SimulateInteractingCellLineage`.
+
+		Returns
+		-------
+		list of Lineage
+			One full simulated lineage tree per cell type.
+		"""
 		self.set_c_timepoints(timepoints)
 		lineage_list = self.SimulateInteractingCellLineage(interface_list, 
 														   initial_cell_states, 
@@ -3546,6 +4744,47 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 									 np.ndarray global_species_inds,
 									 double global_volume_param,
 									 double average_dist_threshold):
+		"""Simulate interacting cell populations, returning periodic snapshots.
+
+		Lower-level than the module-level
+		`py_PropagateInteractingCells`; prefer that function unless
+		reusing this simulator across many calls for performance.
+
+		Warnings
+		--------
+		Interacting-lineage simulation is experimental/beta functionality.
+
+		Parameters
+		----------
+		timepoints : numpy.ndarray
+			The times to simulate over.
+		interface_list : list of LineageCSimInterface
+			One simulation interface per cell type.
+		initial_cell_states : list of list of LineageVolumeCellState
+			The starting cells, one list per interface.
+		sample_times : numpy.ndarray
+			Times at which to sample the population; must be a
+			subset of `timepoints`.
+		global_sync_period : float
+			How often (in simulation time) cells resynchronize their
+			shared species with each other and the environment.
+		global_species_inds : numpy.ndarray
+			`global_species_inds[i, j]` is the species index of
+			global species `i` in interface `j`.
+		global_volume_param : float
+			The volume of the shared extracellular environment (0
+			for no explicit environment, in which case it's taken to
+			be the total cell volume).
+		average_dist_threshold : float
+			Redistribution threshold for each global species at
+			synchronization; see the module-level
+			`py_PropagateInteractingCells`.
+
+		Returns
+		-------
+		list
+			One entry per cell type, per sample time.
+		"""
 		self.set_c_timepoints(timepoints)
 		cell_sample_list =  self.PropagateInteractingCells(interface_list,
 										initial_cell_states,
@@ -3563,6 +4802,60 @@ def py_set_up_InteractingLineage(global_species = [], interface_list = [],
 								global_species_inds = None,
 								global_volume_simulator = "stochastic",
 								global_volume_model = None, safe = False):
+	"""Build the interfaces/simulator shared by the interacting-lineage functions.
+
+	Internal helper used by `py_PropagateInteractingCells` and
+	`py_SimulateInteractingCellLineage` to normalize their arguments;
+	not usually called directly.
+
+	Parameters
+	----------
+	global_species : list of str, default []
+		Species shared between cells via the extracellular
+		environment.
+	interface_list : list of LineageCSimInterface, default []
+		One simulation interface per cell type. Exactly one of
+		`interface_list` or `model_list` must be given.
+	model_list : list of LineageModel, default []
+		One model per cell type, used to build `interface_list`.
+		Exactly one of `interface_list` or `model_list` must be
+		given.
+	initial_cell_states : list, default []
+		Either one `LineageVolumeCellState` list per interface, or
+		(when its length matches `interface_list`) a list of ints
+		giving how many copies of each interface's initial state to
+		create.
+	t0 : float, default 0
+		The initial simulation time, used when creating default
+		initial cell states.
+	simulator : InteractingLineageSSASimulator, optional
+		The simulator to use. Defaults to a new
+		`InteractingLineageSSASimulator`.
+	global_species_inds : numpy.ndarray, optional
+		Precomputed mapping where `global_species_inds[i, j]` is the
+		species index of global species `i` in interface `j`.
+		Required when using `interface_list` instead of `model_list`.
+	global_volume_simulator : str, default "stochastic"
+		Simulator type for the optional shared-environment CRN given
+		by `global_volume_model`: 'stochastic' or
+		'deterministic'.
+	global_volume_model : Model, optional
+		A `~bioscrape.types.Model` describing reactions in the
+		shared extracellular environment (e.g. degradation of a
+		secreted signal). If not given, global species amounts are
+		just tracked as totals, with no extracellular reactions.
+	safe : bool, default False
+		If True and `interface_list` is not given, build
+		`SafeLineageCSimInterface` instead of `LineageCSimInterface`
+		for each model in `model_list`.
+
+	Returns
+	-------
+	interface_list : list of LineageCSimInterface
+	simulator : InteractingLineageSSASimulator
+	initial_cell_states : list
+	global_species_inds : numpy.ndarray
+	"""
 	#Set up main simulator if needed
 	if simulator == None:
 		simulator = InteractingLineageSSASimulator()
@@ -3651,7 +4944,6 @@ def py_set_up_InteractingLineage(global_species = [], interface_list = [],
 
 	return interface_list, simulator, initial_cell_states, global_species_inds
 
-#Auxilary Python Function
 def py_PropagateInteractingCells(timepoints, global_sync_period,
 								 sample_times = 1, simulator = None,
 								 global_volume_simulator = "stochastic",
@@ -3662,6 +4954,88 @@ def py_PropagateInteractingCells(timepoints, global_sync_period,
 								 initial_cell_states = None,
 								 return_dataframes = False,
 								 return_sample_times = True, safe = False):
+	"""Simulate interacting cell populations, returning periodic snapshots.
+
+	Like `py_PropagateCells`, but for one or more cell types that
+	exchange `global_species` through a shared extracellular
+	environment, resynchronized every `global_sync_period`.
+
+	Warnings
+	--------
+	Interacting-lineage simulation is experimental/beta functionality.
+
+	Parameters
+	----------
+	timepoints : numpy.ndarray
+		The times to simulate over.
+	global_sync_period : float
+		How often (in simulation time) cells resynchronize their
+		shared `global_species` with each other and the environment.
+	sample_times : int or array-like, default 1
+		Times at which to sample the population. An int gives that
+		many evenly-spaced sample points ending at `timepoints[-1]`.
+	simulator : InteractingLineageSSASimulator, optional
+		The simulator to use. Defaults to a new
+		`InteractingLineageSSASimulator`.
+	global_volume_simulator : str, default "stochastic"
+		Simulator type for the optional shared-environment CRN given
+		by `global_volume_model`: 'stochastic' or
+		'deterministic'.
+	global_volume_model : Model, optional
+		A `~bioscrape.types.Model` describing reactions in the
+		shared extracellular environment. If not given, global
+		species amounts are just tracked as totals.
+	global_volume : float, default 0
+		The volume of the shared extracellular environment.
+	global_species : list of str, optional
+		Species shared between cells via the extracellular
+		environment.
+	global_species_inds : numpy.ndarray, optional
+		Precomputed mapping where `global_species_inds[i, j]` is the
+		species index of global species `i` in interface `j`.
+		Required when using `interface_list` instead of `model_list`.
+	average_dist_threshold : float, default 1.0
+		Redistribution threshold for each global species at
+		synchronization: if the expected count per cell (scaled by
+		the ratio of total cell volume to `global_volume`) exceeds
+		this threshold, the species is redistributed
+		deterministically by its average; otherwise it's
+		redistributed stochastically (multinomially), to preserve
+		discreteness at low copy numbers.
+	interface_list : list of LineageCSimInterface, optional
+		One simulation interface per cell type. Exactly one of
+		`interface_list` or `model_list` must be given.
+	model_list : list of LineageModel, optional
+		One model per cell type, used to build `interface_list`.
+		Exactly one of `interface_list` or `model_list` must be
+		given.
+	initial_cell_states : list, optional
+		Either one `LineageVolumeCellState` list per interface, or
+		(when its length matches `interface_list`) a list of ints
+		giving how many copies of each interface's initial state to
+		create. Defaults to one cell per interface.
+	return_dataframes : bool, default False
+		If True (and pandas is installed), return each sample as a
+		`pandas.DataFrame`. If False, return each sample as a list
+		of `LineageVolumeCellState`.
+	return_sample_times : bool, default True
+		If True, also return the actual `sample_times` used.
+	safe : bool, default False
+		If True and `interface_list` is not given, build
+		`SafeLineageCSimInterface` instead of `LineageCSimInterface`
+		for each model in `model_list`.
+
+	Returns
+	-------
+	samples : list
+		One entry per cell type, per sample time.
+	sample_times : numpy.ndarray
+		Only returned if `return_sample_times` is True.
+	global_results : pandas.DataFrame or numpy.ndarray
+		The shared environment's species over time.
+	simulator : InteractingLineageSSASimulator
+		The simulator used, which can be reused for further calls.
+	"""
 	if global_species is None:
 		global_species = []
 	if interface_list is None:
@@ -3721,7 +5095,83 @@ def py_SimulateInteractingCellLineage(timepoints, global_sync_period,
 	simulator = None, global_volume_simulator = "stochastic", global_volume_model = None,
 	global_volume = 0, global_species = [], global_species_inds = None, average_dist_threshold = 1.0,
 	interface_list = [], model_list = [], initial_cell_states = [], return_dataframes = False, safe = False):
+	"""Simulate full lineages of interacting cell populations.
 
+	Like `py_SimulateCellLineage`, but for one or more cell types
+	that exchange `global_species` through a shared extracellular
+	environment, resynchronized every `global_sync_period`. The
+	entire time trajectory of every cell is kept (unlike
+	`py_PropagateInteractingCells`, which only keeps periodic
+	snapshots).
+
+	Warnings
+	--------
+	Interacting-lineage simulation is experimental/beta functionality.
+
+	Parameters
+	----------
+	timepoints : numpy.ndarray
+		The times to simulate over.
+	global_sync_period : float
+		How often (in simulation time) cells resynchronize their
+		shared `global_species` with each other and the environment.
+	simulator : InteractingLineageSSASimulator, optional
+		The simulator to use. Defaults to a new
+		`InteractingLineageSSASimulator`.
+	global_volume_simulator : str, default "stochastic"
+		Simulator type for the optional shared-environment CRN given
+		by `global_volume_model`: 'stochastic' or
+		'deterministic'.
+	global_volume_model : Model, optional
+		A `~bioscrape.types.Model` describing reactions in the
+		shared extracellular environment. If not given, global
+		species amounts are just tracked as totals.
+	global_volume : float, default 0
+		The volume of the shared extracellular environment.
+	global_species : list of str, default []
+		Species shared between cells via the extracellular
+		environment.
+	global_species_inds : numpy.ndarray, optional
+		Precomputed mapping where `global_species_inds[i, j]` is the
+		species index of global species `i` in interface `j`.
+		Required when using `interface_list` instead of `model_list`.
+	average_dist_threshold : float, default 1.0
+		Redistribution threshold for each global species at
+		synchronization: if the expected count per cell (scaled by
+		the ratio of total cell volume to `global_volume`) exceeds
+		this threshold, the species is redistributed
+		deterministically by its average; otherwise it's
+		redistributed stochastically (multinomially), to preserve
+		discreteness at low copy numbers.
+	interface_list : list of LineageCSimInterface, default []
+		One simulation interface per cell type. Exactly one of
+		`interface_list` or `model_list` must be given.
+	model_list : list of LineageModel, default []
+		One model per cell type, used to build `interface_list`.
+		Exactly one of `interface_list` or `model_list` must be
+		given.
+	initial_cell_states : list, default []
+		Either one `LineageVolumeCellState` list per interface, or
+		(when its length matches `interface_list`) a list of ints
+		giving how many copies of each interface's initial state to
+		create. Defaults to one cell per interface.
+	return_dataframes : bool, default False
+		If True (and pandas is installed), return `global_results`
+		as a `pandas.DataFrame`.
+	safe : bool, default False
+		If True and `interface_list` is not given, build
+		`SafeLineageCSimInterface` instead of `LineageCSimInterface`
+		for each model in `model_list`.
+
+	Returns
+	-------
+	lineage_list : list of Lineage
+		One full simulated lineage tree per cell type.
+	global_results : pandas.DataFrame or numpy.ndarray
+		The shared environment's species over time.
+	simulator : InteractingLineageSSASimulator
+		The simulator used, which can be reused for further calls.
+	"""
 	interface_list, simulator, initial_cell_states, global_species_inds = py_set_up_InteractingLineage(global_species = global_species, interface_list = interface_list, model_list = model_list, initial_cell_states = initial_cell_states,
 		simulator = simulator, global_species_inds = global_species_inds, global_volume_simulator = global_volume_simulator, global_volume_model = global_volume_model, t0 = timepoints[0], safe = safe)
 

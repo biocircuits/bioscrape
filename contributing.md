@@ -28,6 +28,39 @@ All pull requests should be made to the `dev` branch of Bioscrape. To maintain c
 * Following the PEP8 guideline, limit the first line to 72 characters or less
 * Reference issues and pull requests in your pull request comment 
 
+### Docstrings
+
+Docstrings in `bioscrape/*.py`, `*.pyx`, `*.pxd`, and `lineage/*.pyx`
+follow the numpydoc convention (see the [numpydoc style guide](
+https://numpydoc.readthedocs.io/en/latest/format.html)), prioritizing
+what reads well as plain text via `help()`/`obj.__doc__`, since this
+package isn't always built alongside its Sphinx documentation.
+
+* Wrap docstring *text* (not code) to ~78 characters, greedily. Don't
+  break a wrap point inside a single- or double-backtick span.
+* The one-line summary (first line) must fit on a single physical
+  line, ≤75 characters, start with a capital letter, and end with a
+  period. If it doesn't fit, shorten it and move detail into the
+  extended summary or Parameters/Returns instead of wrapping it.
+* Avoid LaTeX/math notation (`$...$`) in docstrings -- it doesn't
+  render in a terminal. Write formulas in plain text, e.g.
+  `rate = k*(x1/K)^n / (1 + (x1/K)^n)` or `d(x_i)/d(p_j)`.
+* Use single backticks around Python objects and parameter names
+  (e.g. `` `Model` ``, `` `param_name` ``); double backticks for
+  inline code/short fragments. Quote plain strings with single quotes
+  (e.g. `'uniform'`), not double-backtick-wrapped. Write True/False/
+  None with no backticks, capitalized.
+* Class docstrings host the constructor's Parameters, not
+  `__init__`'s. Give `__init__` a one-line stub,
+  `"""See class docstring."""` -- leaving it with no docstring at all
+  is unsafe if it subclasses another documented class, since some
+  tools then fall back to the parent's `__init__` docs and silently
+  describe the wrong constructor. Classes should not have a "Returns"
+  section.
+* Every parameter and keyword argument must be documented.
+  Functions/attributes not meant for user access start with an
+  underscore (or, for Cython, are `cdef` rather than `def`/`cpdef`).
+
 ## Have any questions?
 
 If you have questions or would like to connect to the Bioscrape team on a regular basis, you can join our Slack channel. Bioscrape is a channel under the Synthetic Biology Modeling and Analysis Tools (SBTools) slack team.

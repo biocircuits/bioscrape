@@ -1,3 +1,7 @@
+# NOTE: class/method docstrings live in simulator.pyx, not here. If
+# both files define a docstring for the same class/method, the .pyx
+# one silently wins with no warning at compile time.
+
 cimport numpy as np
 from types cimport  Model, Volume, Schnitz, Lineage
 from vector cimport vector
@@ -7,11 +11,6 @@ from vector cimport vector
 #################################################                     ################################################
 
 cdef class DelayQueue:
-    """
-    An interface/virtual class for keeping track of queued delayed reactions that will resolve at some future time.
-
-    This must be subclassed by implementations of delay queues.
-    """
     cdef void add_reaction(self, double time, unsigned rxn_id, double amount)
     cdef double get_next_queue_time(self)
     cdef void get_next_reactions(self, double *rxn_array)
@@ -23,22 +22,6 @@ cdef class DelayQueue:
     cdef np.ndarray binomial_partition(self, double p)
 
 cdef class ArrayDelayQueue(DelayQueue):
-    """
-    A class implementing the DelayQueue interface with an array of future times book-keeping how many of each rection
-    occurs at each future time with resolution dt.
-
-    Attributes:
-        dt (double): The time resolution
-        next_queue_time (double): The next gridded time point. These are spaced by dt.
-        num_cols (unsigned): The number of cols in the delay queue array. This is the number of dt grid points ahead
-        num_reactions (unsigned): The number of reactions in the system. Also the number of rows in the queue array.
-        start_index (unsigned): The index in the queue array corresponding to the next queue time. This cycles around.
-        queue (np.ndarray): 2-D array where the columns are future time points spaced by dt and the rows are future rxn
-                            occurrences for each reaction. The start index is the very next time and each successive
-                            index corresponds to dt more than the previous one including looping around the end of the
-                            array. Thus, the max future time that can be remembered is dt*num_cols
-
-    """
     cdef double dt
     cdef double next_queue_time
     cdef unsigned num_cols
@@ -61,9 +44,6 @@ cdef class ArrayDelayQueue(DelayQueue):
 
 
 cdef class CSimInterface:
-    """
-    An interface for keeping track of the stoichiometric matrix and delay
-    """
     cdef np.ndarray update_array
     cdef np.ndarray delay_update_array
 
@@ -157,9 +137,6 @@ cdef class SafeModelCSimInterface(ModelCSimInterface):
     
 # Simulation output values here
 cdef class SSAResult:
-    """
-    A class for keeping track of the result from a regular simulation (timepoints and species over time).
-    """
     cdef np.ndarray timepoints
     cdef np.ndarray simulation_result
 
@@ -176,19 +153,12 @@ cdef class SSAResult:
         return self.simulation_result
 
 cdef class DelaySSAResult(SSAResult):
-    """
-    A class for keeping track of the result from a delay simulation (timepoints and species and the final set
-    of  queued reactions).
-    """
     cdef DelayQueue final_delay_queue
 
     cdef inline DelayQueue get_delay_queue(self):
         return self.final_delay_queue
 
 cdef class VolumeSSAResult(SSAResult):
-    """
-    A class for keeping track of the result from a volume simulation (timepoints and species/volume over time).
-    """
     cdef np.ndarray volume
     cdef unsigned cell_divided_flag
     cdef unsigned cell_dead_flag
@@ -215,10 +185,6 @@ cdef class VolumeSSAResult(SSAResult):
 
 
 cdef class DelayVolumeSSAResult(VolumeSSAResult):
-    """
-    A class for keeping track of the result from a volume simulation with delay (timepoints and species/volume over
-    time and the final set of queued reactions).
-    """
     cdef DelayQueue final_delay_queue
 
     cdef inline DelayQueue get_delay_queue(self):
@@ -230,9 +196,6 @@ cdef class DelayVolumeSSAResult(VolumeSSAResult):
 # Cell state classes
 
 cdef class CellState:
-    """
-    A class for keeping track of a simple cell state (species and time).
-    """
     cdef np.ndarray state
     cdef double time
 
@@ -249,9 +212,6 @@ cdef class CellState:
         return self.time
 
 cdef class DelayCellState(CellState):
-    """
-    A class for keeping track of cell state in a delay system (species, time, and queued reactions).
-    """
     cdef DelayQueue delay_queue
 
     cdef inline DelayQueue get_delay_queue(self):
@@ -261,9 +221,6 @@ cdef class DelayCellState(CellState):
         self.delay_queue = q
 
 cdef class VolumeCellState(CellState):
-    """
-    A class for keeping track of cell state in a system with volume (species, time, and volume).
-    """
     cdef double volume
     cdef Volume volume_object
     
@@ -281,9 +238,6 @@ cdef class VolumeCellState(CellState):
 
 
 cdef class DelayVolumeCellState(VolumeCellState):
-    """
-    A class for keeping track of cell state in a system with delay and volume (species, time, volume, and queued rxns)
-    """
     cdef DelayQueue delay_queue
 
     cdef inline DelayQueue get_delay_queue(self):
@@ -297,31 +251,18 @@ cdef class DelayVolumeCellState(VolumeCellState):
 #################################################                     ################################################
 
 cdef class VolumeSplitter:
-    """
-    Interface class for defining a method to partition cells for the case with no delay and only volume involved.
-    """
     cdef np.ndarray partition(self, VolumeCellState parent)
 
 cdef class DelayVolumeSplitter:
-    """
-    Interface class for defining a method to partition cells for the case with delay AND volume involved.
-    """
     cdef np.ndarray partition(self, DelayVolumeCellState parent)
 
 
 
 cdef class PerfectBinomialVolumeSplitter(VolumeSplitter):
-    """
-    A volume splitting class that splits the cell into two equal halves and splits the molecuels binomially w/ p = 0.5
-    """
     cdef np.ndarray partition(self, VolumeCellState parent)
 
 
 cdef class GeneralVolumeSplitter(VolumeSplitter):
-    """
-    A volume splitting class that splits the cell into two cells and can split species
-    binomially, perfectly, or by duplication.
-    """
     cdef vector[int] binomial_indices
     cdef vector[int] perfect_indices
     cdef vector[int] duplicate_indices
@@ -331,18 +272,9 @@ cdef class GeneralVolumeSplitter(VolumeSplitter):
 
 
 cdef class PerfectBinomialDelayVolumeSplitter(DelayVolumeSplitter):
-    """
-    A class which splits a cell with delays into two equal halves and partitions molecules and queued reactions
-    binomially with p=0.5.
-
-    WARNING: If the queued reactions have negative species updates, this can lead to possible negative species count.
-    """
     cdef np.ndarray partition(self, DelayVolumeCellState parent)
 
 cdef class CustomSplitter(VolumeSplitter):
-    """
-    A volume splitting class that splits the cell into two equal halves and splits the molecuels binomially w/ p = 0.5
-    """
     cdef object split_function
     cdef np.ndarray partition(self, VolumeCellState parent)
 
@@ -353,15 +285,9 @@ cdef class CustomSplitter(VolumeSplitter):
 
 # Regular simulations with no volume or delay involved.
 cdef class RegularSimulator:
-    """
-    Interface class for defining simulators for the regular case with no delay/volume involved
-    """
     cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints)
 
 cdef class DeterministicSimulator(RegularSimulator):
-    """
-    A class for implementing a deterministic simulator.
-    """
     cdef double atol
     cdef double rtol
     cdef double hmax
@@ -391,9 +317,6 @@ cdef class DeterministicDilutionSimulator(RegularSimulator):
 
 
 cdef class SSASimulator(RegularSimulator):
-    """
-    A class for implementing a stochastic SSA simulator.
-    """
     cdef SSAResult simulate(self, CSimInterface sim, np.ndarray timepoints)
 
 cdef class SafeModeSSASimulator(RegularSimulator):
@@ -411,42 +334,24 @@ cdef class TimeDependentSSASimulator(RegularSimulator):
 
 
 cdef class DelaySimulator:
-    """
-    Interface class for defining a simulator with delay.
-    """
     cdef DelaySSAResult delay_simulate(self, CSimInterface sim, DelayQueue dq, np.ndarray timepoints)
 
 cdef class DelaySSASimulator(DelaySimulator):
-    """
-    A class for doing delay simulations using the stochastic simulation algorithm.
-    """
     cdef DelaySSAResult delay_simulate(self, CSimInterface sim, DelayQueue dq, np.ndarray timepoints)
 
 
 
 cdef class VolumeSimulator:
-    """
-    Interface class for doing volume simulations.
-    """
     cdef VolumeSSAResult volume_simulate(self, CSimInterface sim, Volume v, np.ndarray timepoints)
 
 
 cdef class VolumeSSASimulator(VolumeSimulator):
-    """
-    Volume SSA implementation.
-    """
     cdef VolumeSSAResult volume_simulate(self, CSimInterface sim, Volume v, np.ndarray timepoints)
 
 cdef class DelayVolumeSimulator:
-    """
-    Interface class for doing simulations with delay and volume.
-    """
     cdef DelayVolumeSSAResult delay_volume_simulate(self, CSimInterface sim, DelayQueue q,
                                                     Volume v, np.ndarray timepoints)
 
 cdef class DelayVolumeSSASimulator(DelayVolumeSimulator):
-    """
-    SSA implementation for doing simulations with delay and volume.
-    """
     cdef DelayVolumeSSAResult delay_volume_simulate(self, CSimInterface sim, DelayQueue q,
                                                     Volume v, np.ndarray timepoints)

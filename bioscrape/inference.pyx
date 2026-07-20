@@ -1,3 +1,14 @@
+"""
+Bayesian parameter inference for bioscrape models.
+
+Provides `Data` (`BulkData`, `FlowData`, `StochasticTrajectories`) and
+`Likelihood` (`DeterministicLikelihood`, `StochasticTrajectoriesLikelihood`,
+`StochasticTrajectoryMomentLikelihood`, `StochasticStatesLikelihood`) class
+hierarchies for comparing simulated and experimental data, along with the
+user-facing `py_inference` entry point. See also
+`~bioscrape.pid_interfaces`, which wraps these classes into higher-level
+parameter identification interfaces.
+"""
 cimport numpy as np
 import numpy as np
 from libc.math cimport log
@@ -19,6 +30,14 @@ import emcee
 
 
 cdef class Distribution:
+    """
+    Base class for probability distributions used as priors.
+
+    Subclasses implement `unprob` (unnormalized probability), `prob`
+    (normalized probability), and `dim` (dimensionality); these are
+    `cdef` methods, called from Python via `py_unprob`, `py_prob`, and
+    `py_dim` below.
+    """
     cdef double unprob(self,np.ndarray a):
         raise NotImplementedError("Calling unprob() on Distribution")
     cdef double prob(self,np.ndarray a):
@@ -27,17 +46,62 @@ cdef class Distribution:
         raise NotImplementedError("Calling dim() on Distribution")
 
     def py_unprob(self, np.ndarray a):
+        """
+        Unnormalized probability of a point.
+
+        Parameters
+        ----------
+        a : numpy.ndarray
+            The point at which to evaluate the distribution.
+
+        Returns
+        -------
+        float
+            The unnormalized probability of `a`.
+        """
         return self.unprob(a)
 
     def py_prob(self, np.ndarray a):
+        """
+        Normalized probability of a point.
+
+        Parameters
+        ----------
+        a : numpy.ndarray
+            The point at which to evaluate the distribution.
+
+        Returns
+        -------
+        float
+            The normalized probability of `a`.
+        """
         return self.prob(a)
 
     def py_dim(self):
+        """
+        The dimensionality of the distribution.
+
+        Returns
+        -------
+        int
+            The number of dimensions.
+        """
         return self.dim()
 
 
 cdef class UniformDistribution(Distribution):
+    """
+    A uniform distribution over an axis-aligned box.
+
+    Parameters
+    ----------
+    lb : numpy.ndarray
+        The lower bound in each dimension.
+    ub : numpy.ndarray
+        The upper bound in each dimension; must be the same shape as `lb`.
+    """
     def __init__(self, np.ndarray lb, np.ndarray ub):
+        """See class docstring."""
         self.dimension = lb.shape[0]
         self.lower_bounds = lb.copy()
         self.upper_bounds = ub.copy()
@@ -78,10 +142,47 @@ cdef class UniformDistribution(Distribution):
 #################################################                     ################################################
 #Top level Data Object Class.
 cdef class Data():
+    """
+    Base class for experimental data used by a `Likelihood`.
+
+    Holds a set of measurements of `measured_species` at `timepoints`.
+    Subclasses (`BulkData`, `FlowData`, `StochasticTrajectories`) fix the
+    expected array shapes for a particular kind of experimental data; see
+    each subclass's `set_data` for its specific shape conventions.
+
+    Parameters
+    ----------
+    timepoints : numpy.ndarray, optional
+        The time points at which the data was measured.
+    measurements : numpy.ndarray, optional
+        The measured values.
+    measured_species : list of str, optional
+        The names of the measured species.
+    N : int, optional
+        The number of samples/trajectories (default 1).
+    """
     def __init__(self, np.ndarray timepoints = None, np.ndarray measurements = None, list measured_species = [], unsigned N = 1):
+        """See class docstring."""
         self.set_data(timepoints, measurements, measured_species, N)
 
     def set_data(self,np.ndarray timepoints, np.ndarray measurements, list measured_species, unsigned N):
+        """
+        Store `timepoints`, `measurements`, and `measured_species`.
+
+        Called by `__init__`; subclasses override this to validate and
+        reshape `measurements` according to their specific data layout.
+
+        Parameters
+        ----------
+        timepoints : numpy.ndarray
+            The time points at which the data was measured.
+        measurements : numpy.ndarray
+            The measured values.
+        measured_species : list of str
+            The names of the measured species.
+        N : int
+            The number of samples/trajectories.
+        """
         self.timepoints = timepoints
         self.measurements = measurements
         self.measured_species = measured_species
@@ -92,22 +193,75 @@ cdef class Data():
         return self.measurements
 
     def py_get_measurements(self):
+        """
+        The stored measurement array.
+
+        Returns
+        -------
+        numpy.ndarray
+            The measurements, in the shape set by `set_data`.
+        """
         return self.get_measurements()
 
     def py_get_timepoints(self):
+        """
+        The stored time points.
+
+        Returns
+        -------
+        numpy.ndarray
+            The time points at which the data was measured.
+        """
         return self.get_timepoints()
 
     def py_get_measured_species(self):
+        """
+        The names of the measured species.
+
+        Returns
+        -------
+        list of str
+            The measured species names.
+        """
         return self.get_measured_species
 
-#Data consists of a single timecourse at T points gathered across M measurements at timempoints timepoints. 
+#Data consists of a single timecourse at T points gathered across M measurements at timempoints timepoints.
 #Measurements are assumed to correspond to species names in measured_species.
 #Data Dimensions:
 # timepoints: T
 # Measurements: T x M
 # Measured Species: M
 cdef class BulkData(Data):
+    """
+    Bulk (deterministic-style) trajectory data.
+
+    `N` samples, each with measurements of `M` species at `T` time points.
+    `measurements` is reshaped to `(N, T, M)`. `timepoints` may be a single
+    length-`T` vector shared by all samples, or an `(N, T)` array giving each
+    sample its own time points.
+    """
     def set_data(self,np.ndarray timepoints, np.ndarray measurements, list measured_species, unsigned N):
+        """
+        Validate and store bulk trajectory data.
+
+        Parameters
+        ----------
+        timepoints : numpy.ndarray
+            A length-`T` vector (shared across samples) or, if `N > 1`, an
+            `(N, T)` array of per-sample time points.
+        measurements : numpy.ndarray
+            The measured values; reshaped to `(N, T, M)`.
+        measured_species : list of str
+            The names of the measured species.
+        N : int
+            The number of samples/trajectories.
+
+        Raises
+        ------
+        ValueError
+            If `N > 1` and the shapes of `timepoints` and `measurements` are
+            inconsistent with `N` samples.
+        """
         if N > 1:
             if timepoints.ndim == 1:
                 self.multiple_timepoints = False
@@ -127,11 +281,26 @@ cdef class BulkData(Data):
         self.measurements = np.reshape(measurements, (self.N, self.nT, self.M))
 
     def has_multiple_timepoints(self):
+        """
+        Whether each sample has its own time points.
+
+        Returns
+        -------
+        bool
+            True if `timepoints` was given as an `(N, T)` array (one vector
+            per sample), False if a single shared length-`T` vector was used.
+        """
         return self.multiple_timepoints
 
     def get_minimum_dt(self):
         """
-        Returns the minimum delta between measured timepoints
+        The minimum spacing between consecutive measured time points.
+
+        Returns
+        -------
+        float
+            The smallest gap between consecutive time points, across all
+            samples if `has_multiple_timepoints` is True.
         """
         if not self.multiple_timepoints:
             dt = self.timepoints[self.nT-1] - self.timepoints[0]
@@ -153,7 +322,35 @@ cdef class BulkData(Data):
 # Measurements: N x M
 # Measured Species: M
 cdef class FlowData(Data):
+    """
+    Flow-cytometry-style data.
+
+    `N` samples, each a single-timepoint measurement of `M` species. Unlike
+    `BulkData` and `StochasticTrajectories`, there is no time dimension --
+    `measurements` has shape `(N, M)`.
+    """
     def set_data(self,np.ndarray timepoints, np.ndarray measurements, list measured_species, unsigned N):
+        """
+        Validate and store flow data.
+
+        Parameters
+        ----------
+        timepoints : None
+            Must be None -- flow data is assumed to be collected at a
+            single, unspecified time point.
+        measurements : numpy.ndarray
+            The measured values, of shape `(N, M)`.
+        measured_species : list of str
+            The names of the measured species.
+        N : int
+            Unused; `N` is instead taken from `measurements.shape[0]`.
+
+        Raises
+        ------
+        ValueError
+            If `timepoints` is not None, or if the second dimension of
+            `measurements` does not match `len(measured_species)`.
+        """
         if timepoints is not None:
             raise ValueError("Flow Data is assumed to be collected at a single timepoint")
 
@@ -165,7 +362,7 @@ cdef class FlowData(Data):
         else:
             self.measurements = measurements
             self.N = measurements.shape[0]
-        
+
 
 #Data consists of a set of N stochastic trajectories at T timepoints which each contain measurements of M measured_species.
 #Data Dimensions:
@@ -173,15 +370,44 @@ cdef class FlowData(Data):
 # Measurements: N x T x M
 # Measured Species: M
 cdef class StochasticTrajectories(Data):
+    """
+    Single-cell stochastic trajectory data.
+
+    `N` trajectories, each with measurements of `M` species at `T` time
+    points. Unlike `BulkData`, `measurements` must always be given in full
+    `(N, T, M)` form (no implicit `N = 1` case).
+    """
 
     cdef  np.ndarray get_measurements(self):
         return np.reshape(self.measurements, (self.N, self.nT, self.M))
 
     def set_data(self, np.ndarray timepoints, np.ndarray measurements, list measured_species, unsigned N):
+        """
+        Validate and store stochastic trajectory data.
+
+        Parameters
+        ----------
+        timepoints : numpy.ndarray
+            A length-`T` vector (shared across trajectories) or an `(N, T)`
+            array of per-trajectory time points.
+        measurements : numpy.ndarray
+            The measured values, of shape `(N, T, M)`.
+        measured_species : list of str
+            The names of the measured species.
+        N : int
+            Unused; `N` is instead taken from `measurements.shape[0]`.
+
+        Raises
+        ------
+        ValueError
+            If the third dimension of `measurements` does not match
+            `len(measured_species)`, or if the shape of `timepoints` is
+            neither a single length-`T` vector nor an `(N, T)` array.
+        """
         self.measured_species = measured_species
         self.M = len(self.measured_species)
 
-        #if (self.M == 1 and measurements.ndim == 2) or (measurements.shape[2] == self.M): 
+        #if (self.M == 1 and measurements.ndim == 2) or (measurements.shape[2] == self.M):
         # ( M will always be shape N X T X M (instead of having a different shape of T X M for a single trajectory case ))
         if measurements.shape[2] == self.M:
             self.nT = measurements.shape[1]
@@ -201,6 +427,16 @@ cdef class StochasticTrajectories(Data):
             raise ValueError("timepoints must be a single vector of length T or N (# of samples) vectors each of length T")
 
     def has_multiple_timepoints(self):
+        """
+        Whether each trajectory has its own time points.
+
+        Returns
+        -------
+        bool
+            True if `timepoints` was given as an `(N, T)` array (one vector
+            per trajectory), False if a single shared length-`T` vector was
+            used.
+        """
         return self.multiple_timepoints
 
 ##################################################                ####################################################
@@ -208,16 +444,68 @@ cdef class StochasticTrajectories(Data):
 #################################################                     ################################################
 
 cdef class Likelihood:
+    """
+    Base class for log-likelihood functions.
+
+    Subclasses implement `get_log_likelihood` (a `cdef` method), called from
+    Python via `py_log_likelihood` below.
+    """
     cdef double get_log_likelihood(self):
         raise NotImplementedError("Calling get_log_likelihood() for Likelihood")
 
     def py_log_likelihood(self):
+        """
+        The log-likelihood of the currently-set model parameters and state.
+
+        Returns
+        -------
+        float
+            The log-likelihood value.
+        """
         return self.get_log_likelihood()
 
 cdef class ModelLikelihood(Likelihood):
+    """
+    Base class for likelihoods comparing model simulations to data.
+
+    Compares simulations of a `~bioscrape.types.Model` against a `Data`
+    object. Abstract: `set_likelihood_options` and `set_data` must be
+    implemented by subclasses (`DeterministicLikelihood`,
+    `StochasticTrajectoriesLikelihood`, `StochasticStatesLikelihood`).
+
+    Parameters
+    ----------
+    model : Model
+        The bioscrape model to simulate.
+    init_state : dict or list of dict, optional
+        Initial condition(s) for the simulated trajectories. A single dict
+        for one trajectory, or a list of dicts for multiple trajectories.
+    init_params : dict or list of dict, optional
+        Per-trajectory parameter overrides, in the same shape as
+        `init_state`.
+    interface : CSimInterface, optional
+        A pre-built simulation interface for `model`; built automatically if
+        not given.
+    simulator : RegularSimulator, optional
+        The simulator to use; the specific subclass chooses an appropriate
+        default (e.g. deterministic or stochastic) if not given.
+    data : Data, optional
+        The experimental data to compare simulations against. If not given,
+        `set_data` must be called separately before use.
+    **keywords
+        Additional keyword arguments, including `hmax` (maximum integrator
+        step size, deterministic simulation only) and `atol`/`rtol`
+        (absolute/relative integrator error tolerances).
+
+    Raises
+    ------
+    ValueError
+        If `init_state` is neither a dict nor a list of dicts.
+    """
     def __init__(self, model = None, init_state = {}, init_params = {},
                  interface = None, simulator = None, data = None,
                  **keywords):
+        """See class docstring."""
         self.set_model(model, simulator, interface)
         self.set_likelihood_options(**keywords)
         if isinstance(init_state, dict):
@@ -267,6 +555,22 @@ cdef class ModelLikelihood(Likelihood):
             self.propagator.py_set_tolerance(atol, rtol)
 
     def set_model(self, Model m, RegularSimulator prop, CSimInterface csim = None, DelaySimulator prop_delay = None):
+        """
+        Attach a model, simulator, and simulation interface.
+
+        Parameters
+        ----------
+        m : Model
+            The bioscrape model to simulate.
+        prop : RegularSimulator
+            The simulator to use.
+        csim : CSimInterface, optional
+            A pre-built simulation interface for `m`; built automatically
+            with `~bioscrape.simulator.ModelCSimInterface` if not given.
+        prop_delay : DelaySimulator, optional
+            A delay-aware simulator, for subclasses that support delayed
+            reactions.
+        """
         if csim is None:
             self.csim = ModelCSimInterface(m)
         self.m = m
@@ -277,15 +581,47 @@ cdef class ModelLikelihood(Likelihood):
 
 
     def set_default_species(self, species):
+        """
+        Set the default species values.
+
+        Used to fill in unspecified initial conditions.
+
+        Parameters
+        ----------
+        species : numpy.ndarray
+            The default species value array, indexed as in the model
+            attached via `set_model`.
+        """
         self.default_species = species
-       
+
     def set_default_params(self, params):
+        """
+        Set (or update) the default parameter values.
+
+        Used to fill in unspecified per-trajectory parameter conditions.
+
+        Parameters
+        ----------
+        params : dict
+            Parameter name/value pairs. Merged into any existing defaults
+            rather than replacing them.
+        """
         if hasattr(self, "default_params"):
             self.default_params.update(params)
         else:
             self.default_params = dict(params)
 
     def set_init_species(self, list sds):
+        """
+        Set the initial species values for each trajectory.
+
+        Parameters
+        ----------
+        sds : list of dict
+            One dictionary of initial species values per trajectory (length
+            `self.Nx0`); species not given a value fall back to the default
+            set by `set_default_species`.
+        """
         self.initial_states = np.zeros((self.Nx0, self.m.get_number_of_species()))
         species2index = self.m.get_species2index()
         
@@ -298,7 +634,15 @@ cdef class ModelLikelihood(Likelihood):
                     self.initial_states[i, j] = self.default_species[j]
 
     def set_init_params(self, dict pd):
+        """
+        Set model parameter values for the current trajectory.
 
+        Parameters
+        ----------
+        pd : dict
+            Parameter name/value pairs to set on the model and simulation
+            interface.
+        """
         # print("before set", self.m.get_parameter_dictionary())
         # print("asking to be set to", pd)
         self.m.set_params(pd)
@@ -327,13 +671,65 @@ cdef class ModelLikelihood(Likelihood):
         return self.initial_parameters[n]
 
     def set_likelihood_options(self, **keywords):
+        """
+        Set likelihood-specific options.
+
+        Must be implemented by subclasses; see e.g.
+        `DeterministicLikelihood.set_likelihood_options`.
+
+        Parameters
+        ----------
+        **keywords
+            Subclass-specific option names and values.
+
+        Raises
+        ------
+        NotImplementedError
+            Always, unless overridden by a subclass.
+        """
         raise NotImplementedError("set_likelihood_options must be implemented in subclasses of ModelLikelihood")
 
     def set_data(self, **keywords):
+        """
+        Attach experimental data to compare simulations against.
+
+        Must be implemented by subclasses; see e.g.
+        `DeterministicLikelihood.set_data`.
+
+        Parameters
+        ----------
+        **keywords
+            Subclass-specific arguments (typically a single `Data` object).
+
+        Raises
+        ------
+        NotImplementedError
+            Always, unless overridden by a subclass.
+        """
         raise NotImplementedError("set_data must be implemented in subclasses of ModelLikelihood")
 
 cdef class DeterministicLikelihood(ModelLikelihood):
+    """
+    Log-likelihood of `BulkData` under deterministic simulation.
+
+    Compares deterministically-simulated trajectories to `BulkData` using a
+    `norm_order`-norm distance; see `set_likelihood_options`.
+    """
     def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None):
+        """
+        Attach a model, defaulting to a deterministic simulator.
+
+        Parameters
+        ----------
+        m : Model
+            The bioscrape model to simulate.
+        prop : RegularSimulator, optional
+            The simulator to use (default a new
+            `~bioscrape.simulator.DeterministicSimulator`).
+        csim : CSimInterface, optional
+            A pre-built simulation interface for `m`; built automatically if
+            not given.
+        """
         if prop is None:
             prop = DeterministicSimulator()
         ModelLikelihood.set_model(self, m, prop, csim)
@@ -342,13 +738,28 @@ cdef class DeterministicLikelihood(ModelLikelihood):
         #self.m = m
         #if csim is None:
         #    csim = ModelCSimInterface(m)
-        
+
         #self.csim = csim
-        
+
         #self.propagator = prop
 
 
     def set_data(self, BulkData bd):
+        """
+        Attach bulk trajectory data to compare simulations against.
+
+        Parameters
+        ----------
+        bd : BulkData
+            The experimental data.
+
+        Raises
+        ------
+        ValueError
+            If the number of samples in `bd` and the number of initial
+            conditions set via `set_init_species` are incompatible (neither
+            equal nor either equal to 1).
+        """
         #Set bulk data
         self.bd = bd
         self.N = self.bd.get_N() #Number of samples
@@ -368,15 +779,48 @@ cdef class DeterministicLikelihood(ModelLikelihood):
                              "initial conditions match or one of them must be 1")
 
     def py_get_data(self):
+        """
+        The attached data.
+
+        Returns
+        -------
+        BulkData
+            The data set by `set_data`.
+        """
         return self.bd
 
     def set_likelihood_options(self, norm_order = 1, **keywords):
+        """
+        Set the norm order used to compare trajectories.
+
+        Parameters
+        ----------
+        norm_order : int, optional
+            The order of the norm used in the log-likelihood distance
+            (default 1).
+        """
         self.norm_order = norm_order
 
     def py_get_norm_order(self):
+        """
+        The norm order used to compare trajectories.
+
+        Returns
+        -------
+        int
+            The norm order set by `set_likelihood_options`.
+        """
         return self.norm_order
 
     def py_set_hmax(self, hmax):
+        """
+        Set the integrator's maximum step size.
+
+        Parameters
+        ----------
+        hmax : float
+            The maximum step size for the deterministic integrator.
+        """
         self.hmax = hmax
         self.propagator.py_set_hmax(hmax)
 
@@ -431,7 +875,34 @@ cdef class DeterministicLikelihood(ModelLikelihood):
             return -error
 
 cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
+    """
+    Log-likelihood of `StochasticTrajectories` data.
+
+    Compares the average of `N_simulations` stochastic simulations per
+    trajectory to `StochasticTrajectories` data using a `norm_order`-norm
+    distance; see `set_likelihood_options`.
+    """
     def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None, DelaySimulator prop_delay = None):
+        """
+        Attach a model, defaulting to an SSA-based simulator.
+
+        Defaults to `~bioscrape.simulator.SSASimulator`, or a
+        `~bioscrape.simulator.DelaySSASimulator` if `m` has delayed
+        reactions.
+
+        Parameters
+        ----------
+        m : Model
+            The bioscrape model to simulate.
+        prop : RegularSimulator, optional
+            The simulator to use; chosen automatically based on
+            `m.has_delay` if not given.
+        csim : CSimInterface, optional
+            A pre-built simulation interface for `m`; built automatically if
+            not given.
+        prop_delay : DelaySimulator, optional
+            The delay-aware simulator to use if `m` has delayed reactions.
+        """
         if prop is None:
             if m.has_delay:
                 prop = DelaySSASimulator()
@@ -452,7 +923,21 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
         #self.csim = csim
 
     def set_data(self, StochasticTrajectories sd):
+        """
+        Attach stochastic trajectory data to compare simulations against.
 
+        Parameters
+        ----------
+        sd : StochasticTrajectories
+            The experimental data.
+
+        Raises
+        ------
+        ValueError
+            If the number of samples in `sd` and the number of initial
+            conditions set via `set_init_species` are incompatible (neither
+            equal nor either equal to 1).
+        """
         self.sd = sd #Holds Data Object
         self.N = sd.get_N() #Number of samples
 
@@ -472,9 +957,29 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
             raise ValueError("Either the number of samples and the number of"
                              "initial conditions match or one of them must be 1")
     def py_get_data(self):
+        """
+        The attached data.
+
+        Returns
+        -------
+        StochasticTrajectories
+            The data set by `set_data`.
+        """
         return self.sd
 
     def set_likelihood_options(self, N_simulations = None, norm_order = None, **keywords):
+        """
+        Set the number of repeated simulations and the norm order.
+
+        Parameters
+        ----------
+        N_simulations : int, optional
+            The number of stochastic simulations to average per trajectory
+            (default 1).
+        norm_order : int, optional
+            The order of the norm used in the log-likelihood distance
+            (default 1).
+        """
         if norm_order is not None:
             self.norm_order = norm_order
         if norm_order in [None, 0]:
@@ -486,8 +991,24 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
             self.N_simulations = 1
 
     def py_get_N_simulations(self):
+        """
+        The number of repeated simulations averaged per trajectory.
+
+        Returns
+        -------
+        int
+            The value set by `set_likelihood_options`.
+        """
         return self.N_simulations
     def py_get_norm_order(self):
+        """
+        The norm order used to compare trajectories.
+
+        Returns
+        -------
+        int
+            The value set by `set_likelihood_options`.
+        """
         return self.norm_order
 
     cdef double get_log_likelihood(self):
@@ -541,7 +1062,34 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
             return error
 
 cdef class StochasticTrajectoryMomentLikelihood(StochasticTrajectoriesLikelihood):
+    """
+    `StochasticTrajectoriesLikelihood` with moment-matching options.
+
+    Adds `initial_state_matching` and `Moments` options to
+    `set_likelihood_options`; the log-likelihood computation itself is
+    inherited unchanged from `StochasticTrajectoriesLikelihood`.
+    """
     def set_likelihood_options(self, N_simulations = 1, initial_state_matching = False, Moments = 2, **keywords):
+        """
+        Set the moment-matching options for this likelihood.
+
+        Parameters
+        ----------
+        N_simulations : int, optional
+            Present for interface compatibility with
+            `StochasticTrajectoriesLikelihood.set_likelihood_options`;
+            always set to 1 regardless of the value passed.
+        initial_state_matching : bool, optional
+            Stored for use by subclasses (default False).
+        Moments : int, optional
+            The number of moments to match: 1 (averages) or 2 (averages and
+            second moments); default 2.
+
+        Raises
+        ------
+        ValueError
+            If `Moments` is greater than 2.
+        """
         self.N_simulations = 1
         self.initial_state_matching = initial_state_matching
         if Moments > 2:
@@ -549,7 +1097,33 @@ cdef class StochasticTrajectoryMomentLikelihood(StochasticTrajectoriesLikelihood
         self.Moments = Moments
 
 cdef class StochasticStatesLikelihood(ModelLikelihood):
+    """
+    Log-likelihood of `FlowData` under stochastic simulation.
+
+    Compares single-timepoint state distributions from stochastic
+    simulation against `FlowData`.
+    """
     def set_model(self, Model m, RegularSimulator prop = None, CSimInterface csim = None, DelaySimulator prop_delay = None):
+        """
+        Attach a model, defaulting to an SSA-based simulator.
+
+        Defaults to `~bioscrape.simulator.SSASimulator`, or a
+        `~bioscrape.simulator.DelaySSASimulator` if `m` has delayed
+        reactions.
+
+        Parameters
+        ----------
+        m : Model
+            The bioscrape model to simulate.
+        prop : RegularSimulator, optional
+            The simulator to use; chosen automatically based on
+            `m.has_delay` if not given.
+        csim : CSimInterface, optional
+            A pre-built simulation interface for `m`; built automatically if
+            not given.
+        prop_delay : DelaySimulator, optional
+            The delay-aware simulator to use if `m` has delayed reactions.
+        """
         self.m = m
 
         if csim is None:
@@ -568,6 +1142,14 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
         self.csim = csim
 
     def set_data(self, FlowData fd):
+        """
+        Attach flow data to compare simulations against.
+
+        Parameters
+        ----------
+        fd : FlowData
+            The experimental data.
+        """
         self.fd = fd
         the_list = fd.get_measured_species()
         self.meas_indices = np.zeros(len(the_list), dtype=int)
@@ -580,56 +1162,86 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
                  nsteps = None, init_seed = None, prior = None, sim_type = None, inference_type = 'emcee',
                  method = 'mcmc', plot_show = True, parallel = None, **kwargs):
     """
-    User level interface for running bioscrape inference module.
-    Args:
-        Model (bioscrape.types.Model): Bioscrape Model object 
-        params_to_estimate (List[str]): A list of parameter names in the Model to estimate
-        exp_data (List[pd.DataFrame], pd.Dataframe): A pandas.DataFrame or a list of pandas.Dataframe 
-                                                     that consists of the required experimental data\
-        initial_conditions (List[dict], dict): A list of dictionaries of initial conditions corresponding to each
-                                               data trajectory in exp_data or a single dictionary if one trajectory
-        parameter_conditions (List[dict], dict): A list of dictionaries of parameter conditions corresponding to each
-                                                 data trajectory in exp_data or a single dictionary if one trajectory
-        measurements (List[str], str): Names of species in the Model that are measured, either as a list if multiple outputs
-                                       or a single measurement.
-        time_column (str): The column name of the exp_data that contains the time points in the data, for time-series inference
-        nwalkers (int): The number of walkers for the Markov Chain Monte Carlo sampling. See emcee.EnsembleSampler for more info.
-        nsteps (int): The number of steps for the Markov Chain Monte Carlo sampling. See emcee.EnsembleSampler for more info.
-        init_seed (Union[float, np.ndarray, list. "prior"]): The parameter that controls the initial parameter 
-                                                             values for the sampling.
-                                                             If a float "r" is passed, then the initial values 
-                                                             are sampled from a Gaussian ball of radius "r" around mean values
-                                                             set as Model parameter values
-                                                             If a np.ndarray or a list is passed, then the length must be same 
-                                                             as the number of `params_to_estimate`. These values are then 
-                                                             used as initial values for the sampler.
-                                                             If the keyword "prior" is passed, then the initial values are sampled
-                                                             from the prior distributions specified for each parameter value.
-        prior (dict): The prior dict specifies the prior for each parameter in params_to_estimate. The syntax is
-                      {"parameter1": ["uniform", min_value, max_value],
-                       "parameter2": ["gaussian", mean, std, "positive"]}
-                       The "positive" keyword ensures that the prior rejects all negative values for the parameter.
-                       Refer to the full documentation on priors on our Wiki: https://github.com/biocircuits/bioscrape/wiki
-        sim_type (Union["deterministic", "stochastic"]): A str that is either "deterministic" or "stochastic" to set the
-                                                         type of simulation for the inference run.
-        inference_type (Union["emcee", "lmfit"]): A str that specifies the kind of inference to run. Currently, only two packages 
-                                                  are supported: emcee and lmfit.
-        method (str): For inference_type = emcee, this argument should not be used. For lmfit, method is passed into the method
-                      keyword of the lmfit call. More details here: 
-                      https://lmfit.github.io/lmfit-py/fitting.html#choosing-different-fitting-methods
-        plot_show (bool): If set to `True`, bioscrape will try to display the generated plots from the inference run. 
-                          If set to `False`, not plots will be shown.
-        parallel (bool): If set to `True`, bioscrape will create a multiprocessing.Pool object 
-                         and will be passed to emcee.EnsembleSampler for parallel
-                         processing. If set to `False`, multiprocessing will not be used.
-        kwargs: Additional keyword arguments that are passed into the inference setup.
-    Returns:
-        for inference_type = "emcee":
-            sampler, pid: A tuple consisting of the emcee.EnsembleSampler and the bioscrape pid object
-        for inference_type = "lmfit":
-            minimizer_result: A lmfit.MinimizerResult object that consists of the minimizer information.
-    Raises:
-        ValueError: When `inference_type` argument is set to something other than the currently supported modules.
+    User-level interface for Bayesian parameter inference.
+
+    Fits `params_to_estimate` to `exp_data` via Markov Chain Monte
+    Carlo (MCMC) sampling, using
+    `emcee <https://emcee.readthedocs.io/>`_ under the hood. Returns
+    the `emcee` sampler (holding the full set of posterior samples)
+    together with the `~bioscrape.inference_setup.InferenceSetup`
+    object that orchestrated the run; unless `plot_show=False`, it
+    also plots the resulting posterior parameter distributions, and
+    always writes the raw samples and a fit summary to
+    `filename_csv`/`filename_txt`.
+
+    Parameters
+    ----------
+    Model : Model
+        The bioscrape model to fit.
+    params_to_estimate : list of str
+        The names of the parameters in `Model` to estimate.
+    exp_data : pandas.DataFrame or list of pandas.DataFrame
+        The experimental data to fit against.
+    initial_conditions : dict or list of dict, optional
+        Initial condition(s) for the simulated trajectories, in the same
+        shape as `exp_data`. Defaults to the model's own initial conditions.
+    parameter_conditions : dict or list of dict, optional
+        Per-trajectory parameter overrides, in the same shape as `exp_data`.
+    measurements : list of str or str, optional
+        The name(s) of the species in `Model` that are measured.
+    time_column : str, optional
+        The column name in `exp_data` that holds the time points, for
+        time-series inference.
+    nwalkers : int, optional
+        The number of walkers for MCMC sampling; see
+        `emcee.EnsembleSampler`.
+    nsteps : int, optional
+        The number of steps for MCMC sampling; see `emcee.EnsembleSampler`.
+    init_seed : float or numpy.ndarray or list or 'prior', optional
+        Controls the initial parameter values for the sampler. A float `r`
+        samples initial values from a Gaussian ball of radius `r` around
+        the model's parameter values; an array or list of length
+        `len(params_to_estimate)` is used directly as the initial values;
+        'prior' samples the initial values from `prior`.
+    prior : dict, optional
+        The prior for each parameter in `params_to_estimate`. For example::
+
+            {'parameter1': ['uniform', min_value, max_value],
+             'parameter2': ['gaussian', mean, std, 'positive']}
+
+        The 'positive' flag rejects negative parameter values. See the
+        `bioscrape wiki <https://github.com/biocircuits/bioscrape/wiki>`_
+        for the full list of supported priors.
+    sim_type : {'deterministic', 'stochastic'}, optional
+        The type of simulation to use for the inference run.
+    inference_type : {'emcee', 'lmfit'}, optional
+        The inference package to use (default 'emcee').
+    method : str, optional
+        Ignored for `inference_type='emcee'`. For `inference_type='lmfit'`,
+        passed as the `method` keyword to `lmfit.minimize`; see the
+        `lmfit docs <https://lmfit.github.io/lmfit-py/fitting.html>`_.
+    plot_show : bool, optional
+        If True, display the plots generated by the inference run (default
+        True).
+    parallel : bool, optional
+        If True, run the sampler with a `multiprocessing.Pool` passed to
+        `emcee.EnsembleSampler` for parallel processing. If False (default),
+        multiprocessing is not used.
+    **kwargs
+        Additional keyword arguments passed into the inference setup.
+
+    Returns
+    -------
+    tuple or lmfit.minimizer.MinimizerResult
+        For `inference_type='emcee'`: a tuple `(sampler, pid)` of the
+        `emcee.EnsembleSampler` and the bioscrape PID object. For
+        `inference_type='lmfit'`: an `lmfit.minimizer.MinimizerResult`.
+
+    Raises
+    ------
+    ValueError
+        If `Model` is None, or if `inference_type` is not one of the
+        supported values ('emcee', 'lmfit').
     """
     if Model is None:
         raise ValueError('Model object cannot be None.')

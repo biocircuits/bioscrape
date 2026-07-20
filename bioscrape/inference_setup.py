@@ -1,3 +1,16 @@
+"""
+Orchestrates Bayesian and least-squares parameter inference for
+bioscrape models.
+
+`InferenceSetup` wraps `emcee <https://emcee.readthedocs.io/>`_
+(Bayesian/MCMC) and `lmfit <https://lmfit.github.io/lmfit-py/>`_
+(least-squares) inference around a `~bioscrape.types.Model`, using the
+`~bioscrape.pid_interfaces.PIDInterface` subclasses to build the
+likelihood being sampled or minimized. Most users should use the
+higher-level `~bioscrape.inference.py_inference` entry point, which
+constructs an `InferenceSetup` and returns it (along with the `emcee`
+sampler) rather than requiring one to be built directly.
+"""
 import numpy as np
 import warnings
 try:
@@ -12,10 +25,107 @@ from bioscrape.simulator import ModelCSimInterface, DeterministicSimulator, SSAS
 from bioscrape.pid_interfaces import *
 
 def initialize_inference(**kwargs):
+    """
+    Construct an `InferenceSetup`.
+
+    Parameters
+    ----------
+    **kwargs
+        Forwarded to `InferenceSetup`.
+
+    Returns
+    -------
+    InferenceSetup
+        The constructed inference object.
+    """
     return InferenceSetup(**kwargs)
 
 class InferenceSetup(object):
+    """
+    Sets up and runs parameter inference for a bioscrape model.
+
+    Constructed (and returned) by `~bioscrape.inference.py_inference`;
+    most users will not need to construct this directly. Holds the
+    model, data, prior, and inference settings, and provides `run_mcmc`
+    (Bayesian inference via `emcee`) and `run_lmfit` (least-squares fit
+    via `lmfit`) to actually perform the inference.
+
+    Parameters
+    ----------
+    Model : Model, optional
+        The bioscrape model to fit.
+    params_to_estimate : list of str, optional
+        The names of the parameters in `Model` to estimate.
+    exp_data : pandas.DataFrame or list of pandas.DataFrame, optional
+        The experimental data to fit against.
+    prior : dict, optional
+        The prior for each parameter in `params_to_estimate`; see
+        `set_prior`.
+    measurements : list of str, optional
+        The name(s) of the species in `Model` that are measured
+        (default `['']`).
+    time_column : str, default 'time'
+        The column name in `exp_data` that holds the time points.
+    timepoints : list or numpy.ndarray, optional
+        Force the timepoints used for inference, instead of extracting
+        them from `exp_data`.
+    initial_conditions : dict or list of dict, optional
+        Initial condition(s) for the simulated trajectories, in the
+        same shape as `exp_data`. Defaults to `Model`'s own initial
+        conditions.
+    parameter_conditions : dict or list of dict, optional
+        Per-trajectory parameter overrides, in the same shape as
+        `exp_data`.
+    sim_type : {'deterministic', 'stochastic'}, default 'deterministic'
+        The type of simulation to use for the inference run.
+    method : {'emcee', 'lmfit'}, default 'emcee'
+        The inference package to use; see `set_method`.
+    nwalkers : int, default 100
+        The number of walkers for MCMC sampling; see
+        `emcee.EnsembleSampler`.
+    nsteps : int, default 1000
+        The number of steps for MCMC sampling; see
+        `emcee.EnsembleSampler`.
+    init_seed : float or numpy.ndarray or list or 'prior', default 0.01
+        Controls the initial parameter values for the MCMC sampler. A
+        float `r` samples initial values from a Gaussian ball of
+        radius `r` around the model's parameter values; an array or
+        list of length `len(params_to_estimate)` is used directly as
+        the initial values; 'prior' samples the initial values from
+        `prior`.
+    norm_order : int, default 2
+        The norm used to compute the log-likelihood distance between
+        simulated and measured trajectories; see
+        `~bioscrape.inference.StochasticTrajectoriesLikelihood`.
+    N_simulations : int, default 3
+        The number of stochastic simulations to average per data point
+        when `sim_type='stochastic'`.
+    parallel : bool, default False
+        If True, run MCMC sampling with a `multiprocessing.Pool`.
+    debug : bool, default False
+        If True, print verbose diagnostic messages while preparing and
+        running inference.
+    dimension : int, default 1
+        Stored on the object but not currently used elsewhere.
+    hmax : float, optional
+        Stored on the object but not currently used elsewhere.
+
+    Attributes
+    ----------
+    LL_data : numpy.ndarray
+        The experimental data reshaped to `(N, T, M)` (trajectories by
+        timepoints by measured species) by `extract_data`; set when
+        `exp_data` is given at construction, or by `prepare_inference`.
+    cost_progress : list
+        The log-likelihood value computed at each `cost_function` call
+        during a `run_mcmc`/`run_emcee` run.
+    cost_params : list
+        The parameter values passed to `cost_function` at each call
+        during a `run_mcmc`/`run_emcee` run, in the same order as
+        `cost_progress`.
+    """
     def __init__(self, **kwargs):
+        """See class docstring."""
         self.M = None
         self.M = kwargs.get('Model', None)
         self.params_to_estimate = kwargs.get('params_to_estimate', [])
@@ -44,10 +154,11 @@ class InferenceSetup(object):
         if self.exp_data is not None:
             self.prepare_inference()
             self.setup_cost_function()
-        return 
+        return
 
     #Whenever new settings are updated in the constructor, please add them to getstate and setstate
     def __getstate__(self):
+        """Return this object's state as a tuple of picklable objects."""
         return (
             self.M,
             self.params_to_estimate,
@@ -75,7 +186,7 @@ class InferenceSetup(object):
             )
 
     def __setstate__(self, state):
-       
+        """Restore this object's state from a tuple produced by `__getstate__`."""
         self.M = state[0]
         self.params_to_estimate = state[1]
         self.init_seed = state[2]
@@ -102,110 +213,256 @@ class InferenceSetup(object):
         if self.exp_data is not None:
             self.prepare_inference()
             self.setup_cost_function()
-            
+
 
     def set_model(self, M):
-        '''
-        Set the bioscrape Model to the inference object
-        '''
+        """
+        Set the bioscrape model to fit.
+
+        Parameters
+        ----------
+        M : Model
+            The bioscrape model to fit.
+
+        Returns
+        -------
+        bool
+            True.
+        """
         self.M = M
         return True
 
     def get_model(self):
-        '''
-        Get the bioscrape Model for the inference object
-        '''
-        return self.M 
+        """
+        The bioscrape model being fit.
+
+        Returns
+        -------
+        Model
+            The bioscrape model to fit.
+        """
+        return self.M
 
     def set_prior(self, prior):
-        '''
-        Set the prior distribution for the parameter inference
-        '''
+        """
+        Set the prior distribution for each parameter to estimate.
+
+        Parameters
+        ----------
+        prior : dict
+            Maps each parameter name in `self.params_to_estimate` to a
+            list describing its prior distribution; see
+            :doc:`../inference` for the supported prior types.
+
+        Returns
+        -------
+        bool
+            True.
+
+        Raises
+        ------
+        ValueError
+            If `prior` does not have exactly one entry per parameter
+            in `self.params_to_estimate`.
+        """
         self.prior = prior
         if len(list(self.prior.keys())) != len(self.params_to_estimate):
             raise ValueError('Prior keys length must be equal to the length of params_to_estimate.')
-        return True 
+        return True
 
     def set_nsteps(self, nsteps: int):
-        '''
-        Set the nsteps for the parameter inference using emcee
-        '''
-        self.nsteps = nsteps 
-        return True 
-        
+        """
+        Set the number of MCMC steps to run.
+
+        Parameters
+        ----------
+        nsteps : int
+            The number of steps for MCMC sampling; see
+            `emcee.EnsembleSampler`.
+
+        Returns
+        -------
+        bool
+            True.
+        """
+        self.nsteps = nsteps
+        return True
+
     def set_nwalkers(self, nwalkers: int):
-        '''
-        Set the number of walkers for the parameter inference using emcee
-        '''
-        self.nwalkers = nwalkers 
-        return True 
+        """
+        Set the number of MCMC walkers to use.
+
+        Parameters
+        ----------
+        nwalkers : int
+            The number of walkers for MCMC sampling; see
+            `emcee.EnsembleSampler`.
+
+        Returns
+        -------
+        bool
+            True.
+        """
+        self.nwalkers = nwalkers
+        return True
 
     def set_dimension(self, dimension: int):
-        '''
-        Set the dimension of parameter set to identify 
-        '''
-        self.dimension = dimension 
-        return True 
+        """
+        Set the `dimension` attribute.
+
+        Parameters
+        ----------
+        dimension : int
+            Stored on the object but not currently used elsewhere.
+
+        Returns
+        -------
+        bool
+            True.
+        """
+        self.dimension = dimension
+        return True
 
     def set_init_seed(self, init_seed: float):
-        '''
-        Set the init_seed of parameter set to initialize the parameter identification routine
-        '''
-        self.init_seed = init_seed 
-        return True 
+        """
+        Set the initial parameter values for the MCMC sampler.
+
+        Parameters
+        ----------
+        init_seed : float or numpy.ndarray or list or 'prior'
+            Controls the initial parameter values for the sampler; see
+            the class docstring.
+
+        Returns
+        -------
+        bool
+            True.
+        """
+        self.init_seed = init_seed
+        return True
 
     def set_timepoints(self, timepoints):
-        '''
-        Set (force) the timepoints to use for parameter inference. By default, the time points are loaded in from exp_data
-        '''
-        self.timepoints = timepoints 
-        return True 
+        """
+        Force the timepoints to use for inference.
+
+        By default, the timepoints are extracted from `self.exp_data`.
+
+        Parameters
+        ----------
+        timepoints : list or numpy.ndarray
+            The timepoints to use.
+
+        Returns
+        -------
+        bool
+            True.
+        """
+        self.timepoints = timepoints
+        return True
 
     def set_params_to_estimate(self, params_to_estimate: list):
-        '''
-        Set the list of parameters to estimate
-        '''
-        self.params_to_estimate = params_to_estimate 
-        return True 
+        """
+        Set the list of parameters to estimate.
+
+        Parameters
+        ----------
+        params_to_estimate : list of str
+            The names of the parameters in the model (attached via
+            `set_model`) to estimate.
+
+        Returns
+        -------
+        bool
+            True.
+        """
+        self.params_to_estimate = params_to_estimate
+        return True
 
     def set_sim_type(self, sim_type: str):
-        '''
-        Set the sim_type of simulations to run (deterministic or stochastic) when doing parameter inference
-        '''
-        self.sim_type = sim_type 
-        return True 
+        """
+        Set the type of simulation to use for inference.
+
+        Parameters
+        ----------
+        sim_type : {'deterministic', 'stochastic'}
+            The type of simulation to use for the inference run.
+
+        Returns
+        -------
+        bool
+            True.
+        """
+        self.sim_type = sim_type
+        return True
 
     def set_method(self, method: str):
-        '''
-        Set the parameter identification method to use. 
-        Supported method keywords:
-        * 'emcee' : Uses Python emcee: https://emcee.readthedocs.io/en/stable/
-        * 'lmfit' : Uses Python non-linear least squares package: https://lmfit.github.io/lmfit-py/
-        '''
-        self.method = method 
-        return True 
-        
+        """
+        Set the parameter identification method to use.
+
+        Parameters
+        ----------
+        method : {'emcee', 'lmfit'}
+            The inference package to use: 'emcee' for Bayesian (MCMC)
+            inference (see `emcee <https://emcee.readthedocs.io/en/stable/>`_),
+            or 'lmfit' for non-linear least-squares (see
+            `lmfit <https://lmfit.github.io/lmfit-py/>`_).
+
+        Returns
+        -------
+        bool
+            True.
+        """
+        self.method = method
+        return True
+
     def set_N_simulations(self, N_simulations: int):
-        '''
-        Set the number of simulations to run for each condition when doing stochastic inference.
-        '''
+        """
+        Set the number of stochastic simulations averaged per data point.
+
+        Only applies when `self.sim_type` is 'stochastic'.
+
+        Parameters
+        ----------
+        N_simulations : int
+            The number of simulations to run for each condition.
+
+        Returns
+        -------
+        bool or None
+            True if set; otherwise None, with a warning, if
+            `self.sim_type` is not 'stochastic'.
+        """
         if self.sim_type == 'stochastic':
-            self.N_simulations = N_simulations 
-            return True 
+            self.N_simulations = N_simulations
+            return True
         else:
             warnings.warn('N_simulations needs to be set only for stochastic inference which is not currently the case.')
 
     def set_initial_conditions(self, initial_conditions):
-        '''
-        Set the initial conditions for parameter inference. 
-        Must be a dictionary object with keys pointing 
-        to the species measurements (in order of self.measurements).
-        The dictionary value is the initial condition. 
-        A list of such dictionary may be passed
-        in corresponding to each measurement. 
-        '''
+        """
+        Set the initial condition(s) for the simulated trajectories.
+
+        Parameters
+        ----------
+        initial_conditions : dict or list of dict
+            A dictionary mapping species names to initial values, or a
+            list of such dictionaries (one per trajectory in
+            `self.exp_data`, in the same order). If None, defaults to
+            the model's own initial conditions (see `set_model`).
+
+        Returns
+        -------
+        bool
+            True.
+
+        Raises
+        ------
+        ValueError
+            If `initial_conditions` is a non-empty list containing a
+            non-dict entry.
+        """
         # Get initial_conditions from the model if not given explicitly
-        if initial_conditions is None: 
+        if initial_conditions is None:
             initial_conditions = self.M.get_species_dictionary()
         if type(initial_conditions) is list and len(initial_conditions):
             for curr_ic_index in range(len(initial_conditions)):
@@ -213,39 +470,84 @@ class InferenceSetup(object):
                 if type(ic) is not dict:
                     raise ValueError('All entries in the initial condition list must be dictionaries.')
         self.initial_conditions = initial_conditions
-        return True 
+        return True
 
     def set_parameter_conditions(self, parameter_conditions):
-        '''
-        Set the parameter conditions for parameter inference. 
-        Must be a dictionary object with keys pointing to the 
-        parameters that change with each measurement
-        Value of dictionary is the parameter value. 
-        A list of such dictionaries may be passed in 
-        corresponding to each measurement.
-        '''
+        """
+        Set per-trajectory parameter overrides.
+
+        Parameters
+        ----------
+        parameter_conditions : dict or list of dict
+            A dictionary mapping parameter names (that change between
+            measurements) to values, or a list of such dictionaries
+            (one per trajectory in `self.exp_data`, in the same
+            order).
+
+        Returns
+        -------
+        bool
+            True.
+        """
         self.parameter_conditions = parameter_conditions
-        return True 
+        return True
 
 
     def set_measurements(self, measurements: list):
-        '''
-        Set the list of measurements (outputs) to look for in exp_data
-        '''
+        """
+        Set the list of measured species to look for in `self.exp_data`.
+
+        Parameters
+        ----------
+        measurements : list of str
+            The name(s) of the species in the model (attached via
+            `set_model`) that are measured.
+
+        Returns
+        -------
+        bool
+            True.
+        """
         self.measurements = measurements
-        return True 
+        return True
 
     def set_time_column(self, time_column: str):
-        '''
-        Set the time_column attribute to specify the name of the time column in exp_data
-        '''
-        self.time_column = time_column 
-        return True 
+        """
+        Set the name of the time column in `self.exp_data`.
+
+        Parameters
+        ----------
+        time_column : str
+            The column name in `self.exp_data` that holds the time
+            points.
+
+        Returns
+        -------
+        bool
+            True.
+        """
+        self.time_column = time_column
+        return True
 
     def set_exp_data(self, exp_data):
-        '''
-        Set the experimental data to the inference object. Must be a list of Pandas data frame objects.
-        '''
+        """
+        Set the experimental data to fit against.
+
+        Parameters
+        ----------
+        exp_data : pandas.DataFrame or list of pandas.DataFrame
+            The experimental data.
+
+        Returns
+        -------
+        bool
+            True.
+
+        Raises
+        ------
+        ValueError
+            If `exp_data` is not a `pandas.DataFrame` or a list.
+        """
         if isinstance(exp_data, (pd.DataFrame, list)):
             self.exp_data = exp_data
         else:
@@ -253,31 +555,138 @@ class InferenceSetup(object):
         return True
 
     def set_norm_order(self, norm_order: int):
-        '''
-        Set the norm_order used to compute log likelihood
-        '''
-        self.norm_order = norm_order 
-        return True 
+        """
+        Set the norm order used to compute the log-likelihood.
+
+        Parameters
+        ----------
+        norm_order : int
+            The norm used to compute the log-likelihood distance
+            between simulated and measured trajectories.
+
+        Returns
+        -------
+        bool
+            True.
+        """
+        self.norm_order = norm_order
+        return True
 
     def set_parallel(self, parallel: bool):
-        '''
-        Set the parallel flag to use parallel processing for MCMC
-        '''
-        self.parallel = parallel 
+        """
+        Set whether to use parallel processing for MCMC sampling.
+
+        Parameters
+        ----------
+        parallel : bool
+            If True, run MCMC sampling with a `multiprocessing.Pool`.
+
+        Returns
+        -------
+        bool
+            True.
+        """
+        self.parallel = parallel
         return True
-    
+
     def get_parameters(self):
-        '''
-        Returns the list of parameters to estimate that are set for the inference object
-        '''
+        """
+        The list of parameters to estimate.
+
+        Returns
+        -------
+        list of str
+            The names of the parameters in the model (attached via
+            `set_model`) to estimate.
+        """
         return self.params_to_estimate
 
     def run_mcmc(self, **kwargs):
+        """
+        Run Bayesian (MCMC) parameter inference via `emcee`.
+
+        Prepares the inference (extracting data, setting up the
+        likelihood) and then runs `emcee.EnsembleSampler` for
+        `self.nsteps` steps with `self.nwalkers` walkers.
+
+        Parameters
+        ----------
+        timepoints : list or numpy.ndarray, optional
+            Force the timepoints used for inference; see
+            `set_timepoints`.
+        norm_order : int, optional
+            The norm used to compute the log-likelihood; see
+            `set_norm_order`.
+        N_simulations : int, optional
+            The number of stochastic simulations to average per data
+            point; see `set_N_simulations`.
+        init_seed : float or numpy.ndarray or list or 'prior', optional
+            The initial parameter values for the sampler; see
+            `set_init_seed`.
+        debug : bool, optional
+            If True, print verbose diagnostic messages.
+        reuse_likelihood : bool, default False
+            If True, reuse the likelihood set up by a previous call
+            instead of rebuilding it.
+        progress : bool, default True
+            Passed to `emcee.EnsembleSampler.run_mcmc` to show (or
+            hide) a progress bar.
+        skip_initial_state_check : bool, default False
+            Passed to `emcee.EnsembleSampler.run_mcmc`.
+        convergence_check : bool, default False
+            If True, compute the autocorrelation time for each
+            parameter after sampling (stored as
+            `autocorrelation_time`).
+        convergence_diagnostics : bool, default `convergence_check`
+            If True, also store a summary of the autocorrelation time
+            and acceptance fraction (as `convergence_diagnostics`).
+        filename_csv : str, default 'mcmc_results.csv'
+            Where to write the flattened MCMC chain, in the current
+            directory unless a path is given.
+        filename_txt : str, default 'mcmc_results.txt'
+            Where to write a text summary of the cost function
+            progress (and convergence diagnostics, if computed).
+        printout : bool, default True
+            If True, print status messages while running.
+
+        Returns
+        -------
+        emcee.EnsembleSampler
+            The sampler, after running `self.nsteps` steps.
+        """
         self.prepare_inference(**kwargs)
         sampler = self.run_emcee(**kwargs)
         return sampler
-    
+
     def prepare_inference(self, **kwargs):
+        """
+        Prepare to run inference: extract data and set up conditions.
+
+        Applies any of the `timepoints`/`norm_order`/`N_simulations`/
+        `debug` keyword arguments given, then prepares the initial and
+        parameter conditions and extracts `self.exp_data` into
+        `self.LL_data`.
+
+        Parameters
+        ----------
+        timepoints : list or numpy.ndarray, optional
+            Force the timepoints used for inference; see
+            `set_timepoints`.
+        norm_order : int, optional
+            The norm used to compute the log-likelihood; see
+            `set_norm_order`.
+        N_simulations : int, optional
+            The number of stochastic simulations to average per data
+            point; see `set_N_simulations`.
+        debug : bool, optional
+            If True, print verbose diagnostic messages.
+
+        Raises
+        ------
+        ValueError
+            If `timepoints` is given and is not a list or
+            `numpy.ndarray`.
+        """
         timepoints = kwargs.get('timepoints')
         norm_order = kwargs.get('norm_order')
         N_simulations = kwargs.get('N_simulations')
@@ -298,8 +707,17 @@ class InferenceSetup(object):
         self.prepare_parameter_conditions()
         self.LL_data = self.extract_data()
         return
-        
+
     def prepare_initial_conditions(self):
+        """
+        Expand `self.initial_conditions` to one dict per trajectory.
+
+        Raises
+        ------
+        ValueError
+            If `self.initial_conditions` is a list whose length does not
+            match the number of trajectories in `self.exp_data`.
+        """
         # Create initial conditions as required
         N = 1 if type(self.exp_data) is dict else len(self.exp_data)
         if type(self.initial_conditions) is dict:
@@ -315,6 +733,18 @@ class InferenceSetup(object):
         return
 
     def prepare_parameter_conditions(self):
+        """
+        Expand `self.parameter_conditions` to one dict per trajectory.
+
+        Raises
+        ------
+        ValueError
+            If `self.parameter_conditions` is a list whose length does
+            not match the number of trajectories in `self.exp_data`.
+        AssertionError
+            If a parameter in `self.params_to_estimate` also appears
+            in a per-trajectory parameter condition.
+        """
         # Create parameter conditions as required
         N = 1 if type(self.exp_data) is dict else len(self.exp_data)
         if type(self.parameter_conditions) is dict:
@@ -338,6 +768,29 @@ class InferenceSetup(object):
         return
 
     def extract_data(self):
+        """
+        Reshape `self.exp_data` into a single `(N, T, M)` array.
+
+        Extracts the timepoints (from `self.time_column`) and measured
+        species (from `self.measurements`) from `self.exp_data`, which
+        may be a single `pandas.DataFrame` or a list of them (one per
+        trajectory), into one array of measurements indexed by
+        trajectory, timepoint, and measured species.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of shape `(N, T, M)`: `N` trajectories, `T`
+            timepoints, `M` measured species.
+
+        Raises
+        ------
+        TypeError
+            If `self.time_column` is not set, if `self.exp_data` (or
+            one of its entries, when a list) is not a
+            `pandas.DataFrame`, or if `self.exp_data` is of an
+            unrecognized type.
+        """
         exp_data = self.exp_data
         # Get timepoints from given experimental data
         if isinstance(self.timepoints, (list, np.ndarray)) and self.debug:
@@ -346,7 +799,7 @@ class InferenceSetup(object):
         if type(exp_data) is list:
             if len(exp_data) == 1:
                 exp_data = exp_data[0]
-        # Multiple trajectories case 
+        # Multiple trajectories case
         if type(exp_data) is list:
             N = len(exp_data)# Number of trajectories
             data_list_final = []
@@ -361,7 +814,7 @@ class InferenceSetup(object):
                     timepoints_list.append(timepoint_i)
                 else:
                     raise TypeError('time_column attribute of InferenceSetup object must be a string.')
-                # Extract measurements    
+                # Extract measurements
                 if type(self.measurements) is list and len(self.measurements) == 1:
                     data_list.append(np.array(df.get(self.measurements[0]), dtype='double'))
                 elif type(self.measurements) is list and len(self.measurements) > 1:
@@ -391,7 +844,7 @@ class InferenceSetup(object):
                 self.timepoints = np.array(exp_data.get(self.time_column), dtype='double').flatten()
             else:
                 raise TypeError('time_column attribute of InferenceSetup object must be a string.')
-            
+
             # Extract measurements
             if type(self.measurements) is list and len(self.measurements) == 1:
                 data = np.array(exp_data.get(self.measurements[0]), dtype='double')
@@ -412,21 +865,59 @@ class InferenceSetup(object):
         return data
 
     def setup_cost_function(self, **kwargs):
+        """
+        Build the `PIDInterface`-derived likelihood for `self.sim_type`.
+
+        Constructs a `~bioscrape.pid_interfaces.StochasticInference` or
+        `~bioscrape.pid_interfaces.DeterministicInference` (depending
+        on `self.sim_type`), and sets it up against `self.LL_data`.
+        Stores the result as `self.pid_interface`, used by
+        `cost_function`.
+
+        Parameters
+        ----------
+        **kwargs
+            Forwarded to the `PIDInterface` constructor and to
+            `~bioscrape.pid_interfaces.PIDInterface.setup_likelihood_function`.
+        """
         if self.sim_type == 'stochastic':
             self.pid_interface = StochasticInference(self.params_to_estimate, self.M, self.prior, **kwargs)
-            self.pid_interface.setup_likelihood_function(self.LL_data, self.timepoints, self.measurements, 
-                                                         initial_conditions=self.initial_conditions, 
+            self.pid_interface.setup_likelihood_function(self.LL_data, self.timepoints, self.measurements,
+                                                         initial_conditions=self.initial_conditions,
                                                          parameter_conditions=self.parameter_conditions,
                                                          norm_order = self.norm_order,
                                                          N_simulations = self.N_simulations, **kwargs)
         elif self.sim_type == 'deterministic':
             self.pid_interface = DeterministicInference(self.params_to_estimate, self.M, self.prior, **kwargs)
-            self.pid_interface.setup_likelihood_function(self.LL_data, self.timepoints, self.measurements, 
+            self.pid_interface.setup_likelihood_function(self.LL_data, self.timepoints, self.measurements,
                                                          initial_conditions=self.initial_conditions,
                                                          parameter_conditions=self.parameter_conditions,
                                                          norm_order=self.norm_order, **kwargs)
 
     def cost_function(self, params):
+        """
+        The log-likelihood of `params`, for use as an MCMC cost function.
+
+        Evaluates `self.pid_interface`'s likelihood at `params`, and
+        records both the value and `params` (in `self.cost_progress`/
+        `self.cost_params`) for later inspection.
+
+        Parameters
+        ----------
+        params : array_like
+            The parameter values, in the order of
+            `self.params_to_estimate`.
+
+        Returns
+        -------
+        float
+            The log-likelihood of `params`.
+
+        Raises
+        ------
+        RuntimeError
+            If `setup_cost_function` has not been called yet.
+        """
         if self.pid_interface is None:
             raise RuntimeError("Must call InferenceSetup.setup_cost_function() \
                                before InferenceSetup.cost_function(params) can be used.")
@@ -436,6 +927,31 @@ class InferenceSetup(object):
         return cost_value
 
     def seed_parameter_values(self, **kwargs):
+        """
+        Sample the initial parameter values for each MCMC walker.
+
+        Uses `self.init_seed` (optionally overridden by the `init_seed`
+        keyword argument) to determine the initial values; see the
+        class docstring for the supported forms. Values whose prior
+        has a 'positive' flag are clipped to be non-negative (or a
+        small positive epsilon, in log space).
+
+        Parameters
+        ----------
+        init_seed : float or numpy.ndarray or list or 'prior', optional
+            Overrides `init_seed`; see `set_init_seed`.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of shape `(self.nwalkers, len(self.params_to_estimate))`
+            giving the initial parameter values for each walker.
+
+        Raises
+        ------
+        ValueError
+            If `init_seed` is not one of the supported forms.
+        """
         if 'init_seed' in kwargs:
             self.set_init_seed(kwargs['init_seed'])
         ndim = len(self.params_to_estimate)
@@ -482,7 +998,7 @@ class InferenceSetup(object):
                              "array (of size parameters or walkers x parameters), "
                              "or the string 'prior' (will sample from uniform "
                              "and guassian priors)")
-        
+
         #Ensure parameters are positive, if their priors are declared to be positive
         #When working in log space, a small non-zero value is used
         if hasattr(self.pid_interface, "log_space_parameters") and self.pid_interface.log_space_parameters:
@@ -501,7 +1017,34 @@ class InferenceSetup(object):
         return p0
 
     def run_emcee(self, **kwargs):
-        if kwargs.get("reuse_likelihood", False) is False: 
+        """
+        Run `emcee.EnsembleSampler` and write out the results.
+
+        Lower-level than `run_mcmc`: assumes `prepare_inference` has
+        already been called (via `run_mcmc`, or `reuse_likelihood=True`
+        to reuse an existing `pid_interface`). See `run_mcmc` for the
+        accepted keyword arguments.
+
+        Parameters
+        ----------
+        **kwargs
+            See `run_mcmc`; also accepts `reuse_likelihood` (bool,
+            default False) to skip rebuilding the likelihood via
+            `setup_cost_function`.
+
+        Returns
+        -------
+        emcee.EnsembleSampler
+            The sampler, after running `self.nsteps` steps.
+
+        Raises
+        ------
+        ImportError
+            If the `emcee` package is not installed, or if
+            `self.parallel` is True and the `multiprocessing` package
+            is not available.
+        """
+        if kwargs.get("reuse_likelihood", False) is False:
             self.setup_cost_function(**kwargs)
         progress = kwargs.get('progress')
         convergence_check = kwargs.get('convergence_check', False)
@@ -569,27 +1112,51 @@ class InferenceSetup(object):
         if printout: print('Successfully completed MCMC parameter identification procedure. '
                            'Check the MCMC diagnostics to evaluate convergence.')
         return sampler
-    
+
     def plot_mcmc_results(self, sampler, **kwargs):
-        """Plots MCMC results collected in emcee.EnsembleSampler object as a corner plot.
-        Args:
-            sampler (emcee.EnsembleSampler): Go to emcee.EnsembleSampler documentation for more.
-    
-        Returns:
-            param_report: A dictionary consisting of true values and uncertainties associated with them
-                          for each parameter.
-                truth list: The truth values for each parameter are computed as 
-                            16th, 50th, and 84th percentiles from sampled data. 
-                            The percentiles may be computed at different values by passing
-                            in the `percentiles` keyword to the function with a list of values.
-                            Default `percentiles = [16,50,84]`.
-                uncertainty list: The uncertainties aaround the true values 
-                                  computed from the samples.
-            figure_objects: A list of three figure related objects:
-                            `[fig, axes, corner_fig]` where `fig` and `axes` correspond 
-                            to the MCMC chain plots and `corner_fig` is the corner figure
-                            object returned by the call to `corner.corner`. If corner plot is not 
-                            shown, then only `[fig, axes]` is returned.
+        """
+        Plot MCMC chain and posterior distributions for a sampled run.
+
+        Parameters
+        ----------
+        sampler : emcee.EnsembleSampler
+            A sampler that has already been run (e.g. the return value
+            of `run_mcmc`).
+        figsize : tuple, default (10, 7)
+            Passed to `matplotlib.pyplot.subplots` for the chain plot.
+        sharex : bool, default True
+            Passed to `matplotlib.pyplot.subplots` for the chain plot.
+        labels : list of str, optional
+            Axis labels for each parameter; defaults to
+            `self.params_to_estimate`.
+        alpha : float, default 0.3
+            Transparency of the individual walker traces in the chain
+            plot.
+        discard : int, default `2 * self.nwalkers`
+            Number of initial steps to discard as burn-in before
+            computing the posterior summary and corner plot.
+        thin : int, default 1
+            Keep only every `thin`-th post-burn-in step.
+        flat : bool, default True
+            Passed to `sampler.get_chain` when computing the posterior
+            summary.
+        percentiles : list of float, default [16, 50, 84]
+            Percentiles of the post-burn-in samples to report for each
+            parameter (as `param_report`).
+
+        Returns
+        -------
+        param_report : dict
+            Maps each parameter name plus ``'_true'`` to its 50th
+            percentile value, and plus ``'_uncertainties'`` to the
+            differences between consecutive `percentiles` (by default,
+            the distances from the 16th/84th percentiles to the
+            median).
+        figure_objects : list
+            `[fig, axes, corner_fig]`, where `fig`/`axes` are the
+            per-parameter chain plot and `corner_fig` is the
+            `corner.corner` posterior plot -- or just `[fig, axes]` if
+            the `corner` package is not installed.
         """
         print('Parameter posterior distribution convergence plots:')
         figsize = kwargs.get('figsize', (10,7))
@@ -614,11 +1181,11 @@ class InferenceSetup(object):
             axes.set_xlabel("step number")
         figure_objects.append(fig)
         figure_objects.append(axes)
-        # arbitrarily discard 2*nwalkers steps 
+        # arbitrarily discard 2*nwalkers steps
         discard = kwargs.get('discard', 2*self.nwalkers)
         thin = int(kwargs.get('thin', 1))
         flat = kwargs.get('flat', True)
-        
+
         flat_samples = sampler.get_chain(discard=discard, thin=thin, flat=flat)
         param_report = {}
         # Percentiles to compute for numpy.percentile
@@ -638,12 +1205,30 @@ class InferenceSetup(object):
             figure_objects.append(corner_fig)
         except:
             warnings.warn('corner package not found - cannot plot parameter distributions.')
-        return param_report, figure_objects 
+        return param_report, figure_objects
 
 
     def run_lmfit(self, method = 'leastsq', plot_show = True, **kwargs):
         """
-        Run the Python LMFit package for a bioscrape model.
+        Run least-squares parameter inference via `lmfit`.
+
+        Fits each trajectory in `self.exp_data` independently with
+        `lmfit.minimize`, using `~bioscrape.pid_interfaces.LMFitInference`.
+
+        Parameters
+        ----------
+        method : str, default 'leastsq'
+            Passed to `lmfit.minimize`; see the
+            `lmfit docs <https://lmfit.github.io/lmfit-py/fitting.html>`_.
+        plot_show : bool, default True
+            If True, display the fit for each trajectory.
+        **kwargs
+            Forwarded to `~bioscrape.pid_interfaces.LMFitInference.get_minimizer_results`.
+
+        Returns
+        -------
+        list of lmfit.minimizer.MinimizerResult
+            One result per trajectory in `self.exp_data`.
         """
         self.prepare_inference(**kwargs)
         N = np.shape(self.LL_data)[0]
@@ -655,25 +1240,25 @@ class InferenceSetup(object):
         minimizer_result = [None]*N
         if N == 1:
             minimizer_result[0] = self.pid_interface.\
-                get_minimizer_results(self.LL_data[0,:,:], 
+                get_minimizer_results(self.LL_data[0,:,:],
                                       self.timepoints, self.measurements,
                                       initial_conditions = self.initial_conditions,
                                       parameter_conditions = self.parameter_conditions,
                                       stochastic = stochastic, debug = self.debug,
                                       method = method, plot_show = plot_show, **kwargs)
-        else:   
+        else:
             if self.parameter_conditions is None:
                 self.parameter_conditions = [None]*N
             for i in range(N):
                 minimizer_result[i] = self.pid_interface.\
-                    get_minimizer_results(self.LL_data[i,:,:], 
+                    get_minimizer_results(self.LL_data[i,:,:],
                                           self.timepoints[i], self.measurements,
                                           initial_conditions = self.initial_conditions[i],
                                           parameter_conditions = self.parameter_conditions[i],
                                           stochastic = stochastic, debug = self.debug,
                                           method = method, plot_show = plot_show, **kwargs)
         print('Successfully completed parameter identification'
-              ' procedure using LMFit. Parameter values and fitness' 
+              ' procedure using LMFit. Parameter values and fitness'
               ' reports written to lmfit_results.csv file. '
               'Check the minimizer_results object returned to '
               'further statistically evaluate the goodness of fit.')
@@ -681,15 +1266,25 @@ class InferenceSetup(object):
 
     def write_lmfit_results(self, minimizer_result, **kwargs):
         """
-        Process minimizer_result list obtained from LMFit package
-        and plot parameter values on a scatter plot using the corner package.
-        Arguments:
-        * minimizer_result: List of MinimizerResult object (from LMFit package)
-        * kwargs: Passed to the corner package. 
-        Output:
-        * A CSV file: "lmfit_results.csv" is written with each row consisting of the optimized parameter
-        value corresponding to each trajectory in the data.
-        * Corner histogram plot showing the parameter values obtained.
+        Write `run_lmfit` results to a CSV file.
+
+        Writes each trajectory's fitted parameter values to
+        ``lmfit_results.csv`` in the current directory (one row per
+        trajectory), optionally followed by each trajectory's full
+        `lmfit` convergence report.
+
+        Parameters
+        ----------
+        minimizer_result : list of lmfit.minimizer.MinimizerResult
+            The result of `run_lmfit`.
+        convergence_diagnostics : bool, default True
+            If True, append each trajectory's `lmfit.fit_report` to
+            ``lmfit_results.csv``.
+
+        Raises
+        ------
+        ImportError
+            If the `lmfit` package is not installed.
         """
         import csv
         try:
@@ -707,7 +1302,7 @@ class InferenceSetup(object):
         with open('lmfit_results.csv','w') as f:
             f.write(str(df))
 
-        convergence_diagnostics = kwargs.get('convergence_diagnostics', True) 
+        convergence_diagnostics = kwargs.get('convergence_diagnostics', True)
         if convergence_diagnostics:
             count = 0
             for result in minimizer_result:
