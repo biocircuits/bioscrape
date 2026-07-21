@@ -32,20 +32,18 @@ to estimate model parameters from experimental data.
    user_guide/overview
    user_guide/installation
    user_guide/examples
-   user_guide/model_api
    user_guide/simulators
    user_guide/propensities
    user_guide/delays
    user_guide/parameter_inference
    user_guide/sbml_support
-   user_guide/bioscrape_xml
    user_guide/lineage_package
 
 .. toctree::
-   :caption: Notebook Chapters
+   :caption: Tutorial Examples
    :maxdepth: 1
 
-   examples/index
+   Tutorial Examples <examples/index>
 
 .. toctree::
    :caption: Reference Manual
