@@ -52,6 +52,8 @@ def py_sensitivity_analysis(model: Model, timepoints: np.ndarray,
     ans_df = sens_obj.propagator.py_simulate(sens_obj.sim_interface, 
                                              timepoints).py_get_dataframe(sens_obj.M)
     solutions_array = np.array(ans_df.iloc[:,range(0,len(ans_df.T) - 1)])
+    if sens_obj.has_parameter_rules():
+        return sens_obj.compute_SSM_by_interval(solutions_array, timepoints, normalize, **kwargs)
     return sens_obj.compute_SSM(solutions_array, timepoints, normalize, **kwargs)
 
 def py_get_jacobian(model: Model, state: Union[list, np.ndarray], **kwargs) -> np.ndarray:
@@ -140,6 +142,27 @@ class SensitivityAnalysis(Model):
         self.dx = 0.01
         self.original_parameters = dict(M.get_parameter_dictionary())
         self.precision = precision
+
+    def has_parameter_rules(self):
+        """
+        Return True if any rule assigns to a model parameter.
+        """
+        model_params = set(self.M.get_params())
+        for rule in self.M.get_rules():
+            rule_type = rule[0]
+            rule_dict = rule[1]
+            if rule_type in ["ode", "ODE", "GeneralODERule"]:
+                target = rule_dict.get("target", "").strip()
+            else:
+                equation = rule_dict.get("equation", "")
+                if "=" not in equation:
+                    continue
+                target = equation.split("=", 1)[0].strip()
+            if target and target[0] in ["_", "|"]:
+                target = target[1:]
+            if target in model_params:
+                return True
+        return False
     
     def _evaluate_model(self, states, params = None, time = 0.0):
         """
@@ -148,6 +171,7 @@ class SensitivityAnalysis(Model):
         sim = self.sim_interface
         if params is not None:
             self.M.set_params(params)
+            sim.py_set_param_values(self.M.get_parameter_values().copy())
         states = np.array(states, dtype = 'float64')
         derivative_array = np.zeros((self.num_equations), dtype = 'float64')
         sim.py_apply_repeated_rules(states, time, True)
@@ -380,6 +404,56 @@ class SensitivityAnalysis(Model):
             param_dict = self.M.get_parameter_dictionary()
             param_vals = np.array([param_dict[p] for p in all_params])
             SSM = self.normalize_SSM(SSM, xs, param_vals) #Identifiablity was estimated using an normalized SSM
+        return np.round(SSM, decimals = self.precision)
+
+    def compute_SSM_by_interval(self, solutions, timepoints, normalize = False, params = None, **kwargs):
+        r"""
+        Compute sensitivity coefficients by propagating one interval at a time.
+
+        This method is intended for models with rules that assign parameters,
+        so that time-dependent rule effects are evaluated separately on each
+        interval and previously accumulated sensitivities are preserved.
+        """
+        def sensitivity_ode(t, x, J, Z):
+            dsdt = J@x + Z
+            return dsdt
+
+        if params is None:
+            all_params = list(self.original_parameters.keys())
+        else:
+            all_params = params
+
+        number_of_params = len(all_params)
+        n = self.num_equations
+        SSM = np.zeros( (len(timepoints), number_of_params, n) )
+        xs = solutions
+        xs = np.reshape(xs, (len(timepoints), n) )
+        original_params = dict(self.original_parameters)
+
+        for k in range(1, len(timepoints)):
+            timepoints_ssm = timepoints[k-1:k+1]
+            state = xs[k-1,:]
+
+            self.M.set_params(original_params)
+            self.sim_interface.py_set_param_values(self.M.get_parameter_values().copy())
+            J = self.compute_J(state, time = timepoints[k-1], **kwargs)
+
+            for j in range(len(all_params)):
+                param_name = all_params[j]
+                self.M.set_params(original_params)
+                self.sim_interface.py_set_param_values(self.M.get_parameter_values().copy())
+                Zj = self.compute_Zj(state, param_name, time = timepoints[k-1], **kwargs)
+                f_sensitivity_ode = lambda t, x : sensitivity_ode(t, x, J, Zj)
+                sol = odeint(f_sensitivity_ode, SSM[k-1,j,:], timepoints_ssm, tfirst = True)
+                SSM[k,j,:] = np.reshape(sol[-1,:], (n,))
+
+        self.M.set_params(original_params)
+        self.sim_interface.py_set_param_values(self.M.get_parameter_values().copy())
+
+        if normalize:
+            param_dict = self.M.get_parameter_dictionary()
+            param_vals = np.array([param_dict[p] for p in all_params])
+            SSM = self.normalize_SSM(SSM, xs, param_vals)
         return np.round(SSM, decimals = self.precision)
 
     def normalize_SSM(self, SSM, solutions, params_values):
