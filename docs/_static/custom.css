@@ -2,6 +2,29 @@
     max-width: 1100px;
 }
 
+/* Center equations with equation numbers on the right. */
+.math {
+    text-align: center;
+}
+
+.eqno {
+    float: right;
+}
+
+/* Make code blocks show up in dark grey, rather than RTD default red. */
+code.literal {
+    color: #404040 !important;
+}
+
+/* Make py:obj objects non-bold by default, then bold real links. */
+.py-obj .pre {
+    font-weight: normal;
+}
+
+a .py-obj .pre {
+    font-weight: bold;
+}
+
 .nbinput .prompt,
 .nboutput .prompt {
     min-width: 0;

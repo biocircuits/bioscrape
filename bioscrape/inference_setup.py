@@ -2,8 +2,8 @@
 Orchestrates Bayesian and least-squares parameter inference for
 bioscrape models.
 
-`InferenceSetup` wraps `emcee <https://emcee.readthedocs.io/>`_
-(Bayesian/MCMC) and `lmfit <https://lmfit.github.io/lmfit-py/>`_
+`InferenceSetup` wraps `emcee <https://emcee.readthedocs.io/>`__
+(Bayesian/MCMC) and `lmfit <https://lmfit.github.io/lmfit-py/>`__
 (least-squares) inference around a `~bioscrape.types.Model`, using the
 `~bioscrape.pid_interfaces.PIDInterface` subclasses to build the
 likelihood being sampled or minimized. Most users should use the
@@ -252,7 +252,8 @@ class InferenceSetup(object):
         prior : dict
             Maps each parameter name in `self.params_to_estimate` to a
             list describing its prior distribution; see
-            :doc:`../inference` for the supported prior types.
+            :doc:`the parameter inference guide </user_guide/parameter_inference>`
+            for the supported prior types.
 
         Returns
         -------
@@ -403,9 +404,9 @@ class InferenceSetup(object):
         ----------
         method : {'emcee', 'lmfit'}
             The inference package to use: 'emcee' for Bayesian (MCMC)
-            inference (see `emcee <https://emcee.readthedocs.io/en/stable/>`_),
+            inference (see `emcee <https://emcee.readthedocs.io/en/stable/>`__),
             or 'lmfit' for non-linear least-squares (see
-            `lmfit <https://lmfit.github.io/lmfit-py/>`_).
+            `lmfit <https://lmfit.github.io/lmfit-py/>`__).
 
         Returns
         -------

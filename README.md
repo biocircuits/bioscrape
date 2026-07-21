@@ -1,5 +1,5 @@
-# Bioscrape &mdash; Biological Stochastic Simulation of Single Cell Reactions and Parameter Estimation
-## Python toolbox to simulate, analyze, and learn biological system models
+# Bioscrape &mdash; Biological Modeling, Simulation, and Parameter Estimation
+## A Python toolbox to simulate, analyze, and learn biological system models
 
 [![Build Status](https://github.com/biocircuits/bioscrape/actions/workflows/deploy_bioscrape.yml/badge.svg)](https://github.com/biocircuits/bioscrape/actions/workflows/deploy_bioscrape.yml)
 [![PyPI version](https://badge.fury.io/py/bioscrape.svg)](https://badge.fury.io/py/bioscrape)
@@ -75,6 +75,9 @@ sampler, pid = py_inference(Model = M, exp_data = df, measurements = ['X'],
 
 All examples can be found in the [examples](https://github.com/biocircuits/bioscrape/tree/master/examples), the [inference examples](https://github.com/biocircuits/bioscrape/tree/master/inference%20examples), and the [lineage examples](https://github.com/biocircuits/bioscrape/tree/master/lineage%20examples) folders. If you prefer to run the package without installing the package, please use the Google Colab links above. If you want a local installation for bioscrape (recommended for faster speeds), follow the steps below: 
 
+# Documentation
+Read more about the package, the tutorial-style examples, and the Bioscrape API in the [Bioscrape ReadTheDocs](https://bioscrape.readthedocs.io/en/latest/).
+
 # Installation
 
 Install the latest version of Bioscrape::
@@ -86,7 +89,7 @@ Please note that Bioscrape is a Cython extension module and requires a C++ compi
 
 Try online without installing, open self-explanatory jupyter notebooks with Google Colab (linked at the top of this README).
 
-Further details about the installation process can be found in the [Bioscrape wiki](https://github.com/biocircuits/bioscrape/wiki#installation).
+Further details about the installation process can be found in the [Bioscrape docs](https://bioscrape.readthedocs.io/en/latest/).
 
 # Bugs and Contributing to Bioscrape
 
@@ -99,7 +102,7 @@ will help you make the PR if you are new to `git` (just ask on the issue). The [
 
 Bioscrape versions:
 
-* 1.3.0 (latest release): To install run `pip install bioscrape` 
+* 1.4.0 (latest release): To install run `pip install bioscrape` 
 * 1.2.2 (tagged stable release): To install run `pip install bioscrape==1.2.2`
 * 1.0.4 (beta release): To install run `pip install bioscrape==1.0.4`
 
