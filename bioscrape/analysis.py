@@ -403,7 +403,7 @@ class SensitivityAnalysis(Model):
         if normalize:
             param_dict = self.M.get_parameter_dictionary()
             param_vals = np.array([param_dict[p] for p in all_params])
-            SSM = self.normalize_SSM(SSM, xs, param_vals) #Identifiablity was estimated using an normalized SSM
+            SSM = self.normalize_SSM(SSM, xs, param_vals)
         return np.round(SSM, decimals = self.precision)
 
     def compute_SSM_by_interval(self, solutions, timepoints, normalize = False, params = None, **kwargs):

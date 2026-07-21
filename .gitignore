@@ -107,30 +107,7 @@ interactive_testing.ipynb
 .pck
 *.svg
 # *.py
-examples/models/generic_expressions.xml
-examples/models/integrase_control.xml
-examples/models/integrase_model_artavanis.xml
-examples/models/mutation.xml
-examples/models/oscillator.xml
-examples/models/pierce_cas9.xml
-examples/models/pierce_cas9_general.xml
-examples/models/plasmid_control.xml
-examples/models/plasmid_replication_gene_expression.xml
-examples/models/plasmid_replication_transcription.xml
-examples/models/simple_txtl.xml
-examples/models/sontag.xml
-examples/models/transcription_model_without_delay.xml
-examples/models/transcription_with_delay.xml
-examples/models/txtl_toolbox_model.xml
-examples/models/GFP.xml
-examples/models/txtl_model.xml
-examples/models/random_model.xml
-examples/models/random_model_sbml.xml
-examples/models/sbml_test_bioscrape.xml
-examples/models/sbml_test_bioscrape.xml
-examples/models/represillator_bioscrape.xml
-examples/models/represillator_sbml_back.xml
-examples/models/txtl_model_sbml.xml
+examples/models/*.xml
 inference examples/lmfit_results.csv
 inference examples/mcmc_results.csv
 inference examples/mcmc_results.txt
