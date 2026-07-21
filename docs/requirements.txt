@@ -1,6 +1,11 @@
 sphinx>=5
 sphinx-rtd-theme
 sphinx-copybutton
+sphinx-toggleprompt
+sphinx-math-dollar
 nbsphinx
+nbsphinx-link
 nbconvert
 ipykernel
+numpydoc
+recommonmark
