@@ -1,4 +1,4 @@
-Notebook Chapters
+Tutorial Examples
 =================
 
 These notebooks are rendered as documentation chapters without execution. Existing notebook outputs are preserved where available.

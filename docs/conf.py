@@ -87,7 +87,14 @@ autodoc_mock_imports = [
 ]
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "**.ipynb_checkpoints", "Thumbs.db", ".DS_Store"]
+exclude_patterns = [
+    "_build",
+    "**.ipynb_checkpoints",
+    "Thumbs.db",
+    ".DS_Store",
+    "user_guide/model_api.rst",
+    "user_guide/bioscrape_xml.rst",
+]
 
 pygments_style = "sphinx"
 
