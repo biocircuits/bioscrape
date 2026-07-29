@@ -35,6 +35,7 @@ to estimate model parameters from experimental data.
    user_guide/simulators
    user_guide/propensities
    user_guide/delays
+   user_guide/sensitivity
    user_guide/parameter_inference
    user_guide/sbml_support
    user_guide/lineage_package
