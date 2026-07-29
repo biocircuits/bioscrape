@@ -120,6 +120,25 @@ prior distribution notebook in ``inference examples`` directory.
 Likelihood options
 ~~~~~~~~~~~~~~~~~~
 
+Each type of experimental data is paired with a likelihood class that
+computes the log-likelihood of a parameter set given that data:
+
+-  `~bioscrape.inference.DeterministicLikelihood`: compares a single
+   deterministic (ODE) simulation against bulk time-series data. Used
+   when ``sim_type`` is ``"deterministic"`` (the default).
+-  `~bioscrape.inference.StochasticTrajectoriesLikelihood`: runs
+   several stochastic simulations (see the ``N_simulations`` option)
+   and scores how close the simulated single-cell trajectories are to
+   the measured ones. Used when ``sim_type`` is ``"stochastic"``.
+-  `~bioscrape.inference.StochasticTrajectoryMomentLikelihood`: a
+   variant of the previous likelihood that compares the *moments* of
+   the trajectories -- their means with ``Moments=1``, or means and
+   second moments with ``Moments=2`` -- rather than individual
+   trajectories.
+-  `~bioscrape.inference.StochasticStatesLikelihood`: compares the
+   *distribution* of simulated states to a measured distribution at
+   each time point, for population-snapshot data.
+
 MCMC parameter set-up options
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
