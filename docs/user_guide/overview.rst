@@ -4,7 +4,7 @@ Overview
 Bioscrape has three primary features related to modeling, analysis, simulations, and parameter inference:
 
 1. Models can be :doc:`imported from SBML files <sbml_support>`
-   and modified using the internal API. Other than changes to species, parameters, and reactions, users can also add :doc:`delays <delays>` to reactions and add assignment rules. Bioscrape provides sensitivity analysis tools for these models to determine how sensitive the model is to local changes in parameters.
+   and modified using the internal API. Other than changes to species, parameters, and reactions, users can also add :doc:`delays <delays>` to reactions and add assignment rules. Bioscrape provides :doc:`sensitivity analysis tools <sensitivity>` for these models to determine how sensitive the model is to local changes in parameters.
 
 2. Bioscrape includes :doc:`fast deterministic and stochastic simulators <simulators>` written
    in `Cython <https://cython.org/>`__ that can be used to simulate the
