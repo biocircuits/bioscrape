@@ -9,7 +9,7 @@ import numpy as np
 from bioscrape.lineage import (LineageModel, LineageVolumeSplitter,
     LineageCSimInterface, LineageSSASimulator,
     InteractingLineageSSASimulator, LineageVolumeCellState,
-    py_SimulateSingleCell)
+    py_SimulateSingleCell, py_SingleCellLineage)
 from bioscrape.simulator import ModelCSimInterface, VolumeSSASimulator
 from bioscrape.types import Model
 
@@ -90,6 +90,47 @@ def test_lineage_volume_splitter_custom_default():
         options = {"default": "my_custom", "volume": "my_custom"},
         custom_partition_functions = {"my_custom": my_splitter})
     assert vsplit is not None
+
+
+#This test confirms that LineageVolumeSplitter's "volume" splitting
+#  mode correctly falls back to a custom "default" splitter when
+#  "volume" is not itself set in options. It previously did
+#  ("volume" not in options and default == "binomial") or
+#  options["volume"] == ..., so once "volume" not in options made
+#  the first operand False (because default wasn't that particular
+#  mode), Python still evaluated options["volume"] and raised
+#  KeyError, forcing callers to redundantly repeat "volume": that had
+#  to match "default".
+def test_lineage_volume_splitter_custom_default_no_explicit_volume():
+    M = _make_minimal_lineage_model()
+    calls = []
+    def recording_splitter(*args):
+        calls.append(args)
+        return 1.0, 1.0
+
+    # Constructing without an explicit "volume" key must not raise KeyError.
+    vsplit = LineageVolumeSplitter(M,
+        options = {"default": "my_custom"},
+        custom_partition_functions = {"my_custom": recording_splitter})
+    assert vsplit is not None
+
+    # Drive an actual cell division so the volume-splitting code path
+    # runs, confirming "volume" really used the custom default
+    # splitter (rather than silently falling back to binomial).
+    M2 = LineageModel(species = ["X"], reactions = [[[], ["X"], "massaction", {"k": 1.0}]],
+                       initial_condition_dict = {"X": 10})
+    vsplit2 = LineageVolumeSplitter(M2,
+        options = {"default": "my_custom"},
+        custom_partition_functions = {"my_custom": recording_splitter})
+    M2.create_division_rule("deltaV", {"threshold": 1.0}, vsplit2)
+    M2.create_volume_event("linear volume", {"growth_rate": 0.6},
+                            "massaction", {"k": 5.0, "species": ""})
+    M2.py_initialize()
+
+    timepoints = np.linspace(0, 20, 400)
+    result = py_SingleCellLineage(timepoints, Model = M2, return_dataframes = False)
+    assert len(result) > 1  # confirms a division actually occurred
+    assert any("volume" in call for call in calls)
 
 
 #This test confirms that LineageVolumeSplitter validates

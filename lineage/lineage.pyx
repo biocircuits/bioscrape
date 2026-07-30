@@ -2164,20 +2164,21 @@ cdef class LineageVolumeSplitter(VolumeSplitter):
 			raise ValueError("Custom partition function key, "+str(options["default"])+", for 'default' not in custom_partition_functions")
 
 		#Figure out how volume will be split
-		if ("volume" not in options and default == "binomial") or options["volume"] == "binomial":
+		volume_option = options["volume"] if "volume" in options else default
+		if volume_option == "binomial":
 			self.how_to_split_v = 0
-		elif ("volume" not in options and default == "duplicate") or options["volume"] == "duplicate":
+		elif volume_option == "duplicate":
 			self.how_to_split_v = 1
-		elif ("volume" not in options and default == "perfect") or options["volume"] == "perfect":
+		elif volume_option == "perfect":
 			self.how_to_split_v = 2
-		elif ("volume" not in options and default == "custom") or options["volume"] in custom_partition_functions:
+		elif volume_option == "custom" or volume_option in custom_partition_functions:
 			self.how_to_split_v = 3
 			if "volume" in options:
 				self.ind2customsplitter["volume"] = options["volume"]
 			else:
 				self.ind2customsplitter["volume"] = options["default"]
 		else:
-			raise ValueError("Custom partition function key, "+str(options["volume"])+", for 'volume' not in custom_partition_functions")
+			raise ValueError("Custom partition function key, "+str(volume_option)+", for 'volume' not in custom_partition_functions")
 
 		#Figure out how other species are split
 		for s in M.get_species2index():
