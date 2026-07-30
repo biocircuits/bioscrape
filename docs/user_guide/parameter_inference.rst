@@ -133,6 +133,35 @@ parameter ``k1`` as a custom function which is the callable
 For an example on how to run custom prior distribution, check out the
 prior distribution notebook in ``inference examples`` directory.
 
+Data Types
+~~~~~~~~~~
+
+Experimental data passed to inference is held in one of the
+`~bioscrape.inference.Data` subclasses, each corresponding to a
+different kind of measurement:
+
+-  `~bioscrape.inference.BulkData`: a single output measured for a
+   whole culture over time (e.g. total fluorescence or optical
+   density from a plate reader), where the measured value is
+   effectively summed or averaged over all the cells. This is a bulk
+   time series.
+-  `~bioscrape.inference.FlowData`: a *distribution* of single-cell
+   outputs at one or more time points, with individual cells not
+   tracked from one time point to the next (e.g. flow cytometry or
+   mRNA FISH). This is a population snapshot.
+-  `~bioscrape.inference.StochasticTrajectories`: one or more
+   individual cells tracked over time (e.g. time-lapse microscopy).
+   This is a single-cell time series.
+
+When using `~bioscrape.inference.py_inference`, the ``sim_type``
+argument selects the data type and likelihood together:
+``sim_type="deterministic"`` (the default) uses
+`~bioscrape.inference.BulkData`, and ``sim_type="stochastic"`` uses
+`~bioscrape.inference.StochasticTrajectories`.
+`~bioscrape.inference.FlowData` is used by constructing the
+likelihood object directly rather than through
+`~bioscrape.inference.py_inference`.
+
 Likelihood options
 ~~~~~~~~~~~~~~~~~~
 
