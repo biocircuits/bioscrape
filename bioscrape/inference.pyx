@@ -1130,7 +1130,8 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
             csim = ModelCSimInterface(m)
         if prop is None:
             if m.has_delay:
-                prop_delay = DelaySSASimulator()
+                if prop_delay is None:
+                    prop_delay = DelaySSASimulator()
                 self.has_delay = True
                 self.propagator_delay = prop_delay
             else:
