@@ -57,4 +57,24 @@ Volume Splitters
 
 As cells grow and divide, their internal species are re-partitioned
 according to VolumeSplitter objects which are associated with every
-DivisionRule and DivisionEvent.
+DivisionRule and DivisionEvent. Each species (and the volume itself)
+can be partitioned in one of several ways:
+
+-  'binomial' -- each molecule independently goes to one daughter with
+   probability roughly one half (the default).
+-  'perfect' -- molecules are divided in proportion to the daughter
+   volumes, up to rounding.
+-  'duplicate' -- each daughter receives a full copy of the parent's
+   count.
+-  a user-supplied custom partitioning function.
+
+The mode can be chosen per species (with a 'default' for unlisted
+species and a separate setting for the volume), and the
+``partition_noise`` option adds extra randomness to the binomial split
+fraction.
+
+In a volume-based simulation a species value is a molecule count, and
+the corresponding concentration is that count divided by the cell
+volume. A common convention when interpreting such results is to
+treat one molecule per characteristic *E. coli* cell volume as
+roughly 1 nM.
