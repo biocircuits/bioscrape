@@ -108,7 +108,10 @@ class InferenceSetup(object):
     dimension : int, default 1
         Stored on the object but not currently used elsewhere.
     hmax : float, optional
-        Stored on the object but not currently used elsewhere.
+        Maximum step size for the deterministic integrator; forwarded
+        to `~bioscrape.pid_interfaces.PIDInterface` via
+        `setup_cost_function` unless overridden by an `hmax` passed
+        directly to `run_mcmc`/`run_emcee`.
 
     Attributes
     ----------
@@ -881,6 +884,8 @@ class InferenceSetup(object):
             Forwarded to the `PIDInterface` constructor and to
             `~bioscrape.pid_interfaces.PIDInterface.setup_likelihood_function`.
         """
+        if self.hmax is not None:
+            kwargs.setdefault('hmax', self.hmax)
         if self.sim_type == 'stochastic':
             self.pid_interface = StochasticInference(self.params_to_estimate, self.M, self.prior, **kwargs)
             self.pid_interface.setup_likelihood_function(self.LL_data, self.timepoints, self.measurements,

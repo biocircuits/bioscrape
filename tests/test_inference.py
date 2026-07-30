@@ -118,7 +118,7 @@ def test_setstate(model_setup):
     timepoints = None
 
     state = (
-        M, params_to_estimate, .11, None, 11, 111, 2, exp_data, 'stochastic', 'lmfit', 
+        M, params_to_estimate, .11, None, 11, 111, 2, exp_data, 'stochastic', 'lmfit',
         timepoints, 'T', ['y'], init_conds, None, 1, 11, None, True, None, None, 1.0, False
         )
 
@@ -149,6 +149,28 @@ def test_setstate(model_setup):
     assert state[20] == IS.cost_params
     assert state[21] == IS.hmax
     assert state[22] == IS.parallel
+
+#This test confirms that an hmax passed to the InferenceSetup
+#  constructor actually takes effect. self.hmax was previously stored
+#  at construction (and pickled) but never merged into the kwargs
+#  forwarded to setup_cost_function/DeterministicInference, so it was
+#  silently ignored unless hmax was passed again directly to
+#  run_mcmc/run_emcee -- setup_cost_function now injects self.hmax as
+#  a kwargs default so the constructor-time value is honored.
+def test_constructor_hmax_takes_effect(model_setup):
+    M, params_to_estimate = model_setup
+
+    exp_data = pd.DataFrame()
+    exp_data['t'] = np.linspace(0, 10, 50)
+    exp_data['y'] = np.linspace(0, 10, 50)
+
+    IS = InferenceSetup(Model = M, params_to_estimate = params_to_estimate,
+                        exp_data = exp_data, measurements = ['y'],
+                        time_column = 't', sim_type = 'deterministic',
+                        initial_conditions = dict(M.get_species_dictionary()),
+                        hmax = 0.25)
+
+    assert IS.pid_interface.LL_det.py_get_hmax() == 0.25
 
 def test_basic_inference(model_setup):
     M, _ = model_setup

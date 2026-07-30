@@ -824,7 +824,17 @@ cdef class DeterministicLikelihood(ModelLikelihood):
         self.hmax = hmax
         self.propagator.py_set_hmax(hmax)
 
-    
+    def py_get_hmax(self):
+        """
+        The integrator's maximum step size.
+
+        Returns
+        -------
+        float
+            The value set by `py_set_hmax`.
+        """
+        return self.hmax
+
 
     cdef double get_log_likelihood(self):
         # Write in the specific parameters and species values.
