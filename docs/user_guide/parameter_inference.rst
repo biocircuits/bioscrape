@@ -78,6 +78,22 @@ the parameter ``k1`` as gaussian(0,10) but with only positive values.
 Example: ``{'k1': ['exponential', 5]}`` sets the prior for the parameter
 ``k1`` as exponential(5).
 
+-  Gamma: To give a gamma prior to a parameter use, prior-type-key:
+   ``"gamma"``. The ``prior_parameter1`` is the shape parameter
+   (alpha) and the ``prior_parameter2`` is the rate parameter (beta)
+   of the gamma distribution.
+
+Example: ``{'k1': ['gamma', 2, 3]}`` sets the prior for the parameter
+``k1`` as gamma(alpha=2, beta=3).
+
+-  Beta: To give a beta prior to a parameter use, prior-type-key:
+   ``"beta"``. The ``prior_parameter1`` and ``prior_parameter2`` are
+   the alpha and beta shape parameters of the beta distribution. The
+   parameter value is expected to lie in ``[0, 1]``.
+
+Example: ``{'k1': ['beta', 2, 3]}`` sets the prior for the parameter
+``k1`` as beta(alpha=2, beta=3).
+
 -  Log Uniform: To give a log uniform prior to a parameter use,
    prior-type-key: ``"log-uniform"``. The ``prior_parameter1`` is the
    lower bound of the log uniform probability distribution and the
