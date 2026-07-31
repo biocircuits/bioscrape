@@ -1,4 +1,4 @@
-﻿Tutorial Examples
+Tutorial Examples
 =================
 
 These notebooks are rendered as documentation chapters without
@@ -29,7 +29,7 @@ Inference Examples
    Birth-death Model Inference <birth-death-inference>
    Linear Model Inference <linear-model-inference>
    Multiple-measurement Inference <multiple-measurements-inference>
-   Multiple Trajectories with Initial Conditions <multi-trajectory-initial>
+   Multiple Initial Conditions <multi-trajectory-initial>
    Multiple-trajectory Inference <multiple-trajectories-inference>
    Priors in Bioscrape Inference <priors-inference>
    Stochastic Inference <stochastic-inference>
@@ -42,4 +42,3 @@ Lineage Examples
 
    Bioscrape Lineage Examples <lineage-examples>
    Interacting Lineages <interacting-lineages>
-
