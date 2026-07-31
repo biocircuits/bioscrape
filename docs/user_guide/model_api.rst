@@ -16,7 +16,7 @@ parameters, and rules, or a combination of the above.
 bioscrape.types.Model.\ **init** [Constructor]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Inputs:
+Inputs
 '''''''
 
 -  filename = None: the filename of a bioscrape xml file.
@@ -59,7 +59,7 @@ added to the model with Model._add_reaction.
 Model.create_reaction
 ~~~~~~~~~~~~~~~~~~~~~
 
-Required Inputs:
+Required Inputs
 ''''''''''''''''
 
 -  reactants (list): a list of reactant specie names (strs)
@@ -82,7 +82,7 @@ Required Inputs:
       case, dummy variables are automatically created in the model and
       set to the value var_val.
 
-Optional Inputs:
+Optional Inputs
 ''''''''''''''''
 
 -  delay_type = None: a str indicating the type of delay
@@ -111,7 +111,7 @@ Model._add_reaction
 
 .. _inputs-1:
 
-Inputs:
+Inputs
 '''''''
 
 -  reaction_update_dict: A dictionary species_index (accessible via
@@ -134,7 +134,7 @@ Inputs:
 
 .. _optional-inputs-1:
 
-Optional Inputs:
+Optional Inputs
 ''''''''''''''''
 
 -  delay_reaction_update_dict = {}: same as reaction_update_dict but
@@ -167,7 +167,7 @@ Creates a rule using one of the supported rule types.
 
 .. _inputs-2:
 
-Inputs:
+Inputs
 '''''''
 
 -  rule_type (str): the type of rule
@@ -202,7 +202,7 @@ for changing initial conditions.
 
 .. _inputs-3:
 
-Inputs:
+Inputs
 '''''''
 
 -  species_dict: specie_name (str) --> species value (double)
@@ -217,7 +217,7 @@ already been added.
 
 .. _inputs-4:
 
-Inputs:
+Inputs
 '''''''
 
 -  specie (str): specie name
@@ -232,7 +232,7 @@ Adds a specie to the model with default value of 0.
 
 .. _inputs-5:
 
-Inputs:
+Inputs
 '''''''
 
 -  species (str): species name
@@ -250,7 +250,7 @@ not already in the model will not be added this way.
 
 .. _inputs-6:
 
-Inputs:
+Inputs
 '''''''
 
 -  param_dict: param_name (str) --> param value (double)
@@ -264,7 +264,7 @@ Adds a parameter to the model, with the default value nan.
 
 .. _inputs-7:
 
-Inputs:
+Inputs
 '''''''
 
 -  parameter_name (str): The name of the parameter.
@@ -277,7 +277,7 @@ Model.set_parameter
 Sets the value of a parameter and adds it to the model (if its not
 already in the model).
 
-Inputs:
+Inputs
 
 -  param_name (str): the name of the parameter
 -  param_value (double): the value of the parameter
@@ -289,7 +289,7 @@ Model.get_parameter_dictionary
 
 Get the dictionary of parameter names and values in the model.
 
-Output:
+Output
 
 -  params_dict (dict): the dictionary with key as parameter names and
    values for the parameter values
@@ -301,7 +301,7 @@ Model.get_species_dictionary
 
 Get the dictionary of species names and initial values in the model.
 
-Output:
+Output
 
 -  species_dict (dict): the dictionary with key as species names and
    values for the species initial values

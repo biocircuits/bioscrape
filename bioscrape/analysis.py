@@ -1,3 +1,12 @@
+"""
+Local sensitivity analysis of bioscrape models.
+
+Provides finite-difference sensitivity analysis of a deterministically
+simulated `~bioscrape.types.Model` with respect to its parameters, via
+`SensitivityAnalysis` and the module-level convenience functions
+`py_sensitivity_analysis`, `py_get_jacobian`, and
+`py_get_sensitivity_to_parameter`.
+"""
 import warnings
 from bioscrape.types import Model
 from bioscrape.simulator import ModelCSimInterface, DeterministicSimulator
@@ -5,24 +14,37 @@ from scipy.integrate import odeint
 import numpy as np
 from typing import List, Union
 
-def py_sensitivity_analysis(model: Model, timepoints: np.ndarray, 
+def py_sensitivity_analysis(model: Model, timepoints: np.ndarray,
                             normalize: bool, **kwargs) -> np.ndarray:
-    """User interface function to perform sensitivity analysis 
-    on a bioscrape model. The sensitivity coefficients are computed 
-    where each coefficient s_ij = rate of change of x_i with parameter p_j
-    for each time point in timepoints.
+    r"""
+    Compute the sensitivity of a model's trajectories to its parameters.
 
-    Args:
-        model (bioscrape.types.Model): A bioscrape Model object
-        timepoints (numpy.ndarray): Array of time points.
-        normalize (bool): when `True` the sensitivity coefficients returned are 
-                          normalized by state values at each time 
-                          (divides each coefficient by x_i/p_j).
-                          when `False` the sensitivity coefficients are not normalized.
+    Simulates `model` deterministically over `timepoints` and returns the
+    sensitivity coefficients s_ij = d(x_i)/d(p_j) for each
+    state x_i, parameter p_j, and time point.
 
-    Returns:
-        numpy.ndarray: A numpy array of size:
-                       len(timepoints) x len(parameters) x len(states)
+    Parameters
+    ----------
+    model : Model
+        The bioscrape model to analyze.
+    timepoints : numpy.ndarray
+        Array of time points at which to compute the sensitivity coefficients.
+    normalize : bool
+        If True, each sensitivity coefficient is normalized by x_i/p_j at
+        that time point. If False, the coefficients are not normalized.
+    dx : float, default 0.01
+        Finite-difference step size used when approximating derivatives.
+    precision : int, default 10
+        Number of decimal places to round returned sensitivity values to.
+    method : str, optional
+        The finite-difference method to use; see
+        `SensitivityAnalysis.compute_J`.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape `(len(timepoints), len(parameters), len(states))`
+        containing the sensitivity coefficients.
     """
     dx = kwargs.get("dx", 0.01)
     precision = kwargs.get("precision", 10) 
@@ -33,43 +55,82 @@ def py_sensitivity_analysis(model: Model, timepoints: np.ndarray,
     return sens_obj.compute_SSM(solutions_array, timepoints, normalize, **kwargs)
 
 def py_get_jacobian(model: Model, state: Union[list, np.ndarray], **kwargs) -> np.ndarray:
-    """User interfacce function to compute Jacobian (df/dx) of the model.
+    r"""
+    Compute the Jacobian J = d(f)/d(x) of a model.
 
-    Args:
-        model (Model): Bioscrape Model
-        state (Union[list, np.ndarray]): The state values (vector of length n) 
-                                         at which to compute the Jacobian
+    Parameters
+    ----------
+    model : Model
+        The bioscrape model to analyze.
+    state : list or numpy.ndarray
+        The state values (vector of length `n`) at which to compute the
+        Jacobian.
+    method : str, optional
+        The finite-difference method to use; see
+        `SensitivityAnalysis.compute_J`.
+    time : float, optional
+        The time at which to evaluate the (possibly time-varying)
+        model (default 0.0).
 
-    Returns:
-        np.ndarray: A (n x n) Jacobian matrix, where n = len(state)
+    Returns
+    -------
+    numpy.ndarray
+        The `n` x `n` Jacobian matrix, where `n = len(state)`.
     """
     return SensitivityAnalysis(model).compute_J(state, **kwargs)
 
-def py_get_sensitivity_to_parameter(model: Model, state: Union[list, np.ndarray], 
+def py_get_sensitivity_to_parameter(model: Model, state: Union[list, np.ndarray],
                                     param_name: str, **kwargs) -> np.ndarray:
-    """User interface function to compute the sensitivity to parameter (df/dp)
-    where p is the parameter and f is the model
+    r"""
+    Compute a model's sensitivity Z_j = d(f)/d(p_j) to p_j.
 
-    Args:
-        model (Model): Bioscrape Model
-        state (Union[list, np.ndarray]): The state values (vector of length n) 
-                                         at which to compute df/dp
-        param_name (str): The parameter name for which df/dp is computed
+    Parameters
+    ----------
+    model : Model
+        The bioscrape model to analyze.
+    state : list or numpy.ndarray
+        The state values (vector of length `n`) at which to compute
+        d(f)/d(p_j).
+    param_name : str
+        The name of the parameter p_j to differentiate with respect to.
+    method : str, optional
+        The finite-difference method to use; see
+        `SensitivityAnalysis.compute_Zj`.
+    time : float, optional
+        The time at which to evaluate the (possibly time-varying)
+        model (default 0.0).
 
-    Returns:
-        np.ndarray: A np.ndarray of size (n x 1), where n is the length of state 
+    Returns
+    -------
+    numpy.ndarray
+        Vector of length `n` giving d(f_i)/d(p_j) for each state i.
     """
     return SensitivityAnalysis(model).compute_Zj(state, param_name, **kwargs)
 
 class SensitivityAnalysis(Model):
+    r"""
+    Local sensitivity analysis for bioscrape models.
+
+    Computes the sensitivity of a model's deterministic trajectories to its
+    parameters, using finite-difference approximations of the Jacobian
+    J = d(f)/d(x) and the parameter-sensitivity vector
+    Z_j = d(f)/d(p_j), where f is the model's right-hand side.
+    See `py_sensitivity_analysis` for the higher-level, user-facing interface
+    built on this class.
+
+    Parameters
+    ----------
+    M : Model
+        The bioscrape model to analyze.
+    dx : float, optional
+        Finite-difference step size used when approximating derivatives
+        (default 0.01).
+    precision : int, optional
+        Number of decimal places to round returned sensitivity values to
+        (default 10).
+    """
     def __init__(self, M, dx = 0.01, precision = 10):
-        """
-        Local Sensitivity Analysis for Bioscrape models.
-        Arguments:
-        * M: The Bioscrape Model object.
-        * dx: Small parameter used in approximate computation methods. 
-        * precision: the number of decimal places to round to
-        """
+        """See class docstring."""
         self.M = M
         sim = ModelCSimInterface(self.M)
         sim.py_prep_deterministic_simulation()
@@ -94,10 +155,29 @@ class SensitivityAnalysis(Model):
         return derivative_array
 
     def compute_J(self, x, time = 0.0, **kwargs):
-        """
-        Compute the Jacobian J = df/dx at a point x.
-        Returns a matrix of size n x n.
-        Uses fourth-order central difference method to compute Jacobian
+        r"""
+        Compute the Jacobian J = d(f)/d(x) at a point `x`.
+
+        Uses a finite-difference approximation of the model's right-hand side
+        f; see `method` below for the available approximation orders.
+
+        Parameters
+        ----------
+        x : array_like
+            The state (vector of length `n`) at which to evaluate the
+            Jacobian.
+        time : float, optional
+            The time at which to evaluate the (possibly time-varying) model
+            (default 0.0).
+        method : str, optional
+            The finite-difference method to use:
+            'fourth_order_central_difference' (default), 'central_difference',
+            'backward_difference', or 'forward_difference'.
+
+        Returns
+        -------
+        numpy.ndarray
+            The `n` x `n` Jacobian matrix.
         """
         method = kwargs.get('method')
         if method is None:
@@ -150,9 +230,29 @@ class SensitivityAnalysis(Model):
         return np.round(J, decimals = self.precision)
         
     def compute_Zj(self, x, param_name, time = 0.0, **kwargs):
-        """
-        Compute Z_j, i.e. df/dparam_name at a particular point x
-        Returns a vector of size n x 1. 
+        r"""
+        Compute Z_j = d(f)/d(p_j) at a point `x`.
+
+        Uses the same finite-difference methods as `compute_J`, where p_j
+        is the parameter named `param_name`.
+
+        Parameters
+        ----------
+        x : array_like
+            The state (vector of length `n`) at which to evaluate the
+            sensitivity.
+        param_name : str
+            The name of the parameter p_j to differentiate with respect to.
+        time : float, optional
+            The time at which to evaluate the (possibly time-varying) model
+            (default 0.0).
+        method : str, optional
+            The finite-difference method to use; see `compute_J`.
+
+        Returns
+        -------
+        numpy.ndarray
+            Vector of length `n` giving d(f_i)/d(p_j) for each state i.
         """
         method = kwargs.get('method')
         if method is None:
@@ -210,18 +310,37 @@ class SensitivityAnalysis(Model):
         return np.round(Z, decimals = self.precision)
 
     def compute_SSM(self, solutions, timepoints, normalize = False, params = None, **kwargs):
-        """
-        Returns the sensitivity coefficients S_j for each parameter p_j. 
-        Solutions is the ODE solution to self for timepoints.
-        Solutions is of shape (len(timepoints), n), where n is the len(x).
-        The sensitivity coefficients are written in a sensitivity matrix SSM of size len(timepoints) x len(params) x n
-        If normalize argument is true, the coefficients are normalized by the nominal value of each paramneter.
-        Arguments:
-        * solutions: Pandas dataframe object returned by py_simulate_model that contains solutions for all model variables.
-        * timepoints: The time points at which sensitivity coefficients are needed (this is the same as timepoints used for solutions).
-        * normalize: (bool, default is False): When set to True, the returned sensitivity coefficients are normalized with state and parameter values.
-        * params: (list of parameters, default is None): The parameters to compute sensitivty to. When None defaults to all model parameters
-        * kwargs: Other kwargs passed to `compute_J` and `compute_Z` functions.
+        r"""
+        Compute the sensitivity coefficients for each parameter.
+
+        Computes S_j = d(x)/d(p_j) for each parameter p_j, at
+        each time point, by integrating the sensitivity ODE dS/dt = J*S + Z_j
+        forward in time using the Jacobian and parameter-sensitivity vectors
+        from `compute_J` and `compute_Zj`.
+
+        Parameters
+        ----------
+        solutions : array_like
+            The deterministic trajectory of the model (e.g. as returned by
+            `~bioscrape.simulator.py_simulate_model`) evaluated at
+            `timepoints`, of shape `(len(timepoints), n)`.
+        timepoints : numpy.ndarray
+            The time points at which `solutions` was computed and at which
+            sensitivity coefficients are returned.
+        normalize : bool, optional
+            If True, normalize the returned coefficients by the nominal
+            parameter and state values (default False).
+        params : list of str, optional
+            The parameters to compute sensitivities for. Defaults to all of
+            the model's parameters.
+        method : str, optional
+            The finite-difference method to use; see `compute_J`.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of shape `(len(timepoints), len(params), n)` containing the
+            sensitivity coefficients S_j for each parameter and time point.
         """
         def sensitivity_ode(t, x, J, Z):
             # ODE to solve for sensitivity coefficient S
@@ -265,9 +384,26 @@ class SensitivityAnalysis(Model):
 
     def normalize_SSM(self, SSM, solutions, params_values):
         """
-        Returns normalized sensitivity coefficients. 
-        Multiplies each sensitivity coefficient with the corresponding parameter p_j
-        Divides the result by the corresponding state to obtain the normalized coefficient that is returned.
+        Normalize sensitivity coefficients by parameter and state values.
+
+        Multiplies each sensitivity coefficient by its corresponding parameter
+        value and divides by the corresponding state value.
+
+        Parameters
+        ----------
+        SSM : numpy.ndarray
+            Sensitivity coefficients as returned by `compute_SSM`, of shape
+            `(len(timepoints), len(params), n)`.
+        solutions : array_like
+            The state trajectory used to compute `SSM`, of shape
+            `(len(timepoints), n)`.
+        params_values : array_like
+            The nominal value of each parameter in `SSM`, in the same order.
+
+        Returns
+        -------
+        numpy.ndarray
+            The normalized sensitivity coefficients, same shape as `SSM`.
         """
         n = np.shape(solutions)[1]
         SSM_normalized = np.zeros(np.shape(SSM))
@@ -275,3 +411,4 @@ class SensitivityAnalysis(Model):
             for i in range(n):
                 SSM_normalized[:,j,i] = np.divide(SSM[:,j,i]*params_values[j], solutions[:,i]) 
         return SSM_normalized
+

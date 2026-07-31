@@ -75,7 +75,7 @@ Details on different kinds of :doc:`propensities <propensities>` and
 :doc:`delays <delays>` can be found in the propensity functions and
 delay functions wiki pages, respectively.
 
-General Equations:
+General Equations
 ~~~~~~~~~~~~~~~~~~
 
 General propensities and assignment rules make use of general algebraic

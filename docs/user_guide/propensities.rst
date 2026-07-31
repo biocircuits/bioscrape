@@ -18,7 +18,9 @@ Reaction with Mass-Action Propensity
 
 ::
 
-       reaction = Reaction(list_of_reactants, list_of_products, "massaction", {"k":"k1"})
+       reaction = Reaction(
+           list_of_reactants, list_of_products, "massaction",
+           {"k":"k1"})
 
 A mass action propensity requires one constant parameter k for each
 irreversible reaction step. Optionally, a "species" keyword can be
@@ -38,7 +40,9 @@ Reaction with Positive Hill Propensity
 
 ::
 
-       reaction = Reaction(list_of_reactants, list_of_products, "hillpositive", {"s1"="X" "k"="k1" "K"="K1" "n"="n1"})
+       reaction = Reaction(
+           list_of_reactants, list_of_products, "hillpositive",
+           {"s1"="X" "k"="k1" "K"="K1" "n"="n1"})
 
 A positive hill function propensity with input species s1, maximal rate
 k, cooperativity n, centered at K. For example, the above propensity
@@ -49,7 +53,9 @@ Reaction with Negative Hill Propensity
 
 ::
 
-       reaction = Reaction(list_of_reactants, list_of_products, "hillnegative", {"s1"="X" "k"="k1" "K"="K1" "n"="n1"})
+       reaction = Reaction(
+           list_of_reactants, list_of_products, "hillnegative",
+           {"s1"="X" "k"="k1" "K"="K1" "n"="n1"})
 
 A negative hill function propensity with input species s1, maximal rate
 k, cooperativity n, centered at K. For example, the above propensity
@@ -60,7 +66,10 @@ Reaction with Proportional Positive Hill Propensity
 
 ::
 
-       reaction = Reaction(list_of_reactants, list_of_products, "proportionalhillpositive", {"d"="Y" "s1"="X" "k"="k1" "K"="K1" "n"="n1"})
+       reaction = Reaction(
+           list_of_reactants, list_of_products,
+           "proportionalhillpositive",
+           {"d"="Y" "s1"="X" "k"="k1" "K"="K1" "n"="n1"})
 
 A positive hill function propensity proportional to species d, with
 saturating input species s1, maximal rate k, cooperativity n, centered
@@ -72,7 +81,10 @@ Proportional Negative Hill Function
 
 ::
 
-       reaction = Reaction(list_of_reactants, list_of_products, "proportionalhillnegative", {"d"="Y" "s1"="X" "k"="k1" "K"="K1" "n"="n1"})
+       reaction = Reaction(
+           list_of_reactants, list_of_products,
+           "proportionalhillnegative",
+           {"d"="Y" "s1"="X" "k"="k1" "K"="K1" "n"="n1"})
 
 A negative hill function propensity proportional to species d, with
 desaturating input species s1, maximal rate k, cooperativity n, centered
@@ -95,10 +107,19 @@ general propensity reactions:
 
 ::
 
-       reaction = Reaction(list_of_reactants, list_of_products, "general", {"rate":" 0.15 + X / (X+_Kx) * Y^_n / (Y^_n+_Ky^_n)"})
-       reaction = Reaction(list_of_reactants, list_of_products, "general", {"rate":" log(exp(heaviside(t-4)*(t-4)))*beta"})
-       reaction = Reaction(list_of_reactants, list_of_products, "general", {"rate":" (x+1)**2-x**2-2*x-1+t*alpha"})
-       reaction = Reaction(list_of_reactants, list_of_products, "general", {"rate":" Min(v1*X, v2*Y)"})
+       reaction = Reaction(
+           list_of_reactants, list_of_products, "general",
+           {"rate":" 0.15 + X / (X+_Kx) * Y^_n / "
+                   "(Y^_n+_Ky^_n)"})
+       reaction = Reaction(
+           list_of_reactants, list_of_products, "general",
+           {"rate":" log(exp(heaviside(t-4)*(t-4)))*beta"})
+       reaction = Reaction(
+           list_of_reactants, list_of_products, "general",
+           {"rate":" (x+1)**2-x**2-2*x-1+t*alpha"})
+       reaction = Reaction(
+           list_of_reactants, list_of_products, "general",
+           {"rate":" Min(v1*X, v2*Y)"})
 
 The rate field contains the entire form of the propensity. In this case,
 we have a small leak of 0.15 added to an AND gate on two species X and

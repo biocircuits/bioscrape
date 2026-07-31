@@ -15,8 +15,7 @@ package, refer to the README file on the `home
 page <https://github.com/biocircuits/bioscrape/>`__ and the tutorial
 style example jupyter notebooks under the
 `examples <https://github.com/biocircuits/bioscrape/tree/master/examples>`__
-directory. The software documentation is available on the Github Wiki
-page `here <https://github.com/biocircuits/bioscrape/wiki>`__.
+directory. 
 
 How to contribute?
 ------------------
@@ -51,8 +50,7 @@ use so that the issues can be filtered easily:
 Pull Requests
 ~~~~~~~~~~~~~
 
-All pull requests should be made to the ``dev`` branch of Bioscrape. To
-maintain code readability and validity, we encourage you to document
+To maintain code readability and validity, we encourage you to document
 your pull requests using the following ways:
 
 -  Add a detailed comment when creating the pull request that summarizes
@@ -65,6 +63,9 @@ your pull requests using the following ways:
 -  If your pull request is adding a new feature to the package, we also
    highly recommend a jupyter notebook example that goes along with that
    feature that discusses the use case.
+-  Please follow the AI Policy of NumPy_ when writing issues and 
+   pull requests.
+.. _AI Policy of NumPy: https://numpy.org/doc/stable/dev/ai_policy.html
 
 Styleguides
 -----------

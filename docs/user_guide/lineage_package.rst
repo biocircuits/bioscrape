@@ -4,7 +4,7 @@ Cell Lineage Simulation
 This documentation covers the cell-population simulation capabilities of
 Bioscrape as defined in the bioscrape.lineage package.
 
-Overview:
+Overview
 ---------
 
 bioscrape.lineage is a wrapper around the original bioscrape.types and
@@ -19,7 +19,7 @@ statistical wrappers (in development) to ensure that these simulations
 are of manageable size.
 
 Simulators
-~~~~~~~~~~
+----------
 
 bioscrape.lineage supports SSA simulation and SSA with Delay Simulation
 of single cells. Cell lineages can be simulated via the following
@@ -37,7 +37,7 @@ methods:
    only a single cell at any time.
 
 Rules
-~~~~~
+-----
 
 Cell growth, death, and division be modeled as Rule objects, which are
 evaluated every simulation step. There are 3 overarching Rule types:
@@ -45,7 +45,7 @@ DivisionRules, VolumeRules, DeathRules. A number of different
 sub-classes exist
 
 Events
-~~~~~~
+------
 
 Alternatively, cell growth, death, and division can be modeled as Event
 Objects which fire according to an internal
@@ -53,7 +53,7 @@ Objects which fire according to an internal
 DivisionEvents, VolumeEvents, and DeathEvents.
 
 Volume Splitters
-~~~~~~~~~~~~~~~~
+----------------
 
 As cells grow and divide, their internal species are re-partitioned
 according to VolumeSplitter objects which are associated with every

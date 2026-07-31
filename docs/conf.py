@@ -87,7 +87,10 @@ autodoc_default_options = {
     "members": True,
     "undoc-members": True,
     "show-inheritance": True,
-    "exclude-members": "__init__, __weakref__, __repr__, __str__, __hash__",
+    "exclude-members": (
+        "__init__, __weakref__, __repr__, __str__, "
+        "__new__, __reduce__, __hash__"
+    ),
 }
 
 # For classes, include the class docstring instead of pulling in init details.

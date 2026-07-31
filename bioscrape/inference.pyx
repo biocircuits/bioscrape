@@ -1166,7 +1166,7 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
 
     Fits `params_to_estimate` to `exp_data` via Markov Chain Monte
     Carlo (MCMC) sampling, using
-    `emcee <https://emcee.readthedocs.io/>`__ under the hood. Returns
+    `emcee <https://emcee.readthedocs.io/>`_ under the hood. Returns
     the `emcee` sampler (holding the full set of posterior samples)
     together with the `~bioscrape.inference_setup.InferenceSetup`
     object that orchestrated the run; unless `plot_show=False`, it
