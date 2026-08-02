@@ -27,7 +27,7 @@ terminal/the Anaconda command prompt on Windows or create an online
 repository. To run the example jupyter notebooks, you can open the open
 the ``.ipynb`` files in the examples/ directory. Note that a `Jupyter
 notebook installation <https://jupyter.org/install>`__ is required to
-setup a Jupyter notebook kernel (with a Python version >=3.7) that you
+setup a Jupyter notebook kernel (with a Python version >=3.8) that you
 can use to run the example notebooks.
 
 Prereqs and Dependencies
@@ -36,11 +36,6 @@ Prereqs and Dependencies
 Required dependencies
 ~~~~~~~~~~~~~~~~~~~~~
 
-**Important:** To use this package you must be using a **64-bit**
-version of Python **3**. [As of October, 2020 python 3.7 is recommended.
-Not all the required packages are compatible with 3.8. See the
-installation instructions for more details.]
-
 C++ Compiler
 ^^^^^^^^^^^^
 
@@ -48,12 +43,7 @@ This package relies heavily on Cython, which is an extension of Python
 that converts Cython code to C/C++ and then compiles it to make it
 extremely fast. As such, you will need a C++ compiler and build system
 with the ability to compile C++ to dynamic libraries. This is different
-on different operating systems. The package has been tested with the
-following operating systems:
-
-1. Mac OS X El Capitan and Sierra
-2. Ubuntu 16.04
-3. Windows 10
+on different operating systems.
 
 Linux
 '''''
@@ -92,7 +82,7 @@ Windows
 '''''''
 
 If you already have Anaconda installed (and don't have a C++ compiler
-which already works with python), you will first need to `uninstall
+which already works with python), you might need to `uninstall
 Anaconda <https://docs.anaconda.com/anaconda/install/uninstall/>`__.
 
 The standard compiler on Windows is the one that comes with Visual C++.
@@ -105,14 +95,13 @@ is okay as well):
 
 1. Visual C++ Build tools core features [typically selected
    automatically]
-2. VC++ 2019 v142 toolset (x86, x64) or VC++ 2017 v141 toolset (x86,
-   x64)[option name varies slightly and there may be multiple items with
-   the same/similar name; install them all].
-3. Visual C++ 2019 Redistributable Update [Visual C++ 2017
-   Redistributable Update also OK].
-4. Windows 10 SDK (10.0.16299.0) for Desktop C++ [option name may vary
+2. VC++ 20xx toolset (x86, x64) [option name varies slightly and 
+   there may be multiple items with the same/similar name; 
+   install the older versions if the latest one does not work].
+3. Visual C++ 20xx Redistributable Update [latest version should work].
+4. Windows 11 SDK (10.0.16299.0) for Desktop C++ [option name may vary
    slightly]
-5. Desktop development c++
+5. Desktop development C++
 
 Note: if you have errors installing Bioscrape in the later steps, such
 as "cannot find vcvarsall.bat" or linkage errors (compilation warnings
@@ -190,7 +179,7 @@ bioscrape directory and run
 
 ::
 
-   python setup.py install
+   pip install .
 
 The installation will cause a bunch of C++ to be compiled. This may
 create a bunch of warnings and text. If there are no **errors**, you are
@@ -201,7 +190,7 @@ Note : When reinstalling, if you have any bioscrape related Jupyter
 notebook open or other bioscrape code running on your system already,
 then the installation is likely to fail. In this case, simply close all
 terminals (including Jupyter notebooks) that might be running bioscrape
-and then try installing agian.
+and then try installing again.
 
 Uninstalling
 ~~~~~~~~~~~~

@@ -1240,11 +1240,19 @@ class InferenceSetup(object):
         self.pid_interface = LMFitInference(self.params_to_estimate, self.M, self.prior)
         minimizer_result = [None]*N
         if N == 1:
+            if isinstance(self.initial_conditions, list):
+                initial_conditions = self.initial_conditions[0]
+            else:
+                initial_conditions = self.initial_conditions
+            if isinstance(self.parameter_conditions, list):
+                parameter_conditions = self.parameter_conditions[0]
+            else:
+                parameter_conditions = self.parameter_conditions
             minimizer_result[0] = self.pid_interface.\
                 get_minimizer_results(self.LL_data[0,:,:],
                                       self.timepoints, self.measurements,
-                                      initial_conditions = self.initial_conditions,
-                                      parameter_conditions = self.parameter_conditions,
+                                      initial_conditions = initial_conditions,
+                                      parameter_conditions = parameter_conditions,
                                       stochastic = stochastic, debug = self.debug,
                                       method = method, plot_show = plot_show, **kwargs)
         else:

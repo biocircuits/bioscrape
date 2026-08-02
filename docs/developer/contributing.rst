@@ -6,11 +6,7 @@ Thank you for your interest in contributing to Bioscrape!
 In this file you will find detailed instructions on how you can start
 making contributions to the package. Bioscrape is hosted on the
 `Biocircuits <https://github.com/biocircuits>`__ organization page on
-GitHub. Note that the legacy version of the package was hosted on the
-lead developer, ananswam's account and is not actively maintained. Use
-the
-`biocircuits/bioscrape <https://github.com/biocircuits/bioscrape/>`__
-for all purposes. For more information on getting started with the
+GitHub. For more information on getting started with the
 package, refer to the README file on the `home
 page <https://github.com/biocircuits/bioscrape/>`__ and the tutorial
 style example jupyter notebooks under the
@@ -24,8 +20,7 @@ To get started, set up your Bioscrape fork under your account on Github
 - `raise an
 issue <https://github.com/biocircuits/bioscrape/issues/new>`__ if you
 are not sure how to set it up. All contributions to Bioscrape should be
-made as a Github pull request to the **dev** branch
-`here <https://github.com/biocircuits/bioscrape/tree/dev>`__.
+made as a Github pull request.
 
 Reporting Bugs/Asking for help
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -63,9 +58,9 @@ your pull requests using the following ways:
 -  If your pull request is adding a new feature to the package, we also
    highly recommend a jupyter notebook example that goes along with that
    feature that discusses the use case.
--  Please follow the AI Policy of NumPy_ when writing issues and 
-   pull requests.
-.. _AI Policy of NumPy: https://numpy.org/doc/stable/dev/ai_policy.html
+-  Please follow the AI Policy of 
+   `NumPy <https://numpy.org/doc/stable/dev/ai_policy.html>`__ 
+   when writing issues and pull requests.
 
 Styleguides
 -----------

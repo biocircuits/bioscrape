@@ -134,7 +134,8 @@ def test_basic_inference(model_setup):
     prior = {'m' : ['gaussian', m_true, 500],'b' : ['gaussian', b_true, 1000]}
     sampler, pid = py_inference(Model = M, exp_data = exp_data, measurements = ['y'],
                         time_column = ['x'], params_to_estimate = ['m','b'],
-                        nwalkers = 32, nsteps = 2000, discard = 100, init_seed = 1e-4, prior = prior,
+                        nwalkers = 32, nsteps = 2000, discard = 100,
+                        init_seed = 1e-4, prior = prior,
                         sim_type = 'deterministic', plot_show = False)
     assert(isinstance(sampler, EnsembleSampler) == True)
     assert(isinstance(pid, InferenceSetup) == True)
@@ -325,9 +326,10 @@ def test_multiple_parameter_conditions_inference(birth_death_process_params):
     prior = {'k1' : ['uniform', 0, 100]}
     sampler, pid = py_inference(Model = M, exp_data = exp_data, measurements = ['X'], time_column = ['timepoints'],
                                 parameter_conditions = parameter_condition_list,
-                                nwalkers = 5, init_seed = 0.15, nsteps = 2000, sim_type = 'deterministic',
+                                nwalkers = 5, init_seed = 0.15, nsteps = 2000,
+                                sim_type = 'deterministic',
                                 convergence_check = True,
-                                params_to_estimate = ['k1'], prior = prior)
+                                params_to_estimate = ['k1'], prior = prior, plot_show = False)
     assert(isinstance(sampler, EnsembleSampler) == True)
     assert(isinstance(pid, InferenceSetup) == True)
     assert np.array(sampler.get_autocorr_time())[0] < 50 
@@ -349,8 +351,10 @@ def test_multiple_conditions_inference(birth_death_process):
     prior = {'d1' : ['uniform', 0.1, 10], 'k1' : ['uniform',0,100], 'KR' : ['uniform',0,100], 'k2':['uniform', 0, 100]}
     sampler, pid = py_inference(Model = M, exp_data = exp_data, measurements = ['X','Y'], time_column = ['timepoints'],
                                 initial_conditions = initial_condition_list,
-                                nwalkers = 8, init_seed = 0.15, nsteps = 100, sim_type = 'deterministic', discard = 10,
-                                params_to_estimate = ['d1','k1','KR', 'k2'], prior = prior, convergence_check = False)
+                                nwalkers = 8, init_seed = 0.15, nsteps = 100,
+                                sim_type = 'deterministic', discard = 10,
+                                params_to_estimate = ['d1','k1','KR', 'k2'],
+                                prior = prior, convergence_check = False, plot_show = False)
     assert(isinstance(sampler, EnsembleSampler) == True)
     assert(isinstance(pid, InferenceSetup) == True)
     # Takes a long time to run the test if convergence is also checked
@@ -380,8 +384,10 @@ def test_stochastic_inference(birth_death_process):
     prior = {'d1' : ['uniform', 0.1, 10], 'k1' : ['uniform',0,100], 'KR' : ['uniform',0,100], 'k2':['uniform', 0, 100]}
     sampler, pid = py_inference(Model = M, exp_data = exp_data, measurements = ['X','Y'], time_column = ['timepoints'],
                                 initial_conditions = initial_condition_list,
-                                nwalkers = 10, init_seed = np.array([0.1,50,20,0.5]), nsteps = 100, sim_type = 'stochastic', discard = 10,
-                                params_to_estimate = ['d1','k1','KR', 'k2'], prior = prior, debug=False)
+                                nwalkers = 10, init_seed = np.array([0.1,50,20,0.5]),
+                                nsteps = 100, sim_type = 'stochastic', discard = 10,
+                                params_to_estimate = ['d1','k1','KR', 'k2'],
+                                prior = prior, debug=False, plot_show = False)
     assert(isinstance(sampler, EnsembleSampler) == True)
     assert(isinstance(pid, InferenceSetup) == True)
 
