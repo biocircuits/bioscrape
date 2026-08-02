@@ -3,7 +3,7 @@ Bioscrape Inference
 
 Bioscrape can be used to run Bayesian parameter inference. To get
 started, make sure you have Python ``emcee`` package installed in your
-environment. ```emcee`` <https://emcee.readthedocs.io/en/stable/>`__ is
+environment. `emcee <https://emcee.readthedocs.io/en/stable/>`__ is
 an implementation of a Markov chain Monte Carlo (MCMC) method that can
 be used for parameter estimation.
 
@@ -38,8 +38,8 @@ Inference Setup
 Priors
 ~~~~~~
 
-All prior types can be set to a inference object by using ``set_prior``
-function or in your ``py_inference`` function call in the ``prior``
+All prior types can be set to a inference object by using `set_prior`
+function or in your `py_inference` function call in the ``prior``
 keyword argument. The expected signature is as follows (a dictionary
 with keys as parameter names and a list that gives the parameters for
 different prior types)
