@@ -1,15 +1,39 @@
 version: 2
 
+# Set the OS, Python version, and other tools you might need
+#
+# bioscrape's public API is implemented in Cython, so autodoc needs to
+# be able to `import bioscrape` -- unlike a pure-Python package, this
+# means the package itself must be built/installed (not just the
+# Sphinx toolchain) before the docs can be built.  That install is
+# done below via a `post_install` job rather than the declarative
+# `python.install` section, so that we can set the
+# BIOSCRAPE_BUILD_LINEAGE environment variable on that one command --
+# see the comment above the job for why.
 build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
+  jobs:
+    post_install:
+      # A plain `pip install bioscrape` does NOT build the optional
+      # `bioscrape.lineage` extension (it's excluded from the default
+      # install because it isn't as well maintained as the rest of
+      # the package -- see setup.py). The docs reference
+      # bioscrape.lineage (docs/api/optional_lineage.rst,
+      # docs/user_guide/lineage_package.rst), though, so this build
+      # needs it. Setting BIOSCRAPE_BUILD_LINEAGE=1 tells setup.py to
+      # build the lineage extension for this install only -- it has
+      # no effect on what PyPI users get from a normal `pip install
+      # bioscrape`.
+      - BIOSCRAPE_BUILD_LINEAGE=1 pip install .
 
 sphinx:
   configuration: docs/conf.py
 
+# Install the Sphinx toolchain declaratively; the bioscrape package
+# itself is installed above in build.jobs.post_install instead (see
+# comment there).
 python:
   install:
     - requirements: docs/requirements.txt
-    - method: pip
-      path: .
