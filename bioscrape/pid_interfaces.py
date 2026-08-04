@@ -809,7 +809,9 @@ class LMFitInference(PIDInterface):
             self.M.set_species(initial_conditions)
             if parameter_conditions is not None:
                 self.M.set_params(parameter_conditions)
-            model_sim = py_simulate_model(timepoints, self.M, stochastic = stochastic)
+            model_sim = py_simulate_model(timepoints, self.M,
+                                          stochastic = stochastic,
+                                          delay = self.M.has_delays())
             residual_value = np.zeros(len(timepoints))
             measurements_counter = 0
             for species in measurements:

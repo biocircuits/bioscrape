@@ -64,6 +64,16 @@ try:
         install_lineage = True
         sys.argv.remove("lineage")
 
+    # Also allow the lineage extension to be requested via an
+    # environment variable, since `pip install .` invokes this file
+    # through a build backend rather than as `python setup.py install
+    # lineage`, so sys.argv never contains "lineage" in that case.
+    # This is used by the Read the Docs build (see .readthedocs.yaml)
+    # so that bioscrape.lineage can be documented, without changing
+    # what a normal `pip install bioscrape` builds.
+    if os.environ.get("BIOSCRAPE_BUILD_LINEAGE") == "1":
+        install_lineage = True
+
     # elif "bioscrape" not in sys.argv:
     #     install_lineage = False
 

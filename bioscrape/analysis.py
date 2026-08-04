@@ -411,3 +411,4 @@ class SensitivityAnalysis(Model):
             for i in range(n):
                 SSM_normalized[:,j,i] = np.divide(SSM[:,j,i]*params_values[j], solutions[:,i]) 
         return SSM_normalized
+

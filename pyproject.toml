@@ -17,10 +17,6 @@ classifiers=[
         'Programming Language :: Cython',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
-        'Programming Language :: Python :: 3.10',
         'Topic :: Software Development',
         'Topic :: Scientific/Engineering',
         'Operating System :: OS Independent',
@@ -31,11 +27,10 @@ keywords=["SBML", "synthetic biology", "modeling",
           "Chemical Reaction Network", "CRN simulator", "stochastic",
           "parameter inference"]
 dependencies = [
-    "numpy",
+    "numpy>=1.16.5",
     "matplotlib",
     "pytest",
     "scipy>=1.5.4",
-    "numpy>=1.16.5, <2",
     "cython",
     "python-libsbml",
     "beautifulsoup4",
@@ -45,7 +40,7 @@ dependencies = [
     "corner",
     "lmfit"
 ]
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 
 [project.optional-dependencies]
 test = [
