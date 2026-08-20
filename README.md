@@ -102,7 +102,7 @@ will help you make the PR if you are new to `git` (just ask on the issue). The [
 
 Bioscrape versions:
 
-* 1.4.0 (latest release): To install run `pip install bioscrape` 
+* 1.4.1 (latest release): To install run `pip install bioscrape` 
 * 1.2.2 (tagged stable release): To install run `pip install bioscrape==1.2.2`
 * 1.0.4 (beta release): To install run `pip install bioscrape==1.0.4`
 
