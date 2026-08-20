@@ -26,4 +26,6 @@ jobs:
     - name: Test bioscrape with pytest
       run: pytest
     - name: install lineage
-      run: python setup.py install lineage
+      env:
+        BIOSCRAPE_BUILD_LINEAGE: "1"
+      run: pip install .
