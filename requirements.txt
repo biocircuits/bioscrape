@@ -1,7 +1,7 @@
 setuptools
 matplotlib
 pytest
-numpy>=1.16.5, <2
+numpy>=1.16.5
 scipy>=1.5.4
 Cython
 python-libsbml
