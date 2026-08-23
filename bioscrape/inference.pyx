@@ -223,7 +223,7 @@ cdef class Data():
         list of str
             The measured species names.
         """
-        return self.get_measured_species
+        return self.get_measured_species()
 
 #Data consists of a single timecourse at T points gathered across M measurements at timempoints timepoints.
 #Measurements are assumed to correspond to species names in measured_species.
@@ -824,7 +824,17 @@ cdef class DeterministicLikelihood(ModelLikelihood):
         self.hmax = hmax
         self.propagator.py_set_hmax(hmax)
 
-    
+    def py_get_hmax(self):
+        """
+        The integrator's maximum step size.
+
+        Returns
+        -------
+        float
+            The value set by `py_set_hmax`.
+        """
+        return self.hmax
+
 
     cdef double get_log_likelihood(self):
         # Write in the specific parameters and species values.
@@ -905,10 +915,9 @@ cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
         """
         if prop is None:
             if m.has_delay:
-                prop_delay = DelaySSASimulator()
+                if prop_delay is None:
+                    prop_delay = DelaySSASimulator()
                 self.has_delay = True
-                self.propagator_delay = prop_delay
-                prop = None
             else:
                 prop = SSASimulator()
                 self.has_delay = False
@@ -1131,7 +1140,8 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
             csim = ModelCSimInterface(m)
         if prop is None:
             if m.has_delay:
-                prop_delay = DelaySSASimulator()
+                if prop_delay is None:
+                    prop_delay = DelaySSASimulator()
                 self.has_delay = True
                 self.propagator_delay = prop_delay
             else:

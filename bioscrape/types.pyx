@@ -3148,13 +3148,6 @@ cdef class Model:
         """
         return self.params2index.keys()
 
-    def get_species(self):
-        """
-        Get the set of parameter names.
-        :return: (dict_keys str) the parameter names
-        """
-        return self.species2index.keys()
-
     def get_number_of_params(self):
         """Return the number of parameters in the model."""
         return len(self.params2index.keys())
@@ -3757,7 +3750,7 @@ cdef class Schnitz:
 
         except ModuleNotFoundError:
             warnings.warn("py_get_dataframe requires the pandas Module to return a Pandas Dataframe object. Numpy array being returned instead.")
-            return self.py_get_result()
+            return self.py_get_data()
 
     def py_get_parent(self):
         """Return the parent cell's Schnitz, or None."""

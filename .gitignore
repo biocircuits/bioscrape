@@ -60,6 +60,8 @@ nosetests.xml
 coverage.xml
 *,cover
 .hypothesis/
+tests/temp/*
+!tests/temp/.gitkeep
 
 # Translations
 *.mo

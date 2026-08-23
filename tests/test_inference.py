@@ -8,7 +8,7 @@ import pandas as pd
 
 from bioscrape.types import Model
 from bioscrape.simulator import py_simulate_model
-from bioscrape.inference import py_inference
+from bioscrape.inference import py_inference, Data, StochasticTrajectories, StochasticTrajectoriesLikelihood
 from bioscrape.inference_setup import InferenceSetup
 from bioscrape.pid_interfaces import PIDInterface
 from emcee import EnsembleSampler
@@ -32,6 +32,46 @@ def model_setup():
     M = Model(species = species, parameters = parameters, rules = [rule], initial_condition_dict = x0)
     params_to_estimate = ['m','b']
     return M, params_to_estimate
+
+def test_data_py_get_methods():
+    timepoints = np.linspace(0, 10, 5)
+    measurements = np.random.rand(5, 2)
+    measured_species = ['A', 'B']
+    data = Data(timepoints = timepoints, measurements = measurements,
+                measured_species = measured_species, N = 1)
+
+    assert np.array_equal(data.py_get_timepoints(), timepoints)
+    assert np.array_equal(data.py_get_measurements(), measurements)
+    assert data.py_get_measured_species() == measured_species
+
+#This test confirms that StochasticTrajectoriesLikelihood auto-creates
+#  a DelaySSASimulator when a delayed model is used without an
+#  explicit prop_delay. It previously assigned the auto-created
+#  DelaySSASimulator to the wrong variable (immediately discarding
+#  it), and separately the value it did assign to
+#  self.propagator_delay was clobbered right after by
+#  ModelLikelihood.set_model's own (unpassed, defaulted to None)
+#  prop_delay parameter -- so self.propagator_delay ended up None,
+#  and py_log_likelihood raised AttributeError.
+def test_stochastic_trajectories_likelihood_delay():
+    species = ["A", "B"]
+    x0 = {"A": 10, "B": 0}
+    rxn = (["A"], [], "massaction", {"k": 1.0}, "fixed", [], ["B"],
+           {"delay": 1.0})
+    M = Model(species = species, reactions = [rxn],
+              initial_condition_dict = x0)
+    assert M.has_delays()
+
+    timepoints = np.linspace(0, 5, 6)
+    measured_species = ["A", "B"]
+    measurements = np.random.rand(1, len(timepoints), len(measured_species))
+    data = StochasticTrajectories(timepoints, measurements,
+                                   measured_species, 1)
+
+    LL = StochasticTrajectoriesLikelihood(model = M, init_state = x0,
+                                           data = data, N_simulations = 1)
+    ll = LL.py_log_likelihood()
+    assert np.isfinite(ll)
 
 def test_getstate(model_setup):
     M, params_to_estimate = model_setup
@@ -78,7 +118,7 @@ def test_setstate(model_setup):
     timepoints = None
 
     state = (
-        M, params_to_estimate, .11, None, 11, 111, 2, exp_data, 'stochastic', 'lmfit', 
+        M, params_to_estimate, .11, None, 11, 111, 2, exp_data, 'stochastic', 'lmfit',
         timepoints, 'T', ['y'], init_conds, None, 1, 11, None, True, None, None, 1.0, False
         )
 
@@ -109,6 +149,28 @@ def test_setstate(model_setup):
     assert state[20] == IS.cost_params
     assert state[21] == IS.hmax
     assert state[22] == IS.parallel
+
+#This test confirms that an hmax passed to the InferenceSetup
+#  constructor actually takes effect. self.hmax was previously stored
+#  at construction (and pickled) but never merged into the kwargs
+#  forwarded to setup_cost_function/DeterministicInference, so it was
+#  silently ignored unless hmax was passed again directly to
+#  run_mcmc/run_emcee -- setup_cost_function now injects self.hmax as
+#  a kwargs default so the constructor-time value is honored.
+def test_constructor_hmax_takes_effect(model_setup):
+    M, params_to_estimate = model_setup
+
+    exp_data = pd.DataFrame()
+    exp_data['t'] = np.linspace(0, 10, 50)
+    exp_data['y'] = np.linspace(0, 10, 50)
+
+    IS = InferenceSetup(Model = M, params_to_estimate = params_to_estimate,
+                        exp_data = exp_data, measurements = ['y'],
+                        time_column = 't', sim_type = 'deterministic',
+                        initial_conditions = dict(M.get_species_dictionary()),
+                        hmax = 0.25)
+
+    assert IS.pid_interface.LL_det.py_get_hmax() == 0.25
 
 def test_basic_inference(model_setup):
     M, _ = model_setup

@@ -178,8 +178,8 @@ class PIDInterface():
         # Using probability density function for normal distribution
         # Using scipy.stats.norm has overhead that affects speed up to 2x
         prob = 1/(np.sqrt(2*np.pi) * sigma) * np.exp(-0.5*(param_value - mu)**2/sigma**2)
-        if prob < 0:
-            warnings.warn('Probability less than 0 while checking Gaussian prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+        if not np.isfinite(prob) or prob <= 0:
+            warnings.warn('Invalid probability (non-positive or non-finite) while checking Gaussian prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
         else:
             return np.log(prob)
@@ -213,10 +213,12 @@ class PIDInterface():
         if prior_dict is None:
             raise ValueError('No prior found')
         lambda_p = prior_dict[param_name][1]
+        if lambda_p <= 0:
+            raise ValueError('The rate parameter must be positive.')
 
         prob = lambda_p * np.exp(-lambda_p * param_value)
-        if prob < 0:
-            warnings.warn('Probability less than 0 while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+        if not np.isfinite(prob) or prob <= 0:
+            warnings.warn('Invalid probability (non-positive or non-finite) while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
         else:
             return np.log(prob)
@@ -251,10 +253,12 @@ class PIDInterface():
             raise ValueError('No prior found')
         alpha = prior_dict[param_name][1]
         beta = prior_dict[param_name][2]
+        if alpha <= 0 or beta <= 0:
+            raise ValueError('The shape and rate parameters must be positive.')
         from scipy.special import gamma
         prob = (beta**alpha)/gamma(alpha) * param_value**(alpha - 1) * np.exp(-1 * beta*param_value)
-        if prob < 0:
-            warnings.warn('Probability less than 0 while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+        if not np.isfinite(prob) or prob <= 0:
+            warnings.warn('Invalid probability (non-positive or non-finite) while checking Gamma prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
         else:
             return np.log(prob)
@@ -289,10 +293,12 @@ class PIDInterface():
             raise ValueError('No prior found')
         alpha = prior_dict[param_name][1]
         beta = prior_dict[param_name][2]
+        if alpha <= 0 or beta <= 0:
+            raise ValueError('The alpha and beta shape parameters must be positive.')
         from scipy import special
         prob = (param_value**(alpha-1) * (1 - param_value)**(beta - 1) )/special.beta(alpha, beta)
-        if prob < 0:
-            warnings.warn('Probability less than 0 while checking Exponential prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+        if not np.isfinite(prob) or prob <= 0:
+            warnings.warn('Invalid probability (non-positive or non-finite) while checking Beta prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
         else:
             return np.log(prob)
@@ -335,8 +341,8 @@ class PIDInterface():
             return np.inf
 
         prob = 1/(param_value* (np.log(upper_bound) - np.log(lower_bound)))
-        if prob < 0:
-            warnings.warn('Probability less than 0 while checking Log-Uniform prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+        if not np.isfinite(prob) or prob <= 0:
+            warnings.warn('Invalid probability (non-positive or non-finite) while checking Log-Uniform prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
         else:
             return np.log(prob)
@@ -374,8 +380,8 @@ class PIDInterface():
             raise ValueError('The standard deviation must be positive.')
         # Using probability density function for log-normal distribution
         prob = 1/(param_value * np.sqrt(2*np.pi) * sigma) * np.exp((-0.5 * (np.log(param_value) - mu)**2)/sigma**2)
-        if prob < 0:
-            warnings.warn('Probability less than 0 while checking log-normal prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
+        if not np.isfinite(prob) or prob <= 0:
+            warnings.warn('Invalid probability (non-positive or non-finite) while checking log-normal prior! Current parameter name and value: {0}:{1}.'.format(param_name, param_value))
             return np.inf
         else:
             return np.log(prob)

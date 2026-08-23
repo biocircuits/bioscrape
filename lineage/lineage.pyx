@@ -801,23 +801,18 @@ cdef class LineageModel(Model):
 		`(name, value)` pairs, or a dict, giving initial parameter
 		values.
 	rules : list of tuple, default []
-		Rule tuples `(rule_type, rule_attributes)`. Volume/division/
-		death rule types are routed to `create_volume_rule`/
-		`create_division_rule`/`create_death_rule`; other types go
-		to the base `~bioscrape.types.Model`. Only recognized when
-		`rule_type` itself contains the word 'volume',
-		'division', or 'death' (e.g.
-		'linearvolumerule', not the short form 'linear'),
-		and division rules are not currently usable this way at all
-		(no way to supply a `VolumeSplitter`) -- prefer
-		`create_volume_rule`/`create_division_rule`/
-		`create_death_rule` instead.
-		TODO: this paragraph describes a known routing bug
-		(see task_03993410); update or remove it once fixed.
+		Rule tuples `(rule_type, rule_attributes)`. Volume/death rule
+		types (short-form aliases like 'linear' or 'species' are
+		recognized, not just fully-qualified names like
+		'linearvolumerule') are routed to `create_volume_rule`/
+		`create_death_rule`; other types go to the base
+		`~bioscrape.types.Model`. Division rule types are recognized
+		but not currently usable this way (no way to supply a
+		`VolumeSplitter`) -- prefer `create_division_rule` instead.
 	events : list of tuple, default []
 		Event tuples `(event_type, event_params,
 		event_propensity_type, propensity_params)`. Routed like
-		`rules`, with the same limitations -- prefer
+		`rules`, with the same division limitation -- prefer
 		`create_volume_event`/`create_division_event`/
 		`create_death_event` instead.
 	sbml_filename : str, optional
@@ -913,9 +908,7 @@ cdef class LineageModel(Model):
 			elif len(rule) == 3:
 				rule_type, rule_attributes, rule_frequency = rule
 
-			if not ("Volume" in rule_type or "volume" in rule_type or
-				"Death" in rule_type or "death" in rule_type or
-				"Division" in rule_type or "division" in rule_type):
+			if self._classify_lineage_rule_type(rule_type) is None:
 				original_rules.append(rule)
 
 
@@ -930,11 +923,12 @@ cdef class LineageModel(Model):
 			elif len(rule) == 3:
 				rule_type, rule_attributes, rule_frequency = rule
 
-			if "Volume" in rule_type or "volume" in rule_type:
+			rule_category = self._classify_lineage_rule_type(rule_type)
+			if rule_category == "volume":
 				self.create_volume_rule(rule_type, rule_attributes)
-			elif "Death" in rule_type or "death" in rule_type:
+			elif rule_category == "death":
 				self.create_death_rule(rule_type, rule_attributes)
-			elif "Division" in rule_type or "division" in rule_type:
+			elif rule_category == "division":
 				self.create_division_rule(rule_type, rule_attributes)
 
 		for event in events:
@@ -942,11 +936,12 @@ cdef class LineageModel(Model):
 				event_type, event_params, event_propensity, propensity_params = event
 			else:
 				raise ValueError("Events must be tuples: (event_type (str), event_params (dict), event_propensity (str), propensity_params (dict)).")
-			if "Volume" in event_type or "volume" in event_type:
+			event_category = self._classify_lineage_event_type(event_type)
+			if event_category == "volume":
 				self.create_volume_event(event_type, event_params, event_propensity, propensity_params)
-			elif "Death" in event_type or "death" in event_type:
+			elif event_category == "death":
 				self.create_death_event(event_type, event_params, event_propensity, propensity_params)
-			elif "Division" in event_type or "division" in event_type:
+			elif event_category == "division":
 				self.create_division_event(event_type, event_params, event_propensity, propensity_params)
 			else:
 				raise ValueError("Unknown Event Type:", event_type)
@@ -954,6 +949,75 @@ cdef class LineageModel(Model):
 		if initialize_model:
 			self._initialize()
 
+	def _classify_lineage_rule_type(self, str rule_type):
+		"""
+		Return 'volume', 'death', 'division', or None for a rule_type
+		string, based on the short-form aliases actually recognized by
+		create_volume_rule/create_death_rule/create_division_rule (so
+		e.g. 'deltaV'/'linear'/'species' route correctly, not just
+		fully-qualified names like 'linearvolumerule'). Falls back to
+		substring matching on 'volume'/'death'/'division' for any
+		other/custom rule_type string, preserving prior behavior.
+		Bare 'general' is intentionally excluded -- it is ambiguous
+		between GeneralDeathRule and GeneralDivisionRule; use the
+		fully-qualified name ('generaldeathrule'/'generaldivisionrule')
+		or call create_death_rule/create_division_rule directly.
+		"""
+		rt = rule_type.lower()
+		if rt in ("linear", "linearvolumerule", "multiplicative",
+				  "multiplicativevolume", "multiplicativevolumerule",
+				  "assignment", "assignmentvolumerule", "ode",
+				  "odevolumerule"):
+			return "volume"
+		elif rt in ("species", "speciesdeathrule", "param", "parameter",
+					"paramdeathrule", "generaldeathrule"):
+			return "death"
+		elif rt in ("time", "timedivisionrule", "volume",
+					"volumedivisionrule", "delta", "deltav",
+					"deltavdivisionrule", "generaldivisionrule"):
+			return "division"
+		elif "volume" in rt:
+			return "volume"
+		elif "death" in rt:
+			return "death"
+		elif "division" in rt:
+			return "division"
+		else:
+			return None
+
+	def _classify_lineage_event_type(self, str event_type):
+		"""
+		Return 'volume', 'death', 'division', or None for an
+		event_type string, based on the short-form aliases actually
+		recognized by create_volume_event/create_death_event/
+		create_division_event. Falls back to substring matching on
+		'volume'/'death'/'division', preserving prior behavior. The
+		generic '' and 'default' aliases are intentionally excluded --
+		they are ambiguous across all three event categories; use a
+		qualified event_type or call the create_*_event methods
+		directly.
+		"""
+		et = event_type.lower()
+		if et in ("linear", "linear volume", "linearvolume",
+				  "linearvolumeevent", "linear volume event",
+				  "multiplicative", "multiplicative volume",
+				  "multiplicativevolume", "multiplicativevolumeevent",
+				  "multiplicative volume event", "general",
+				  "general volume", "generalvolume",
+				  "generalvolumeevent", "general volume event"):
+			return "volume"
+		elif et in ("death", "deathevent", "death event"):
+			return "death"
+		elif et in ("division", "divisionevent", "division event"):
+			return "division"
+		elif "volume" in et:
+			return "volume"
+		elif "death" in et:
+			return "death"
+		elif "division" in et:
+			return "division"
+		else:
+			return None
 
 	def _create_vectors(self):
 		#Create c-vectors of different objects
@@ -1216,7 +1280,7 @@ cdef class LineageModel(Model):
 			warnings.warn("Creating New Volume event\n\ttype="+event_type+"\n\tparams="+str(event_params)+"\n\tprop_type="+str(event_propensity_type)+"\n\tprop_params="+str(propensity_params))
 		prop_object = self.create_propensity(event_propensity_type, propensity_params, input_printout = print_out)
 
-		if event_type.lower() in ["linear", "linear volume", "linearvolume" "linearvolumeevent", "linear volume event"]:
+		if event_type.lower() in ["linear", "linear volume", "linearvolume", "linearvolumeevent", "linear volume event"]:
 			self._param_dict_check(event_params, "growth_rate", "DummyVar_LinearVolumeEvent")
 			event_object = LinearVolumeEvent()
 		elif event_type.lower() in ["multiplicative", "multiplicative volume", "multiplicativevolume", "multiplicativevolumeevent", "multiplicative volume event"]:
@@ -1309,7 +1373,7 @@ cdef class LineageModel(Model):
 			if "noise" in rule_param_dict:
 				self._param_dict_check(rule_param_dict, "noise", "DummyVar_ParamDeathRule")
 			rule_object = ParamDeathRule()
-		elif rule_type.lower() in ["general" "generaldeathrule"]:
+		elif rule_type.lower() in ["general", "generaldeathrule"]:
 			rule_object = GeneralDeathRule()
 		else:
 			raise ValueError("Unknown DeathRule type: "+str(rule_type))
@@ -2080,9 +2144,9 @@ cdef class LineageVolumeSplitter(VolumeSplitter):
 
 	def __init__(self, Model M, options = {}, custom_partition_functions = {}, partition_noise = .5):
 		"""See class docstring."""
-		self.ind2customsplitter == {}
+		self.ind2customsplitter = {}
 		self.custom_partition_functions = custom_partition_functions
-		if self.partition_noise > 1:
+		if partition_noise > 1 or partition_noise < 0:
 			raise ValueError("Partition Noise must be between 0 and 1")
 		self.partition_noise = partition_noise
 
@@ -2100,20 +2164,21 @@ cdef class LineageVolumeSplitter(VolumeSplitter):
 			raise ValueError("Custom partition function key, "+str(options["default"])+", for 'default' not in custom_partition_functions")
 
 		#Figure out how volume will be split
-		if ("volume" not in options and default == "binomial") or options["volume"] == "binomial":
+		volume_option = options["volume"] if "volume" in options else default
+		if volume_option == "binomial":
 			self.how_to_split_v = 0
-		elif ("volume" not in options and default == "duplicate") or options["volume"] == "duplicate":
+		elif volume_option == "duplicate":
 			self.how_to_split_v = 1
-		elif ("volume" not in options and default == "perfect") or options["volume"] == "perfect":
+		elif volume_option == "perfect":
 			self.how_to_split_v = 2
-		elif ("volume" not in options and default == "custom") or options["volume"] in custom_partition_functions:
+		elif volume_option == "custom" or volume_option in custom_partition_functions:
 			self.how_to_split_v = 3
 			if "volume" in options:
 				self.ind2customsplitter["volume"] = options["volume"]
 			else:
 				self.ind2customsplitter["volume"] = options["default"]
 		else:
-			raise ValueError("Custom partition function key, "+str(options["volume"])+", for 'volume' not in custom_partition_functions")
+			raise ValueError("Custom partition function key, "+str(volume_option)+", for 'volume' not in custom_partition_functions")
 
 		#Figure out how other species are split
 		for s in M.get_species2index():
@@ -2485,7 +2550,7 @@ cdef class LineageSSASimulator:
 
 	#Sets the internal interface and associated internal variables
 	#Main speed-up due to not having to set c_stoic (which could be very large) as often
-	cdef void intialize_single_cell_interface(self, LineageCSimInterface interface):
+	cdef void initialize_single_cell_interface(self, LineageCSimInterface interface):
 		#Reset internal variables
 		self.interface = interface
 
@@ -2871,7 +2936,7 @@ cdef class LineageSSASimulator:
 			v = LineageVolumeCellState(v0 = 1, t0 = 0, state = Model.get_species_array())
 
 		self.set_c_truncated_timepoints(timepoints)
-		self.intialize_single_cell_interface(interface)
+		self.initialize_single_cell_interface(interface)
 
 		return self.SimulateSingleCell(v, self.c_truncated_timepoints, 1)#The 1 indicates that trajectory results will be saved to memory
 
@@ -3070,7 +3135,7 @@ cdef class LineageSSASimulator:
 		self.old_cell_states = []
 		self.old_schnitzes = []
 		self.set_c_timepoints(timepoints)
-		self.intialize_single_cell_interface(interface)
+		self.initialize_single_cell_interface(interface)
 		return self.SimulateCellLineage(initial_cell_states, self.c_timepoints)
 
 
@@ -3314,7 +3379,7 @@ cdef class LineageSSASimulator:
 		"""
 		self.cell_states = []
 		self.set_c_timepoints(timepoints)
-		self.intialize_single_cell_interface(interface)
+		self.initialize_single_cell_interface(interface)
 		self.initialize_single_cell_results_arrays(timepoints.shape[0])
 		return self.SimulateTurbidostat(initial_cell_states, timepoints, sample_times, population_cap, debug)
 
@@ -3350,7 +3415,7 @@ cdef class LineageSSASimulator:
 		self.cell_states = []
 		self.old_cell_states = []
 		self.set_c_timepoints(timepoints)
-		self.intialize_single_cell_interface(interface)
+		self.initialize_single_cell_interface(interface)
 		self.initialize_single_cell_results_arrays(timepoints.shape[0])
 		return self.PropagateCells(initial_cell_states, timepoints, sample_times, include_dead_cells)
 
@@ -3424,7 +3489,7 @@ cdef class LineageSSASimulator:
 			up to its death or the final timepoint.
 		"""
 		self.set_c_timepoints(timepoints)
-		self.intialize_single_cell_interface(interface)
+		self.initialize_single_cell_interface(interface)
 		return self.SingleCellLineage(initial_cell, timepoints)
 
 
@@ -3706,6 +3771,10 @@ def py_SimulateSingleCell(timepoints, Model = None, interface = None, initial_ce
 
 	if initial_cell_state == None:
 		v = LineageVolumeCellState(v0 = 1, t0 = 0, state = interface.py_get_initial_state())
+	elif not isinstance(initial_cell_state, LineageVolumeCellState):
+		raise ValueError("initial_cell_state must be of type LineageVolumeCellState or None (in which case it will default to the Model's initial state).")
+	else:
+		v = initial_cell_state
 
 	result = simulator.py_SimulateSingleCell(timepoints, Model = Model, interface = interface, v = v)
 
@@ -3978,7 +4047,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 		else:
 			raise ValueError("set_global_interface requires as ModelCSimInterface")
 
-		global_species_global_crn_inds.astype(np.int, copy = False)
+		global_species_global_crn_inds = global_species_global_crn_inds.astype(np.int32, copy = False)
 		self.global_species_global_crn_inds = global_species_global_crn_inds
 
 		#instantiate VSR to store results
@@ -3996,7 +4065,7 @@ cdef class InteractingLineageSSASimulator(LineageSSASimulator):
 	#Initializes a new interface and sets all internal variables such as lineage and cell_lists appropriately
 	cdef void switch_interface(self, unsigned interface_ind, create_schnitzes):
 		#print("switch_interface", interface_ind)
-		self.intialize_single_cell_interface(self.interface_list[interface_ind])
+		self.initialize_single_cell_interface(self.interface_list[interface_ind])
 
 		self.old_cell_states = self.old_cell_state_list[interface_ind]
 		self.new_cell_states = self.new_cell_state_list[interface_ind]
