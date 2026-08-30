@@ -154,7 +154,6 @@ class InferenceSetup(object):
         self.hmax = kwargs.get('hmax', None)
         self.parallel = kwargs.get('parallel', False)
         self.custom_joint_prior = kwargs.get("custom_joint_prior", None)
-        print("Received parallel as", self.parallel)
         if self.exp_data is not None:
             self.prepare_inference()
             self.setup_cost_function()
@@ -1070,7 +1069,7 @@ class InferenceSetup(object):
             fname_csv = kwargs.get('results_filename', 'mcmc_results.csv')
         fname_txt = kwargs.get('filename_txt', 'mcmc_results.txt')
         printout = kwargs.get('printout', True)
-
+        n_processes = kwargs.get("n_processes", None)
         try:
             import emcee
         except:
@@ -1081,8 +1080,13 @@ class InferenceSetup(object):
         if self.parallel:
             try:
                 import multiprocessing
-                pool = multiprocessing.Pool()
-                if printout: print("Using {} cores for parallelization".format(multiprocessing.cpu_count()))
+                if n_processes is None:
+                    n_processes = multiprocessing.cpu_count()
+
+                pool = multiprocessing.Pool(processes=n_processes)
+
+                if printout:
+                    print("Using {} processes for parallelization".format(n_processes))
             except:
                 pool = None
                 raise ImportError('multiprocessing package not found. \
