@@ -153,7 +153,7 @@ class InferenceSetup(object):
         self.cost_params = []
         self.hmax = kwargs.get('hmax', None)
         self.parallel = kwargs.get('parallel', False)
-        print("Received parallel as", self.parallel)
+        self.custom_joint_prior = kwargs.get("custom_joint_prior", None)
         if self.exp_data is not None:
             self.prepare_inference()
             self.setup_cost_function()
@@ -185,7 +185,8 @@ class InferenceSetup(object):
             self.cost_progress,
             self.cost_params,
             self.hmax,
-            self.parallel
+            self.parallel,
+            self.custom_joint_prior
             )
 
     def __setstate__(self, state):
@@ -213,6 +214,7 @@ class InferenceSetup(object):
         self.cost_params = state[20]
         self.hmax = state[21]
         self.parallel = state[22]
+        self.custom_joint_prior = state[23]
         if self.exp_data is not None:
             self.prepare_inference()
             self.setup_cost_function()
@@ -887,6 +889,7 @@ class InferenceSetup(object):
         if self.hmax is not None:
             kwargs.setdefault('hmax', self.hmax)
         if self.sim_type == 'stochastic':
+            kwargs.setdefault("custom_joint_prior", self.custom_joint_prior)
             self.pid_interface = StochasticInference(self.params_to_estimate, self.M, self.prior, **kwargs)
             self.pid_interface.setup_likelihood_function(self.LL_data, self.timepoints, self.measurements,
                                                          initial_conditions=self.initial_conditions,
@@ -894,6 +897,7 @@ class InferenceSetup(object):
                                                          norm_order = self.norm_order,
                                                          N_simulations = self.N_simulations, **kwargs)
         elif self.sim_type == 'deterministic':
+            kwargs.setdefault("custom_joint_prior", self.custom_joint_prior)
             self.pid_interface = DeterministicInference(self.params_to_estimate, self.M, self.prior, **kwargs)
             self.pid_interface.setup_likelihood_function(self.LL_data, self.timepoints, self.measurements,
                                                          initial_conditions=self.initial_conditions,
@@ -1065,7 +1069,7 @@ class InferenceSetup(object):
             fname_csv = kwargs.get('results_filename', 'mcmc_results.csv')
         fname_txt = kwargs.get('filename_txt', 'mcmc_results.txt')
         printout = kwargs.get('printout', True)
-
+        n_processes = kwargs.get("n_processes", None)
         try:
             import emcee
         except:
@@ -1076,8 +1080,13 @@ class InferenceSetup(object):
         if self.parallel:
             try:
                 import multiprocessing
-                pool = multiprocessing.Pool()
-                if printout: print("Using {} cores for parallelization".format(multiprocessing.cpu_count()))
+                if n_processes is None:
+                    n_processes = multiprocessing.cpu_count()
+
+                pool = multiprocessing.Pool(processes=n_processes)
+
+                if printout:
+                    print("Using {} processes for parallelization".format(n_processes))
             except:
                 pool = None
                 raise ImportError('multiprocessing package not found. \
