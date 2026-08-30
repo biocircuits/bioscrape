@@ -140,6 +140,30 @@ different prior types)
 For an example on how to run custom prior distribution, check out the
 prior distribution notebook in ``inference examples`` directory.
 
+Joint custom priors
+~~~~~~~~~~~~~~~~~~~
+
+Use the optional ``custom_joint_prior`` argument to add a prior contribution
+that depends on multiple inferred parameters. The callable receives a
+dictionary containing every inferred parameter name and its proposed value,
+and returns a log-prior contribution. A non-finite return value rejects the
+complete parameter tuple. For example::
+
+   def custom_joint_prior(params_dict):
+       if params_dict["k1"] > params_dict["k2"]:
+           return np.inf
+       return 0.0
+
+   sampler, pid = py_inference(
+       Model=M,
+       ...,
+       prior=prior,
+       custom_joint_prior=custom_joint_prior,
+   )
+
+This option is independent of the parameter-wise entries in ``prior``;
+existing built-in and ``custom`` parameter priors are evaluated first.
+
 Data Types
 ~~~~~~~~~~
 
