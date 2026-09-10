@@ -881,10 +881,8 @@ cdef class DeterministicLikelihood(ModelLikelihood):
 
         if np.isnan(error):
             return -np.inf
-        elif error <= 0:
-            return np.inf
         else:
-            return -log(error)
+            return -error
 
 cdef class StochasticTrajectoriesLikelihood(ModelLikelihood):
     """
