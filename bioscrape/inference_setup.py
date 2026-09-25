@@ -1054,6 +1054,13 @@ class InferenceSetup(object):
             `self.parallel` is True and the `multiprocessing` package
             is not available.
         """
+        n_processes = kwargs.get('n_processes', None)
+        if n_processes is not None:
+            if isinstance(n_processes, bool) or not isinstance(n_processes, int):
+                raise ValueError('n_processes must be a positive integer or None.')
+            if n_processes < 1:
+                raise ValueError('n_processes must be a positive integer or None.')
+
         if kwargs.get("reuse_likelihood", False) is False:
             self.setup_cost_function(**kwargs)
         progress = kwargs.get('progress')
@@ -1069,13 +1076,6 @@ class InferenceSetup(object):
             fname_csv = kwargs.get('results_filename', 'mcmc_results.csv')
         fname_txt = kwargs.get('filename_txt', 'mcmc_results.txt')
         printout = kwargs.get('printout', True)
-        n_processes = kwargs.get('n_processes', None)
-
-        if n_processes is not None:
-            if isinstance(n_processes, bool) or not isinstance(n_processes, int):
-                raise ValueError('n_processes must be a positive integer or None.')
-            if n_processes < 1:
-                raise ValueError('n_processes must be a positive integer or None.')
         try:
             import emcee
         except:
