@@ -1069,7 +1069,6 @@ class InferenceSetup(object):
             fname_csv = kwargs.get('results_filename', 'mcmc_results.csv')
         fname_txt = kwargs.get('filename_txt', 'mcmc_results.txt')
         printout = kwargs.get('printout', True)
-        n_processes = kwargs.get("n_processes", None)
         try:
             import emcee
         except:
@@ -1080,13 +1079,10 @@ class InferenceSetup(object):
         if self.parallel:
             try:
                 import multiprocessing
-                if n_processes is None:
-                    n_processes = multiprocessing.cpu_count()
-
-                pool = multiprocessing.Pool(processes=n_processes)
-
+                pool = multiprocessing.Pool()
                 if printout:
-                    print("Using {} processes for parallelization".format(n_processes))
+                    print("Using {} cores for parallelization".format(
+                        multiprocessing.cpu_count()))
             except:
                 pool = None
                 raise ImportError('multiprocessing package not found. \
