@@ -54,6 +54,7 @@ class PIDInterface():
         self.default_parameters = dict(M.get_parameter_dictionary())
         self.log_space_parameters = kwargs.get('log_space_parameters', False)
         self.debug = kwargs.get('debug', False)
+        self.custom_joint_prior = kwargs.get('custom_joint_prior', None)
         return
 
     def check_prior(self, params_dict):
@@ -107,6 +108,11 @@ class PIDInterface():
                 lp += custom_fuction(key, value)
             else:
                 raise ValueError(f'Prior type undefined: recieved prior {value[0]} for param {key}.')
+        if self.custom_joint_prior is not None:
+            joint_lp = self.custom_joint_prior(params_dict)
+            if not np.isfinite(joint_lp):
+                return np.inf
+            lp += joint_lp
         return lp
 
     def uniform_prior(self, param_name, param_value):
