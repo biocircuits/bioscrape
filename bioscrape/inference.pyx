@@ -1171,7 +1171,8 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
 def py_inference(Model = None, params_to_estimate = None, exp_data = None, initial_conditions = None,
                  parameter_conditions = None, measurements = None, time_column = None, nwalkers = None, 
                  nsteps = None, init_seed = None, prior = None, sim_type = None, inference_type = 'emcee',
-                 method = 'mcmc', plot_show = True, parallel = None, **kwargs):
+                 method = 'mcmc', plot_show = True, parallel = None,
+                 n_processes = None, **kwargs):
     """
     User-level interface for Bayesian parameter inference.
 
@@ -1238,6 +1239,10 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
         If True, run the sampler with a `multiprocessing.Pool` passed to
         `emcee.EnsembleSampler` for parallel processing. If False (default),
         multiprocessing is not used.
+    n_processes : int, optional
+        Number of worker processes used when `parallel=True`. If None,
+        `multiprocessing.Pool` uses its default process count. Ignored when
+        `parallel=False`.
     custom_joint_prior : callable, optional
         Callable receiving a dictionary with all inferred parameter names and
         proposed values and returning a log-prior contribution. A non-finite
@@ -1287,6 +1292,8 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
     if prior is not None:
         pid.set_prior(prior)
     if inference_type == 'emcee' and method == 'mcmc':
+        if n_processes is not None:
+            kwargs['n_processes'] = n_processes
         sampler = pid.run_mcmc(**kwargs)
         if plot_show:
             pid.plot_mcmc_results(sampler, **kwargs)
