@@ -122,7 +122,7 @@ def test_getstate(model_setup):
     assert state[20] == IS.cost_params
     assert state[21] == IS.hmax
     assert state[22] == IS.parallel
-    assert state[23] is joint_prior_for_test
+    assert state[23] == IS.custom_joint_prior
 
 def test_setstate(model_setup):
     M, params_to_estimate = model_setup
