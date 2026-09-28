@@ -10,11 +10,30 @@ from bioscrape.types import Model
 from bioscrape.simulator import py_simulate_model
 from bioscrape.inference import py_inference, Data, StochasticTrajectories, StochasticTrajectoriesLikelihood
 from bioscrape.inference_setup import InferenceSetup
-from bioscrape.pid_interfaces import PIDInterface
-from emcee import EnsembleSampler
+from bioscrape.pid_interfaces import PIDInterface, DeterministicInference
+from emcee import EnsembleSampler, state
 from lmfit.minimizer import MinimizerResult
 
 np.random.seed(123)
+
+
+def joint_prior_for_test(params_dict):
+    if set(params_dict) != {'m', 'b'}:
+        return np.inf
+    return -0.25
+
+
+class CountingDeterministicLikelihood:
+    def __init__(self):
+        self.calls = 0
+
+    def set_init_params(self, params):
+        pass
+
+    def py_log_likelihood(self):
+        self.calls += 1
+        return 3.0
+
 
 @pytest.fixture(scope = "module")
 def model_setup():
@@ -103,6 +122,7 @@ def test_getstate(model_setup):
     assert state[20] == IS.cost_params
     assert state[21] == IS.hmax
     assert state[22] == IS.parallel
+    assert state[23] == IS.custom_joint_prior
 
 def test_setstate(model_setup):
     M, params_to_estimate = model_setup
@@ -118,10 +138,12 @@ def test_setstate(model_setup):
     timepoints = None
 
     state = (
-        M, params_to_estimate, .11, None, 11, 111, 2, exp_data, 'stochastic', 'lmfit',
-        timepoints, 'T', ['y'], init_conds, None, 1, 11, None, True, None, None, 1.0, False
-        )
-
+        M, params_to_estimate, .11, None, 11, 111, 2,
+        exp_data, 'stochastic', 'lmfit',
+        timepoints, 'T', ['y'], init_conds, None,
+        1, 11, None, True, None, None, 1.0,
+        False, joint_prior_for_test
+    )
     IS.__setstate__(state)
 
     assert type(state[0]) == type(M)
@@ -149,6 +171,7 @@ def test_setstate(model_setup):
     assert state[20] == IS.cost_params
     assert state[21] == IS.hmax
     assert state[22] == IS.parallel
+    assert state[23] is IS.custom_joint_prior
 
 #This test confirms that an hmax passed to the InferenceSetup
 #  constructor actually takes effect. self.hmax was previously stored
@@ -204,6 +227,53 @@ def test_basic_inference(model_setup):
     assert np.array(sampler.get_autocorr_time())[0] < 50
     assert np.array(sampler.get_autocorr_time())[1] < 50
     assert np.array(sampler.acceptance_fraction).all() < 2
+
+def test_custom_joint_prior(model_setup):
+    M, params_to_estimate = model_setup
+    prior = {'m': ['uniform', -10, 10], 'b': ['uniform', -10, 10]}
+    params_dict = {'m': 1.0, 'b': 2.0}
+
+    baseline = PIDInterface(params_to_estimate, M, prior)
+    baseline_lp = baseline.check_prior(params_dict)
+
+    received = []
+    def joint_prior(candidate):
+        received.append(dict(candidate))
+        return -1.5
+
+    joint = PIDInterface(params_to_estimate, M, prior,
+                         custom_joint_prior=joint_prior)
+    np.testing.assert_allclose(joint.check_prior(params_dict),
+                               baseline_lp - 1.5)
+    assert received == [params_dict]
+
+def test_custom_joint_prior_rejects_before_likelihood(model_setup):
+    M, params_to_estimate = model_setup
+    prior = {'m': ['uniform', -10, 10], 'b': ['uniform', -10, 10]}
+
+    def reject_if_m_exceeds_b(params_dict):
+        return np.inf if params_dict['m'] > params_dict['b'] else 0.0
+
+    inference = DeterministicInference(
+        params_to_estimate, M, prior,
+        custom_joint_prior=reject_if_m_exceeds_b)
+    inference.LL_det = CountingDeterministicLikelihood()
+
+    assert inference.get_likelihood_function([2.0, 1.0]) == -np.inf
+    assert inference.LL_det.calls == 0
+    assert np.isfinite(inference.get_likelihood_function([1.0, 2.0]))
+    assert inference.LL_det.calls == 1
+
+def test_parameter_wise_custom_prior_unchanged(model_setup):
+    M, params_to_estimate = model_setup
+    prior = {
+        'm': ['custom', lambda name, value: -value**2],
+        'b': ['uniform', -10, 10],
+    }
+    inference = PIDInterface(params_to_estimate, M, prior)
+    expected = -4.0 + np.log(1 / 20)
+    np.testing.assert_allclose(
+        inference.check_prior({'m': 2.0, 'b': 1.0}), expected)
 
 def test_uniform_priors(model_setup):
     """ Uniform prior testing

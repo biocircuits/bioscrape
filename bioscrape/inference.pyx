@@ -1238,6 +1238,10 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
         If True, run the sampler with a `multiprocessing.Pool` passed to
         `emcee.EnsembleSampler` for parallel processing. If False (default),
         multiprocessing is not used.
+    custom_joint_prior : callable, optional
+        Callable receiving a dictionary with all inferred parameter names and
+        proposed values and returning a log-prior contribution. A non-finite
+        return value rejects the complete parameter tuple.
     **kwargs
         Additional keyword arguments passed into the inference setup.
 
