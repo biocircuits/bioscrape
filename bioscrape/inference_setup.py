@@ -1054,6 +1054,13 @@ class InferenceSetup(object):
             `self.parallel` is True and the `multiprocessing` package
             is not available.
         """
+        n_processes = kwargs.get('n_processes', None)
+        if n_processes is not None:
+            if isinstance(n_processes, bool) or not isinstance(n_processes, int):
+                raise ValueError('n_processes must be a positive integer or None.')
+            if n_processes < 1:
+                raise ValueError('n_processes must be a positive integer or None.')
+
         if kwargs.get("reuse_likelihood", False) is False:
             self.setup_cost_function(**kwargs)
         progress = kwargs.get('progress')
@@ -1079,10 +1086,16 @@ class InferenceSetup(object):
         if self.parallel:
             try:
                 import multiprocessing
-                pool = multiprocessing.Pool()
+                pool = multiprocessing.Pool(processes=n_processes)
+
                 if printout:
-                    print("Using {} cores for parallelization".format(
-                        multiprocessing.cpu_count()))
+                    process_count = (
+                        multiprocessing.cpu_count()
+                        if n_processes is None
+                        else n_processes
+                    )
+                    print("Using {} processes for parallelization".format(
+                        process_count))
             except:
                 pool = None
                 raise ImportError('multiprocessing package not found. \

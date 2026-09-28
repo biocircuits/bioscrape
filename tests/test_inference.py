@@ -1,6 +1,7 @@
 
 import pytest
 import test_utils
+import multiprocessing
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
@@ -227,6 +228,69 @@ def test_basic_inference(model_setup):
     assert np.array(sampler.get_autocorr_time())[0] < 50
     assert np.array(sampler.get_autocorr_time())[1] < 50
     assert np.array(sampler.acceptance_fraction).all() < 2
+
+@pytest.mark.parametrize('n_processes', [0, -1, 1.5, True])
+def test_invalid_n_processes(model_setup, n_processes):
+    M, params_to_estimate = model_setup
+
+    inference_setup = InferenceSetup(
+        Model = M,
+        params_to_estimate = params_to_estimate,
+        parallel = True,
+    )
+
+    inference_setup.setup_cost_function = lambda **kwargs: None
+
+    with pytest.raises(
+            ValueError,
+            match = 'n_processes must be a positive integer or None'):
+        inference_setup.run_emcee(n_processes = n_processes)
+
+def test_parallel_inference_uses_requested_process_count(
+        model_setup, tmp_path, monkeypatch):
+    M, params_to_estimate = model_setup
+    timepoints = np.linspace(0, 1, 3)
+    exp_data = pd.DataFrame({
+        't': timepoints,
+        'y': -0.9594 * timepoints + 4.294,
+    })
+    prior = {
+        'm': ['uniform', -10, 10],
+        'b': ['uniform', -10, 10],
+    }
+
+    requested_processes = []
+    real_pool = multiprocessing.Pool
+
+    def recording_pool(*args, **kwargs):
+        requested_processes.append(kwargs.get('processes'))
+        return real_pool(*args, **kwargs)
+
+    monkeypatch.setattr(multiprocessing, 'Pool', recording_pool)
+
+    sampler, _ = py_inference(
+        Model = M,
+        params_to_estimate = params_to_estimate,
+        exp_data = exp_data,
+        measurements = ['y'],
+        time_column = 't',
+        prior = prior,
+        sim_type = 'deterministic',
+        nwalkers = 6,
+        nsteps = 1,
+        init_seed = 1e-4,
+        parallel = True,
+        n_processes = 1,
+        plot_show = False,
+        progress = False,
+        printout = False,
+        skip_initial_state_check = True,
+        filename_csv = str(tmp_path / 'parallel_samples.csv'),
+        filename_txt = str(tmp_path / 'parallel_progress.txt'),
+    )
+
+    assert isinstance(sampler, EnsembleSampler)
+    assert requested_processes == [1]
 
 def test_custom_joint_prior(model_setup):
     M, params_to_estimate = model_setup
