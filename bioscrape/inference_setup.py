@@ -634,6 +634,10 @@ class InferenceSetup(object):
         reuse_likelihood : bool, default False
             If True, reuse the likelihood set up by a previous call
             instead of rebuilding it.
+        parallel_method : {'pool', 'batched'}, default 'pool'
+            With `parallel=True`, 'batched' evaluates priors in the parent
+            process and sends accepted tuples to persistent likelihood
+            workers. 'pool' uses the existing per-proposal cost function.
         progress : bool, default True
             Passed to `emcee.EnsembleSampler.run_mcmc` to show (or
             hide) a progress bar.
@@ -886,6 +890,10 @@ class InferenceSetup(object):
             Forwarded to the `PIDInterface` constructor and to
             `~bioscrape.pid_interfaces.PIDInterface.setup_likelihood_function`.
         """
+        kwargs.pop('parallel_method', None)
+        kwargs.pop('timepoints', None)  # Already resolved by prepare_inference.
+        norm_order = kwargs.pop('norm_order', self.norm_order)
+        n_simulations = kwargs.pop('N_simulations', self.N_simulations)
         if self.hmax is not None:
             kwargs.setdefault('hmax', self.hmax)
         if self.sim_type == 'stochastic':
@@ -894,15 +902,80 @@ class InferenceSetup(object):
             self.pid_interface.setup_likelihood_function(self.LL_data, self.timepoints, self.measurements,
                                                          initial_conditions=self.initial_conditions,
                                                          parameter_conditions=self.parameter_conditions,
-                                                         norm_order = self.norm_order,
-                                                         N_simulations = self.N_simulations, **kwargs)
+                                                         norm_order = norm_order,
+                                                         N_simulations = n_simulations, **kwargs)
         elif self.sim_type == 'deterministic':
             kwargs.setdefault("custom_joint_prior", self.custom_joint_prior)
             self.pid_interface = DeterministicInference(self.params_to_estimate, self.M, self.prior, **kwargs)
             self.pid_interface.setup_likelihood_function(self.LL_data, self.timepoints, self.measurements,
                                                          initial_conditions=self.initial_conditions,
                                                          parameter_conditions=self.parameter_conditions,
-                                                         norm_order=self.norm_order, **kwargs)
+                                                         norm_order=norm_order, **kwargs)
+
+        # Keep resolved likelihood settings, including run-time options.
+        # Prior callbacks remain in the parent process.
+        likelihood_kwargs = {key: value for key, value in kwargs.items()
+                             if key not in ('custom_joint_prior', 'prior',
+                                            'log_space_parameters', 'debug')}
+        if self.sim_type == 'stochastic':
+            likelihood_kwargs['N_simulations'] = n_simulations
+        self._likelihood_worker_config = {
+            'interface_type': type(self.pid_interface),
+            'Model': self.M,
+            'params_to_estimate': self.params_to_estimate,
+            'default_parameters': dict(self.pid_interface.default_parameters),
+            'default_species': dict(self.M.get_species_dictionary()),
+            'log_space_parameters': self.pid_interface.log_space_parameters,
+            'debug': self.pid_interface.debug,
+            'data': self.LL_data, 'timepoints': self.timepoints,
+            'measurements': self.measurements,
+            'initial_conditions': self.initial_conditions,
+            'parameter_conditions': self.parameter_conditions,
+            'norm_order': norm_order,
+            'likelihood_kwargs': likelihood_kwargs,
+        }
+
+    def _get_likelihood_worker_config(self):
+        """
+        Return prepared likelihood settings without prior callbacks.
+
+        Returns
+        -------
+        dict
+            Settings saved by `setup_cost_function` for worker initialization.
+        """
+        return self._likelihood_worker_config.copy()
+
+    def _cost_function_batch(self, params, pool):
+        """
+        Screen a proposal batch and distribute its likelihood evaluations.
+
+        Parameters
+        ----------
+        params : array_like
+            An array of sampler coordinates, shaped (proposals, parameters).
+        pool : multiprocessing.pool.Pool
+            Pool initialized with one prepared likelihood per worker.
+
+        Returns
+        -------
+        numpy.ndarray
+            Log posteriors in input order, with `-numpy.inf` for prior
+            rejections. Finite priors are added to likelihoods exactly once.
+        """
+        from bioscrape.parallel_inference import _evaluate_likelihood
+        params = np.asarray(params)
+        log_prior = np.array([self.pid_interface.get_log_prior(row)
+                              for row in params])
+        retained = np.isfinite(log_prior)
+        result = np.full(len(params), -np.inf)
+        if np.any(retained):
+            log_likelihood = pool.map(_evaluate_likelihood, params[retained],
+                                      chunksize=1)
+            result[retained] = log_prior[retained] + np.asarray(log_likelihood)
+        self.cost_progress.extend(result.tolist())
+        self.cost_params.extend(row.copy() for row in params)
+        return result
 
     def cost_function(self, params):
         """
@@ -1061,6 +1134,12 @@ class InferenceSetup(object):
             if n_processes < 1:
                 raise ValueError('n_processes must be a positive integer or None.')
 
+        parallel_method = kwargs.get('parallel_method', 'pool')
+        if parallel_method not in ('pool', 'batched'):
+            raise ValueError("parallel_method must be 'pool' or 'batched'.")
+        if parallel_method == 'batched' and not self.parallel:
+            raise ValueError("parallel_method='batched' requires parallel=True.")
+
         if kwargs.get("reuse_likelihood", False) is False:
             self.setup_cost_function(**kwargs)
         progress = kwargs.get('progress')
@@ -1086,30 +1165,36 @@ class InferenceSetup(object):
         if self.parallel:
             try:
                 import multiprocessing
-                pool = multiprocessing.Pool(processes=n_processes)
-
-                if printout:
-                    process_count = (
-                        multiprocessing.cpu_count()
-                        if n_processes is None
-                        else n_processes
-                    )
-                    print("Using {} processes for parallelization".format(
-                        process_count))
-            except:
-                pool = None
+            except ImportError:
                 raise ImportError('multiprocessing package not found. \
                                   Make sure to set parallel=False')
+            if parallel_method == 'batched':
+                from bioscrape.parallel_inference import _initialize_likelihood_worker
+                pool = multiprocessing.Pool(
+                    processes=n_processes,
+                    initializer=_initialize_likelihood_worker,
+                    initargs=(self._get_likelihood_worker_config(),))
+            else:
+                pool = multiprocessing.Pool(processes=n_processes)
+            if printout:
+                process_count = (multiprocessing.cpu_count()
+                                 if n_processes is None else n_processes)
+                print("Using {} processes for parallelization".format(process_count))
         else:
             pool = None
             if printout: print("creating an ensemble sampler without multiprocessing "\
                                "pool. Set parallel=True to use parallel processing.")
-        sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function, pool=pool)
-        sampler.run_mcmc(p0, self.nsteps, progress=progress,
-                         skip_initial_state_check=skip_initial_state_check)
-        if self.parallel:
-            pool.close()
-            pool.join()
+        from contextlib import nullcontext
+        from functools import partial
+        with (pool if pool is not None else nullcontext()):
+            if parallel_method == 'batched':
+                sampler = emcee.EnsembleSampler(
+                    self.nwalkers, ndim,
+                    partial(self._cost_function_batch, pool=pool), vectorize=True)
+            else:
+                sampler = emcee.EnsembleSampler(self.nwalkers, ndim, self.cost_function, pool=pool)
+            sampler.run_mcmc(p0, self.nsteps, progress=progress,
+                             skip_initial_state_check=skip_initial_state_check)
         if convergence_check:
             self.autocorrelation_time = sampler.get_autocorr_time()
         if convergence_diagnostics:

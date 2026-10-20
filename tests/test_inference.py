@@ -11,7 +11,7 @@ from bioscrape.types import Model
 from bioscrape.simulator import py_simulate_model
 from bioscrape.inference import py_inference, Data, StochasticTrajectories, StochasticTrajectoriesLikelihood
 from bioscrape.inference_setup import InferenceSetup
-from bioscrape.pid_interfaces import PIDInterface, DeterministicInference
+from bioscrape.pid_interfaces import PIDInterface, DeterministicInference, StochasticInference
 from emcee import EnsembleSampler, state
 from lmfit.minimizer import MinimizerResult
 
@@ -338,6 +338,55 @@ def test_parameter_wise_custom_prior_unchanged(model_setup):
     expected = -4.0 + np.log(1 / 20)
     np.testing.assert_allclose(
         inference.check_prior({'m': 2.0, 'b': 1.0}), expected)
+
+
+@pytest.mark.parametrize('prior_spec', [
+    ['uniform', 0, 1], ['gaussian', .3, .1], ['exponential', 2],
+    ['gamma', 2, 4], ['beta', 2, 4], ['log-uniform', .01, 1],
+    ['log-gaussian', -1, 1], ['custom', lambda name, value: -.5*value**2],
+])
+@pytest.mark.parametrize('interface_type, likelihood_name', [
+    (DeterministicInference, 'LL_det'), (StochasticInference, 'LL_stoch')])
+def test_separated_prior_and_likelihood(
+        model_setup, prior_spec, interface_type, likelihood_name):
+    M, names = model_setup
+    prior = {name: prior_spec for name in names}
+    inference = interface_type(names, M, prior,
+                              custom_joint_prior=lambda params: .75)
+    likelihood = CountingDeterministicLikelihood()
+    setattr(inference, likelihood_name, likelihood)
+    params = [.2, .4]
+    expected_prior = inference.check_prior(dict(zip(names, params)))
+    np.testing.assert_allclose(inference.get_log_prior(params), expected_prior)
+    assert inference.get_log_likelihood(params) == 3.0
+    np.testing.assert_allclose(inference.get_likelihood_function(params),
+                               expected_prior + 3.0)
+    assert likelihood.calls == 2
+
+
+def test_parameter_prior_rejection_skips_joint_prior(model_setup):
+    M, names = model_setup
+    calls = []
+    inference = PIDInterface(names, M, {
+        'm': ['uniform', 0, 1], 'b': ['gaussian', 0, 1, 'positive']},
+        custom_joint_prior=lambda params: calls.append(params))
+    assert inference.get_log_prior([2., .5]) == -np.inf
+    assert inference.get_log_prior([.5, -.5]) == -np.inf
+    assert calls == []
+
+
+def test_separated_log_space_coordinates(model_setup):
+    M, names = model_setup
+    received = []
+    inference = DeterministicInference(
+        names, M, {name: ['uniform', .1, 10] for name in names},
+        log_space_parameters=True,
+        custom_joint_prior=lambda params: received.append(params.copy()) or 0.)
+    inference.LL_det = CountingDeterministicLikelihood()
+    params = np.log([.5, 2.])
+    np.testing.assert_allclose(inference.get_likelihood_function(params),
+                               3.0 + 2*np.log(1/9.9))
+    assert received == [{'m': .5, 'b': 2.}]
 
 def test_uniform_priors(model_setup):
     """ Uniform prior testing

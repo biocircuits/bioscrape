@@ -57,6 +57,41 @@ class PIDInterface():
         self.custom_joint_prior = kwargs.get('custom_joint_prior', None)
         return
 
+    def _params_to_dict(self, params):
+        """
+        Map sampler coordinates to model parameter values.
+
+        Parameters
+        ----------
+        params : array_like
+            Candidate values in `params_to_estimate` order.
+
+        Returns
+        -------
+        dict
+            Named parameter values, exponentiated for log-space coordinates.
+        """
+        return {key: np.exp(value) if self.log_space_parameters else value
+                for key, value in zip(self.params_to_estimate, params)}
+
+    def get_log_prior(self, params):
+        """
+        Evaluate the prior in sampler coordinates.
+
+        Parameters
+        ----------
+        params : array_like
+            Candidate values in `params_to_estimate` order. Log-space
+            coordinates are exponentiated when `log_space_parameters` is True.
+
+        Returns
+        -------
+        float
+            The total log prior, or `-numpy.inf` when the prior rejects.
+        """
+        lp = self.check_prior(self._params_to_dict(params))
+        return lp if np.isfinite(lp) else -np.inf
+
     def check_prior(self, params_dict):
         """
         Compute the total log-prior probability for a parameter set.
@@ -108,6 +143,8 @@ class PIDInterface():
                 lp += custom_fuction(key, value)
             else:
                 raise ValueError(f'Prior type undefined: recieved prior {value[0]} for param {key}.')
+            if not np.isfinite(lp):
+                return np.inf
         if self.custom_joint_prior is not None:
             joint_lp = self.custom_joint_prior(params_dict)
             if not np.isfinite(joint_lp):
@@ -525,30 +562,42 @@ class StochasticInference(PIDInterface):
         if self.LL_stoch is None:
             raise RuntimeError("Must call StochasticInference.setup_likelihood_function before using StochasticInference.get_likelihood_function.")
 
-        #Set params
-        params_dict = {}
-        for key, p in zip(self.params_to_estimate, params):
-            if self.log_space_parameters:
-                params_dict[key] = np.exp(p)
-            else:
-                params_dict[key] = p
-
-        #Prior
-        lp = 0
-        lp = self.check_prior(params_dict)
+        lp = self.get_log_prior(params)
         if not np.isfinite(lp):
             return -np.inf
-        else:
-            # Reset to default
-            self.LL_stoch.set_init_params(self.default_parameters)
-            self.LL_stoch.set_init_params(params_dict)
-            if self.debug:
-                print('current sample:', params_dict)
-            LL_stoch_cost = self.LL_stoch.py_log_likelihood()
-            ln_prob = lp + LL_stoch_cost
-            if self.debug:
-                print('current cost total:', ln_prob)
-            return ln_prob
+        ln_prob = lp + self.get_log_likelihood(params)
+        if self.debug:
+            print('current cost total:', ln_prob)
+        return ln_prob
+
+    def get_log_likelihood(self, params):
+        """
+        Evaluate the stochastic log likelihood without evaluating priors.
+
+        Parameters
+        ----------
+        params : array_like
+            Candidate values in sampler coordinates, as in
+            `get_likelihood_function`.
+
+        Returns
+        -------
+        float
+            The log likelihood from `StochasticTrajectoriesLikelihood`.
+
+        Raises
+        ------
+        RuntimeError
+            If called before `setup_likelihood_function`.
+        """
+        if self.LL_stoch is None:
+            raise RuntimeError("Must call StochasticInference.setup_likelihood_function before using StochasticInference.get_log_likelihood.")
+        params_dict = self._params_to_dict(params)
+        self.LL_stoch.set_init_params(self.default_parameters)
+        self.LL_stoch.set_init_params(params_dict)
+        if self.debug:
+            print('current sample:', params_dict)
+        return self.LL_stoch.py_log_likelihood()
 
 # Add a new class similar to this to create new interfaces.
 class DeterministicInference(PIDInterface):
@@ -675,35 +724,42 @@ class DeterministicInference(PIDInterface):
         """
         if self.LL_det is None:
             raise RuntimeError("Must call DeterministicInference.setup_likelihood_function before using DeterministicInference.get_likelihood_function.")
-        #this part is the only part that is called repeatedly
-        params_dict = {}
-        for key, p in zip(self.params_to_estimate, params):
-            if self.log_space_parameters:
-                params_dict[key] = np.exp(p)
-            else:
-                params_dict[key] = p
-
-        # Check prior
-        lp = 0
-        lp = self.check_prior(params_dict)
+        lp = self.get_log_prior(params)
         if not np.isfinite(lp):
             return -np.inf
-        else:
-            # Reset to default
-            self.LL_det.set_init_params(self.default_parameters)
-            # Set new sampler parameter
-            self.LL_det.set_init_params(params_dict)
-            if self.debug:
-                print('current sample:', params_dict)
-            #apply cost function
-            LL_det_cost = self.LL_det.py_log_likelihood()
-            # if self.debug:
-            #     print('current cost:', LL_det_cost)
-            ln_prob = lp + LL_det_cost
-            if self.debug:
-                print('current cost total:', ln_prob)
-            #print("params", params, "ln_prob", ln_prob)
-            return ln_prob
+        ln_prob = lp + self.get_log_likelihood(params)
+        if self.debug:
+            print('current cost total:', ln_prob)
+        return ln_prob
+
+    def get_log_likelihood(self, params):
+        """
+        Evaluate the deterministic log likelihood without evaluating priors.
+
+        Parameters
+        ----------
+        params : array_like
+            Candidate values in sampler coordinates, as in
+            `get_likelihood_function`.
+
+        Returns
+        -------
+        float
+            The log likelihood from `DeterministicLikelihood`.
+
+        Raises
+        ------
+        RuntimeError
+            If called before `setup_likelihood_function`.
+        """
+        if self.LL_det is None:
+            raise RuntimeError("Must call DeterministicInference.setup_likelihood_function before using DeterministicInference.get_log_likelihood.")
+        params_dict = self._params_to_dict(params)
+        self.LL_det.set_init_params(self.default_parameters)
+        self.LL_det.set_init_params(params_dict)
+        if self.debug:
+            print('current sample:', params_dict)
+        return self.LL_det.py_log_likelihood()
 
 class LMFitInference(PIDInterface):
     """

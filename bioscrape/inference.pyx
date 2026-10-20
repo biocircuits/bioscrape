@@ -1243,6 +1243,11 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
         Number of worker processes used when `parallel=True`. If None,
         `multiprocessing.Pool` uses its default process count. Ignored when
         `parallel=False`.
+    parallel_method : {'pool', 'batched'}, optional
+        With `parallel=True`, 'batched' evaluates all priors in the parent
+        process and sends accepted tuples to persistent likelihood workers.
+        The default, 'pool', uses a per-proposal cost function. Supplied
+        through `kwargs`.
     custom_joint_prior : callable, optional
         Callable receiving a dictionary with all inferred parameter names and
         proposed values and returning a log-prior contribution. A non-finite

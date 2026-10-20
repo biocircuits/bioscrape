@@ -164,6 +164,55 @@ complete parameter tuple. For example::
 This option is independent of the parameter-wise entries in ``prior``;
 existing built-in and ``custom`` parameter priors are evaluated first.
 
+Batched parallel inference
+--------------------------
+
+Use ``parallel_method='batched'`` with ``parallel=True`` to evaluate priors
+in the parent process and distribute only the accepted parameter tuples::
+
+    sampler, pid = py_inference(
+        Model=model,
+        params_to_estimate=parameter_names,
+        exp_data=data,
+        measurements=['GFP'],
+        prior=prior,
+        custom_joint_prior=custom_joint_prior,
+        parallel=True,
+        n_processes=4,
+        parallel_method='batched',
+    )
+
+This method supports all existing built-in priors, parameter-wise custom
+priors, and ``custom_joint_prior``. Prior callbacks keep their existing
+signatures and return log-prior contributions. A non-finite log prior
+rejects the tuple before it is sent to a worker. Finite contributions are
+added to the returned log likelihood exactly once. A custom prior can,
+for example, evaluate a trained surrogate model in the parent process.
+
+Each worker constructs its model and deterministic or stochastic likelihood
+once and reuses them across proposals. Tasks carry parameter vectors;
+models and experimental data are sent during worker initialization.
+Results are returned to emcee in proposal order. emcee's proposal and
+acceptance rules are unchanged. The batch callback manages the likelihood
+pool through emcee's ``vectorize=True`` interface; individual prior
+callbacks do not need to accept arrays.
+
+``parallel_method='pool'`` is the default and uses the existing
+per-proposal multiprocessing implementation. Both methods use
+``n_processes`` workers. The batched method records evaluated proposal
+values in the parent object's ``cost_progress`` and ``cost_params``.
+As with serial inference, these histories grow with the number of evaluated
+proposals. Exceptions from priors and likelihood workers propagate to the
+caller.
+
+On systems that spawn worker processes, including Windows, launch inference
+from a script's ``if __name__ == '__main__':`` block. The verification
+notebook ``inference_examples/individual examples/Batched parallel
+inference.ipynb`` exercises numerical agreement, rejection, worker reuse,
+and repeated-batch timing. Stochastic likelihoods retain their existing
+simulation random-number behavior; changing task scheduling can change
+their sampled trajectories.
+
 Data Types
 ~~~~~~~~~~
 
