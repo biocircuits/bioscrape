@@ -45,6 +45,15 @@ class PIDInterface():
     debug : bool, default False
         If True, print additional diagnostic information during
         inference.
+    custom_joint_prior : callable, optional
+        Receives a dictionary of parameter values and returns an additional
+        log-prior contribution. Non-finite values reject the parameter tuple.
+    custom_joint_prior_batch : callable, optional
+        Receives a dictionary of one-dimensional parameter arrays and returns
+        one log-prior contribution per proposal. This is the batch equivalent
+        of `custom_joint_prior`, not a second contribution. If both are given,
+        they must describe the same prior. Scalar evaluations use the scalar
+        callback when supplied, otherwise a one-proposal batch.
     """
     def __init__(self, params_to_estimate, M, prior, **kwargs):
         """See class docstring."""
@@ -55,7 +64,43 @@ class PIDInterface():
         self.log_space_parameters = kwargs.get('log_space_parameters', False)
         self.debug = kwargs.get('debug', False)
         self.custom_joint_prior = kwargs.get('custom_joint_prior', None)
+        self.custom_joint_prior_batch = kwargs.get('custom_joint_prior_batch', None)
         return
+
+    def _params_to_dict(self, params):
+        """
+        Map sampler coordinates to model parameter values.
+
+        Parameters
+        ----------
+        params : array_like
+            Candidate values in `params_to_estimate` order.
+
+        Returns
+        -------
+        dict
+            Named parameter values, exponentiated for log-space coordinates.
+        """
+        return {key: np.exp(value) if self.log_space_parameters else value
+                for key, value in zip(self.params_to_estimate, params)}
+
+    def get_log_prior(self, params):
+        """
+        Evaluate the prior in sampler coordinates.
+
+        Parameters
+        ----------
+        params : array_like
+            Candidate values in `params_to_estimate` order. Log-space
+            coordinates are exponentiated when `log_space_parameters` is True.
+
+        Returns
+        -------
+        float
+            The total log prior, or `-numpy.inf` when the prior rejects.
+        """
+        lp = self.check_prior(self._params_to_dict(params))
+        return lp if np.isfinite(lp) else -np.inf
 
     def check_prior(self, params_dict):
         """
@@ -79,6 +124,35 @@ class PIDInterface():
             The total log-prior probability, or `numpy.inf` if any parameter
             has a 'positive' prior flag and a negative value, or if any
             individual prior evaluates to an invalid probability.
+        """
+        lp = self._check_parameter_priors(params_dict)
+        if not np.isfinite(lp):
+            return np.inf
+        if self.custom_joint_prior is not None:
+            joint_lp = self.custom_joint_prior(params_dict)
+        elif self.custom_joint_prior_batch is not None:
+            batch = {name: np.array([value])
+                     for name, value in params_dict.items()}
+            joint_lp = self._evaluate_joint_prior_batch(batch, 1)[0]
+        else:
+            return lp
+        if not np.isfinite(joint_lp):
+            return np.inf
+        return lp + joint_lp
+
+    def _check_parameter_priors(self, params_dict):
+        """
+        Evaluate parameter-wise priors without a joint-prior contribution.
+
+        Parameters
+        ----------
+        params_dict : dict
+            Named model parameter values for one proposal.
+
+        Returns
+        -------
+        float
+            Sum of parameter log priors, or `numpy.inf` for a rejection.
         """
         lp = 0.0
         for key,value in params_dict.items():
@@ -108,12 +182,80 @@ class PIDInterface():
                 lp += custom_fuction(key, value)
             else:
                 raise ValueError(f'Prior type undefined: recieved prior {value[0]} for param {key}.')
-        if self.custom_joint_prior is not None:
-            joint_lp = self.custom_joint_prior(params_dict)
-            if not np.isfinite(joint_lp):
+            if not np.isfinite(lp):
                 return np.inf
-            lp += joint_lp
         return lp
+
+    def _evaluate_joint_prior_batch(self, params_dict, size):
+        """
+        Call the batch joint prior and validate its output shape.
+
+        Parameters
+        ----------
+        params_dict : dict
+            Named one-dimensional arrays of model parameter values.
+        size : int
+            Number of proposals represented by the parameter arrays.
+
+        Returns
+        -------
+        numpy.ndarray
+            One log-prior contribution per proposal, in input order.
+
+        Raises
+        ------
+        ValueError
+            If the callback does not return a vector of length `size`.
+        """
+        joint = np.asarray(self.custom_joint_prior_batch(params_dict), dtype=float)
+        if joint.shape != (size,):
+            raise ValueError(
+                'Batch joint prior must return one value per proposal.')
+        return joint
+
+    def get_log_prior_batch(self, params):
+        """
+        Evaluate priors for a batch, screening parameter-wise priors first.
+
+        Parameters
+        ----------
+        params : array_like
+            Sampler coordinates shaped (proposals, parameters). Log-space
+            coordinates use the same conversion as `get_log_prior`.
+
+        Returns
+        -------
+        numpy.ndarray
+            Log priors in proposal order, with `-numpy.inf` for rejections.
+            A supplied batch joint callback runs once on the proposals that
+            pass the parameter-wise priors. Without it, scalar prior
+            evaluation is unchanged.
+
+        Raises
+        ------
+        ValueError
+            If input dimensions or the callback output shape are incorrect.
+        """
+        params = np.asarray(params, dtype=float)
+        if params.ndim != 2 or params.shape[1] != len(self.params_to_estimate):
+            raise ValueError('Expected shape (proposals, parameters).')
+        if self.custom_joint_prior_batch is None:
+            return np.array([self.get_log_prior(row) for row in params])
+
+        values = np.exp(params) if self.log_space_parameters else params
+        log_prior = np.array([
+            self._check_parameter_priors(dict(zip(self.params_to_estimate, row)))
+            for row in values
+        ])
+        retained = np.isfinite(log_prior)
+        if np.any(retained):
+            named_values = {
+                name: values[retained, column]
+                for column, name in enumerate(self.params_to_estimate)
+            }
+            log_prior[retained] += self._evaluate_joint_prior_batch(
+                named_values, np.count_nonzero(retained))
+        return np.where(np.isfinite(log_prior), log_prior, -np.inf)
 
     def uniform_prior(self, param_name, param_value):
         """
@@ -525,30 +667,42 @@ class StochasticInference(PIDInterface):
         if self.LL_stoch is None:
             raise RuntimeError("Must call StochasticInference.setup_likelihood_function before using StochasticInference.get_likelihood_function.")
 
-        #Set params
-        params_dict = {}
-        for key, p in zip(self.params_to_estimate, params):
-            if self.log_space_parameters:
-                params_dict[key] = np.exp(p)
-            else:
-                params_dict[key] = p
-
-        #Prior
-        lp = 0
-        lp = self.check_prior(params_dict)
+        lp = self.get_log_prior(params)
         if not np.isfinite(lp):
             return -np.inf
-        else:
-            # Reset to default
-            self.LL_stoch.set_init_params(self.default_parameters)
-            self.LL_stoch.set_init_params(params_dict)
-            if self.debug:
-                print('current sample:', params_dict)
-            LL_stoch_cost = self.LL_stoch.py_log_likelihood()
-            ln_prob = lp + LL_stoch_cost
-            if self.debug:
-                print('current cost total:', ln_prob)
-            return ln_prob
+        ln_prob = lp + self.get_log_likelihood(params)
+        if self.debug:
+            print('current cost total:', ln_prob)
+        return ln_prob
+
+    def get_log_likelihood(self, params):
+        """
+        Evaluate the stochastic log likelihood without evaluating priors.
+
+        Parameters
+        ----------
+        params : array_like
+            Candidate values in sampler coordinates, as in
+            `get_likelihood_function`.
+
+        Returns
+        -------
+        float
+            The log likelihood from `StochasticTrajectoriesLikelihood`.
+
+        Raises
+        ------
+        RuntimeError
+            If called before `setup_likelihood_function`.
+        """
+        if self.LL_stoch is None:
+            raise RuntimeError("Must call StochasticInference.setup_likelihood_function before using StochasticInference.get_log_likelihood.")
+        params_dict = self._params_to_dict(params)
+        self.LL_stoch.set_init_params(self.default_parameters)
+        self.LL_stoch.set_init_params(params_dict)
+        if self.debug:
+            print('current sample:', params_dict)
+        return self.LL_stoch.py_log_likelihood()
 
 # Add a new class similar to this to create new interfaces.
 class DeterministicInference(PIDInterface):
@@ -675,35 +829,42 @@ class DeterministicInference(PIDInterface):
         """
         if self.LL_det is None:
             raise RuntimeError("Must call DeterministicInference.setup_likelihood_function before using DeterministicInference.get_likelihood_function.")
-        #this part is the only part that is called repeatedly
-        params_dict = {}
-        for key, p in zip(self.params_to_estimate, params):
-            if self.log_space_parameters:
-                params_dict[key] = np.exp(p)
-            else:
-                params_dict[key] = p
-
-        # Check prior
-        lp = 0
-        lp = self.check_prior(params_dict)
+        lp = self.get_log_prior(params)
         if not np.isfinite(lp):
             return -np.inf
-        else:
-            # Reset to default
-            self.LL_det.set_init_params(self.default_parameters)
-            # Set new sampler parameter
-            self.LL_det.set_init_params(params_dict)
-            if self.debug:
-                print('current sample:', params_dict)
-            #apply cost function
-            LL_det_cost = self.LL_det.py_log_likelihood()
-            # if self.debug:
-            #     print('current cost:', LL_det_cost)
-            ln_prob = lp + LL_det_cost
-            if self.debug:
-                print('current cost total:', ln_prob)
-            #print("params", params, "ln_prob", ln_prob)
-            return ln_prob
+        ln_prob = lp + self.get_log_likelihood(params)
+        if self.debug:
+            print('current cost total:', ln_prob)
+        return ln_prob
+
+    def get_log_likelihood(self, params):
+        """
+        Evaluate the deterministic log likelihood without evaluating priors.
+
+        Parameters
+        ----------
+        params : array_like
+            Candidate values in sampler coordinates, as in
+            `get_likelihood_function`.
+
+        Returns
+        -------
+        float
+            The log likelihood from `DeterministicLikelihood`.
+
+        Raises
+        ------
+        RuntimeError
+            If called before `setup_likelihood_function`.
+        """
+        if self.LL_det is None:
+            raise RuntimeError("Must call DeterministicInference.setup_likelihood_function before using DeterministicInference.get_log_likelihood.")
+        params_dict = self._params_to_dict(params)
+        self.LL_det.set_init_params(self.default_parameters)
+        self.LL_det.set_init_params(params_dict)
+        if self.debug:
+            print('current sample:', params_dict)
+        return self.LL_det.py_log_likelihood()
 
 class LMFitInference(PIDInterface):
     """

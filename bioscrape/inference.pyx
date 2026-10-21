@@ -1171,7 +1171,8 @@ cdef class StochasticStatesLikelihood(ModelLikelihood):
 def py_inference(Model = None, params_to_estimate = None, exp_data = None, initial_conditions = None,
                  parameter_conditions = None, measurements = None, time_column = None, nwalkers = None, 
                  nsteps = None, init_seed = None, prior = None, sim_type = None, inference_type = 'emcee',
-                 method = 'mcmc', plot_show = True, parallel = None, **kwargs):
+                 method = 'mcmc', plot_show = True, parallel = None,
+                 n_processes = None, **kwargs):
     """
     User-level interface for Bayesian parameter inference.
 
@@ -1238,10 +1239,27 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
         If True, run the sampler with a `multiprocessing.Pool` passed to
         `emcee.EnsembleSampler` for parallel processing. If False (default),
         multiprocessing is not used.
+    n_processes : int, optional
+        Number of worker processes used when `parallel=True`. If None,
+        `multiprocessing.Pool` uses its default process count. Ignored when
+        `parallel=False`.
+    parallel_method : {'pool', 'batched'}, optional
+        With `parallel=True`, 'batched' evaluates all priors in the parent
+        process and sends accepted tuples to persistent likelihood workers.
+        The default, 'pool', uses a per-proposal cost function. Supplied
+        through `kwargs`.
     custom_joint_prior : callable, optional
         Callable receiving a dictionary with all inferred parameter names and
         proposed values and returning a log-prior contribution. A non-finite
         return value rejects the complete parameter tuple.
+    custom_joint_prior_batch : callable, optional
+        Batch equivalent of `custom_joint_prior`, receiving a dictionary of
+        one-dimensional parameter arrays and returning one log-prior
+        contribution per proposal. Parameter-wise priors are checked first.
+        With `parallel_method='batched'`, this callback runs once per batch
+        in the parent process. If both callbacks are supplied, they must
+        describe the same prior and are not added together. A batch-only
+        callback also supports scalar inference using one-proposal batches.
     **kwargs
         Additional keyword arguments passed into the inference setup.
 
@@ -1287,6 +1305,8 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
     if prior is not None:
         pid.set_prior(prior)
     if inference_type == 'emcee' and method == 'mcmc':
+        if n_processes is not None:
+            kwargs['n_processes'] = n_processes
         sampler = pid.run_mcmc(**kwargs)
         if plot_show:
             pid.plot_mcmc_results(sampler, **kwargs)

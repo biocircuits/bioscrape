@@ -164,6 +164,88 @@ complete parameter tuple. For example::
 This option is independent of the parameter-wise entries in ``prior``;
 existing built-in and ``custom`` parameter priors are evaluated first.
 
+Batched parallel inference
+--------------------------
+
+Use ``parallel_method='batched'`` with ``parallel=True`` to evaluate priors
+in the parent process and distribute only the accepted parameter tuples::
+
+    sampler, pid = py_inference(
+        Model=model,
+        params_to_estimate=parameter_names,
+        exp_data=data,
+        measurements=['GFP'],
+        prior=prior,
+        custom_joint_prior=custom_joint_prior,
+        parallel=True,
+        n_processes=4,
+        parallel_method='batched',
+    )
+
+This method supports all existing built-in priors, parameter-wise custom
+priors, and ``custom_joint_prior``. Prior callbacks keep their existing
+signatures and return log-prior contributions. A non-finite log prior
+rejects the tuple before it is sent to a worker. Finite contributions are
+added to the returned log likelihood exactly once. A custom prior can,
+for example, evaluate a trained surrogate model in the parent process.
+
+Each worker constructs its model and deterministic or stochastic likelihood
+once and reuses them across proposals. Tasks carry parameter vectors;
+models and experimental data are sent during worker initialization.
+Results are returned to emcee in proposal order. emcee's proposal and
+acceptance rules are unchanged. The batch callback manages the likelihood
+pool through emcee's ``vectorize=True`` interface; individual prior
+callbacks do not need to accept arrays.
+
+For an expensive joint prior that supports array evaluation, supply the
+optional ``custom_joint_prior_batch`` callback::
+
+    def joint_prior_batch(params):
+        return np.where(params['k1'] <= params['k2'], 0.0, -np.inf)
+
+    sampler, pid = py_inference(
+        Model=model,
+        ...,
+        prior=prior,
+        custom_joint_prior_batch=joint_prior_batch,
+        parallel=True,
+        n_processes=4,
+        parallel_method='batched',
+    )
+
+The dictionary values are one-dimensional arrays of model parameter values,
+with one entry per proposal. Return a one-dimensional array containing one
+log-prior contribution per proposal in the same order. A non-finite entry
+rejects that proposal. The parameter-wise priors run first; only tuples
+passing them reach the batch joint callback. Empty and fully rejected
+batches do not call it. The callback remains in the parent process and is
+not sent to likelihood workers.
+
+``custom_joint_prior`` and ``custom_joint_prior_batch`` are scalar and batch
+implementations of the same contribution. If both are supplied, their
+values must agree: scalar evaluation uses the scalar callback, whereas
+batched evaluation uses the batch callback. Their contributions are never
+added together. A batch-only callback also works with scalar inference,
+using one-proposal batches. Existing scalar callbacks continue to work
+without modification. Callback exceptions and invalid output shapes raise
+errors. Parameter transformations and the inference target are unchanged.
+
+``parallel_method='pool'`` is the default and uses the existing
+per-proposal multiprocessing implementation. Both methods use
+``n_processes`` workers. The batched method records evaluated proposal
+values in the parent object's ``cost_progress`` and ``cost_params``.
+As with serial inference, these histories grow with the number of evaluated
+proposals. Exceptions from priors and likelihood workers propagate to the
+caller.
+
+On systems that spawn worker processes, including Windows, launch inference
+from a script's ``if __name__ == '__main__':`` block. The verification
+notebook ``inference_examples/individual examples/Batched parallel
+inference.ipynb`` exercises numerical agreement, rejection, worker reuse,
+and repeated-batch timing. Stochastic likelihoods retain their existing
+simulation random-number behavior; changing task scheduling can change
+their sampled trajectories.
+
 Data Types
 ~~~~~~~~~~
 
