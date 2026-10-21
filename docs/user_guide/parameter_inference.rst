@@ -197,6 +197,39 @@ acceptance rules are unchanged. The batch callback manages the likelihood
 pool through emcee's ``vectorize=True`` interface; individual prior
 callbacks do not need to accept arrays.
 
+For an expensive joint prior that supports array evaluation, supply the
+optional ``custom_joint_prior_batch`` callback::
+
+    def joint_prior_batch(params):
+        return np.where(params['k1'] <= params['k2'], 0.0, -np.inf)
+
+    sampler, pid = py_inference(
+        Model=model,
+        ...,
+        prior=prior,
+        custom_joint_prior_batch=joint_prior_batch,
+        parallel=True,
+        n_processes=4,
+        parallel_method='batched',
+    )
+
+The dictionary values are one-dimensional arrays of model parameter values,
+with one entry per proposal. Return a one-dimensional array containing one
+log-prior contribution per proposal in the same order. A non-finite entry
+rejects that proposal. The parameter-wise priors run first; only tuples
+passing them reach the batch joint callback. Empty and fully rejected
+batches do not call it. The callback remains in the parent process and is
+not sent to likelihood workers.
+
+``custom_joint_prior`` and ``custom_joint_prior_batch`` are scalar and batch
+implementations of the same contribution. If both are supplied, their
+values must agree: scalar evaluation uses the scalar callback, whereas
+batched evaluation uses the batch callback. Their contributions are never
+added together. A batch-only callback also works with scalar inference,
+using one-proposal batches. Existing scalar callbacks continue to work
+without modification. Callback exceptions and invalid output shapes raise
+errors. Parameter transformations and the inference target are unchanged.
+
 ``parallel_method='pool'`` is the default and uses the existing
 per-proposal multiprocessing implementation. Both methods use
 ``n_processes`` workers. The batched method records evaluated proposal

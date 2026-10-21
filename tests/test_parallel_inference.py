@@ -25,6 +25,14 @@ def _worker_identity(params):
             _evaluate_likelihood(params))
 
 
+def _scalar_coupled_prior(params):
+    return -.25*params['kprod'] if params['kprod'] < 2.5 else -np.inf
+
+
+def _batch_coupled_prior(params):
+    return np.where(params['kprod'] < 2.5, -.25*params['kprod'], -np.inf)
+
+
 class FailingLikelihood(DeterministicInference):
     def get_log_likelihood(self, params):
         raise ValueError('worker likelihood failure')
@@ -186,11 +194,17 @@ def test_worker_exceptions_propagate(inference_setup):
             inference_setup._cost_function_batch([[2., .3]], pool)
 
 
-def test_batched_emcee_matches_serial(inference_setup, tmp_path):
+@pytest.mark.parametrize('joint_mode', ['none', 'scalar_and_batch', 'batch_only'])
+def test_batched_emcee_matches_serial(inference_setup, tmp_path, joint_mode):
     start = np.array([2., .3]) * (1 + .05*np.random.default_rng(2026).normal(size=(8, 2)))
     chains, probabilities = [], []
     for mode in ('serial', 'pool', 'batched'):
         np.random.seed(2026)
+        callbacks = {}
+        if joint_mode != 'none':
+            callbacks['custom_joint_prior_batch'] = _batch_coupled_prior
+        if joint_mode == 'scalar_and_batch':
+            callbacks['custom_joint_prior'] = _scalar_coupled_prior
         sampler, setup = py_inference(
             Model=inference_setup.M, exp_data=inference_setup.exp_data,
             params_to_estimate=inference_setup.params_to_estimate,
@@ -202,7 +216,7 @@ def test_batched_emcee_matches_serial(inference_setup, tmp_path):
             parallel_method='batched' if mode == 'batched' else 'pool',
             plot_show=False, printout=False, progess=False,
             filename_csv=str(tmp_path / (mode+'.csv')),
-            filename_txt=str(tmp_path / (mode+'.txt')))
+            filename_txt=str(tmp_path / (mode+'.txt')), **callbacks)
         chains.append(sampler.get_chain())
         probabilities.append(sampler.get_log_prob())
         if mode == 'batched':
@@ -210,6 +224,31 @@ def test_batched_emcee_matches_serial(inference_setup, tmp_path):
     for chain, prob in zip(chains[1:], probabilities[1:]):
         np.testing.assert_allclose(chain, chains[0], rtol=0, atol=0)
         np.testing.assert_allclose(prob, probabilities[0], rtol=1e-12, atol=1e-12)
+
+
+def test_batch_joint_callback_stays_in_parent(inference_setup):
+    parent_pid = os.getpid()
+    calls = []
+
+    def batch_prior(params):
+        assert os.getpid() == parent_pid
+        calls.append(params)
+        return np.where(params['kprod'] < 3., -.75, -np.inf)
+
+    inference_setup.custom_joint_prior_batch = batch_prior
+    inference_setup.setup_cost_function()
+    config = inference_setup._get_likelihood_worker_config()
+    assert 'custom_joint_prior_batch' not in config['likelihood_kwargs']
+    pickle.dumps(config)
+    params = np.array([[2., .3], [8., .3], [4., .3], [1., .4]])
+    with multiprocessing.get_context('spawn').Pool(
+            1, _initialize_likelihood_worker, (config,)) as pool:
+        actual = inference_setup._cost_function_batch(params, pool)
+    assert len(calls) == 1
+    np.testing.assert_array_equal(calls[0]['kprod'], [2., 4., 1.])
+    assert np.isneginf(actual[[1, 2]]).all()
+    expected = [inference_setup.cost_function(row) for row in params]
+    np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
 
 
 def test_stochastic_batched_inference(inference_setup, tmp_path):

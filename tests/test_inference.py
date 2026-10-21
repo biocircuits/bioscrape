@@ -24,6 +24,10 @@ def joint_prior_for_test(params_dict):
     return -0.25
 
 
+def batch_joint_prior_for_test(params_dict):
+    return np.full(len(params_dict['m']), -0.25)
+
+
 class CountingDeterministicLikelihood:
     def __init__(self):
         self.calls = 0
@@ -124,6 +128,7 @@ def test_getstate(model_setup):
     assert state[21] == IS.hmax
     assert state[22] == IS.parallel
     assert state[23] == IS.custom_joint_prior
+    assert state[24] == IS.custom_joint_prior_batch
 
 def test_setstate(model_setup):
     M, params_to_estimate = model_setup
@@ -143,7 +148,7 @@ def test_setstate(model_setup):
         exp_data, 'stochastic', 'lmfit',
         timepoints, 'T', ['y'], init_conds, None,
         1, 11, None, True, None, None, 1.0,
-        False, joint_prior_for_test
+        False, joint_prior_for_test, batch_joint_prior_for_test
     )
     IS.__setstate__(state)
 
@@ -173,6 +178,8 @@ def test_setstate(model_setup):
     assert state[21] == IS.hmax
     assert state[22] == IS.parallel
     assert state[23] is IS.custom_joint_prior
+    assert state[24] is IS.custom_joint_prior_batch
+    assert IS.pid_interface.custom_joint_prior_batch is batch_joint_prior_for_test
 
 #This test confirms that an hmax passed to the InferenceSetup
 #  constructor actually takes effect. self.hmax was previously stored

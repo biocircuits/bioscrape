@@ -52,6 +52,12 @@ def coupled_prior(params):
     return -.01*(params['kprod']-5.)**2
 
 
+def coupled_prior_batch(params):
+    """Evaluate the same coupled log prior on named parameter arrays."""
+    return np.where(params['kprod'] > 18*params['kdeg'], -np.inf,
+                    -.01*(params['kprod']-5.)**2)
+
+
 def make_setup(n_conditions=6, n_replicates=3, n_timepoints=51, counted=False):
     """Create a two-species CRN and synthetic multi-condition observations."""
     model = Model(

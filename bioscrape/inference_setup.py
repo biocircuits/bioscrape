@@ -102,6 +102,12 @@ class InferenceSetup(object):
         when `sim_type='stochastic'`.
     parallel : bool, default False
         If True, run MCMC sampling with a `multiprocessing.Pool`.
+    custom_joint_prior : callable, optional
+        Additional joint log prior receiving named scalar parameter values.
+    custom_joint_prior_batch : callable, optional
+        Batch equivalent of `custom_joint_prior`. Receives named parameter
+        arrays and returns a vector of log-prior contributions. With batched
+        multiprocessing, it runs in the parent before worker dispatch.
     debug : bool, default False
         If True, print verbose diagnostic messages while preparing and
         running inference.
@@ -154,6 +160,7 @@ class InferenceSetup(object):
         self.hmax = kwargs.get('hmax', None)
         self.parallel = kwargs.get('parallel', False)
         self.custom_joint_prior = kwargs.get("custom_joint_prior", None)
+        self.custom_joint_prior_batch = kwargs.get("custom_joint_prior_batch", None)
         if self.exp_data is not None:
             self.prepare_inference()
             self.setup_cost_function()
@@ -186,7 +193,8 @@ class InferenceSetup(object):
             self.cost_params,
             self.hmax,
             self.parallel,
-            self.custom_joint_prior
+            self.custom_joint_prior,
+            self.custom_joint_prior_batch
             )
 
     def __setstate__(self, state):
@@ -215,6 +223,7 @@ class InferenceSetup(object):
         self.hmax = state[21]
         self.parallel = state[22]
         self.custom_joint_prior = state[23]
+        self.custom_joint_prior_batch = state[24]
         if self.exp_data is not None:
             self.prepare_inference()
             self.setup_cost_function()
@@ -896,6 +905,7 @@ class InferenceSetup(object):
         n_simulations = kwargs.pop('N_simulations', self.N_simulations)
         if self.hmax is not None:
             kwargs.setdefault('hmax', self.hmax)
+        kwargs.setdefault('custom_joint_prior_batch', self.custom_joint_prior_batch)
         if self.sim_type == 'stochastic':
             kwargs.setdefault("custom_joint_prior", self.custom_joint_prior)
             self.pid_interface = StochasticInference(self.params_to_estimate, self.M, self.prior, **kwargs)
@@ -915,7 +925,8 @@ class InferenceSetup(object):
         # Keep resolved likelihood settings, including run-time options.
         # Prior callbacks remain in the parent process.
         likelihood_kwargs = {key: value for key, value in kwargs.items()
-                             if key not in ('custom_joint_prior', 'prior',
+                             if key not in ('custom_joint_prior',
+                                            'custom_joint_prior_batch', 'prior',
                                             'log_space_parameters', 'debug')}
         if self.sim_type == 'stochastic':
             likelihood_kwargs['N_simulations'] = n_simulations
@@ -965,8 +976,7 @@ class InferenceSetup(object):
         """
         from bioscrape.parallel_inference import _evaluate_likelihood
         params = np.asarray(params)
-        log_prior = np.array([self.pid_interface.get_log_prior(row)
-                              for row in params])
+        log_prior = self.pid_interface.get_log_prior_batch(params)
         retained = np.isfinite(log_prior)
         result = np.full(len(params), -np.inf)
         if np.any(retained):

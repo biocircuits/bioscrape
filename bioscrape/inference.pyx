@@ -1252,6 +1252,14 @@ def py_inference(Model = None, params_to_estimate = None, exp_data = None, initi
         Callable receiving a dictionary with all inferred parameter names and
         proposed values and returning a log-prior contribution. A non-finite
         return value rejects the complete parameter tuple.
+    custom_joint_prior_batch : callable, optional
+        Batch equivalent of `custom_joint_prior`, receiving a dictionary of
+        one-dimensional parameter arrays and returning one log-prior
+        contribution per proposal. Parameter-wise priors are checked first.
+        With `parallel_method='batched'`, this callback runs once per batch
+        in the parent process. If both callbacks are supplied, they must
+        describe the same prior and are not added together. A batch-only
+        callback also supports scalar inference using one-proposal batches.
     **kwargs
         Additional keyword arguments passed into the inference setup.
 
